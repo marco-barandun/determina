@@ -1,0 +1,2906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Determinare — species ID trainer</title>
+
+<!--
+  DETERMINARE — a species-identification trainer built on iNaturalist.
+
+  A single static file. No build step, no server, no API key, no libraries.
+  Drop it in a GitHub repo as index.html, turn on GitHub Pages, and it runs.
+
+  What it does:
+    - Shows research-grade iNaturalist photos (or sounds) of the groups + region you pick.
+    - You type the species (with optional "dro rot" -> Drosera rotundifolia help).
+    - Lessons of 10 with a progress bar, streak, and a friendly results screen.
+    - Retry the species you miss (same photos or fresh ones).
+    - Tracks weak spots by family (Poaceae vs Cyperaceae, ...).
+    - Saves named players locally (no login); compare with your past self, or
+      with friends via a copy-paste share-code.
+
+  The <script> is organised into numbered sections, like a tidy R script.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;0,900;1,500;1,600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
+
+<!-- Leaflet: only used for the optional "distribution map" feature (see the
+     "Show distribution & facts" toggle on the setup screen). It's small and
+     loading it unconditionally keeps the rest of the code simpler than
+     injecting <script> tags at runtime. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Google Translate's free website widget: the "Translate this page" field
+     on the setup screen (#google_translate_element). This is the one thing
+     in the app that talks to a third party besides iNaturalist/GBIF/
+     Wikipedia — it ships the page's text to Google to be translated, in
+     exchange for covering every language Google Translate supports (rather
+     than us hand-writing a translation for each one). SIMPLE layout + the
+     CSS further down keep it to a small dropdown instead of the big banner
+     Google shows by default. -->
+<script>
+  function googleTranslateElementInit() {
+    new google.translate.TranslateElement(
+      { pageLanguage: "en", autoDisplay: false,
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE },
+      "google_translate_element"
+    );
+  }
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+<style>
+  /* ====================================================================== */
+  /*  Design tokens — gamified mechanics (streaks, XP, lessons), but styled  */
+  /*  with a more grown-up, botanical-journal palette rather than primary   */
+  /*  colours and toy-block buttons.                                        */
+  /* ====================================================================== */
+  :root {
+    --green:       #4a7c59;   /* primary action / correct — a muted forest green */
+    --green-hover: #588f68;
+    --green-dark:  #34573f;   /* the "pressed" shade under buttons               */
+    --green-soft:  #e7efe3;   /* correct banner background                       */
+    --green-text:  #3f6b4c;
+    --blue:        #4d7c8c;   /* info / secondary — a dusty teal                 */
+    --blue-dark:   #3a616e;
+    --gold:        #b8873c;   /* streak / xp — a warm antique gold               */
+    --red:         #b5563f;   /* wrong — a muted terracotta                      */
+    --red-dark:    #90432f;
+    --red-soft:    #f3e4de;   /* wrong banner background                         */
+    --red-text:    #9c4a34;
+
+    --ink:    #3a352e;        /* main text — warm near-black  */
+    --muted:  #7c7367;        /* secondary                    */
+    --faint:  #a9a094;        /* labels                        */
+    --line:   #e7e1d3;        /* borders — warm parchment      */
+    --line-2: #d8d0bd;
+    --bg:     #fffdf9;        /* warm paper white              */
+    --bg-2:   #f5f0e3;        /* app backdrop — warm cream     */
+
+    --radius: 14px;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;   /* headings & big numbers */
+  }
+
+  /* ====================================================================== */
+  /*  Base                                                                  */
+  /* ====================================================================== */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: linear-gradient(160deg, #f3f5ec 0%, #f1f2ec 45%, #f6f1e6 100%);
+    color: var(--ink);
+    font-family: var(--font);
+    font-weight: 700;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 560px; margin: 0 auto; min-height: 100vh; background: var(--bg); position: relative;
+         box-shadow: 0 0 40px rgba(0,0,0,.04); }
+  /* On anything wider than a phone, let the app float as a card with room to
+     breathe, rather than stretching a phone-shaped column across the screen. */
+  @media (min-width: 620px) {
+    .app { margin: 32px auto; border-radius: 28px; overflow: hidden; min-height: 0;
+      box-shadow: 0 24px 60px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.06); }
+  }
+  .screen { display: flex; flex-direction: column; min-height: 100vh; }
+  .hidden { display: none !important; }
+  i { font-style: italic; }
+
+  /* ---- Buttons: still tactile, but an elegant press rather than a toy one -- */
+  .btn {
+    font-family: var(--font); font-weight: 700; font-size: 15px;
+    border: none; border-radius: 12px; padding: 14px 18px; cursor: pointer;
+    transition: transform .1s ease, box-shadow .15s ease, background .15s ease, filter .1s ease;
+    user-select: none; box-shadow: 0 2px 6px rgba(58,53,46,.15);
+  }
+  .btn:active { transform: scale(.97); box-shadow: 0 1px 3px rgba(58,53,46,.15); }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-primary:hover { background: var(--green-hover); }
+  .btn-primary:disabled {
+    background: var(--line); color: var(--faint); box-shadow: none; cursor: default; transform: none;
+  }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-blue:hover { filter: brightness(1.06); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-ghost {
+    background: var(--bg); color: var(--muted); border: 1.5px solid var(--line);
+    box-shadow: none; font-weight: 700;
+  }
+  .btn-ghost:hover { background: var(--bg-2); }
+  .btn-big { font-size: 16px; padding: 15px; width: 100%; }
+  .btn-link {
+    background: none; border: none; color: var(--blue); font-family: var(--font);
+    font-weight: 700; cursor: pointer; font-size: 14px; padding: 6px;
+  }
+  .btn-link:hover { color: var(--blue-dark); text-decoration: underline; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--faint); padding: 6px; display: grid; place-items: center; }
+  .icon-btn:hover { color: var(--muted); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* ---- Inputs / selects ------------------------------------------------ */
+  .input, .select {
+    width: 100%; font-family: var(--font); font-weight: 700; font-size: 16px;
+    color: var(--ink); background: var(--bg-2);
+    border: 2px solid var(--line); border-radius: 12px; padding: 13px 14px;
+  }
+  .input:focus, .select:focus { outline: none; border-color: var(--blue); background: var(--bg); }
+  .input::placeholder { color: var(--faint); font-weight: 700; }
+
+  /* ---- Search + suggestion dropdown ------------------------------------ */
+  .search { position: relative; }
+  .suggest {
+    position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px);
+    background: var(--bg); border: 2px solid var(--line); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 10px 30px rgba(58,53,46,.14);
+    max-height: 300px; overflow-y: auto;
+  }
+  .suggest-item { padding: 11px 14px; cursor: pointer; display: flex; align-items: baseline; gap: 8px; }
+  .suggest-item:hover, .suggest-item.active { background: var(--bg-2); }
+  .suggest-item .sci { font-style: italic; }
+  .suggest-item .meta { color: var(--muted); font-weight: 700; font-size: 13px; }
+  .suggest-item .rank { color: var(--faint); font-size: 12px; text-transform: uppercase; margin-left: auto; }
+
+  /* ---- Chips ------------------------------------------------------------ */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .chip {
+    background: var(--bg); border: 1.5px solid var(--line);
+    color: var(--muted); border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .chip:hover { background: var(--bg-2); color: var(--ink); }
+  .chip.sci { font-style: italic; }
+  .chip[disabled] { opacity: .5; cursor: default; }
+  .chip.active { background: var(--blue); border-color: var(--blue-dark); color: #fff; }
+
+  /* ====================================================================== */
+  /*  Setup screen                                                          */
+  /* ====================================================================== */
+  .setup { padding: 26px 18px 30px; gap: 4px; }
+  .brand { text-align: center; margin-bottom: 18px; }
+  .mascot { width: 84px; height: 84px; margin: 0 auto 8px; }
+  .brand h1 { font-family: var(--font-display); font-size: 32px; font-weight: 600; font-style: italic;
+              color: var(--green-dark); margin: 0; }
+  .brand .tagline { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
+  .card {
+    background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 18px; margin-bottom: 16px;
+  }
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-label { font-size: 13px; font-weight: 800; color: var(--faint); text-transform: uppercase;
+                 letter-spacing: .08em; margin-bottom: 8px; }
+  .player-row { display: flex; gap: 8px; }
+  .player-row .select { flex: 1; }
+  .player-row .input { flex: 1; }
+
+  /* toggle switch */
+  .toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .toggle > span:first-child { flex: 1; }
+  .toggle b { display: block; font-weight: 800; }
+  .hint { color: var(--muted); font-weight: 700; font-size: 13px; }
+  .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .toggle .switch { flex: none; width: 52px; height: 30px; border-radius: 999px;
+    background: var(--line-2); position: relative; transition: background .15s; }
+  .toggle .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .toggle input:checked + .switch { background: var(--green); }
+  .toggle input:checked + .switch::after { transform: translateX(22px); }
+
+  .setup .btn-big { margin-bottom: 10px; }
+
+  /* Google Translate's widget: hide the big "this page has been translated"
+     banner it shows across the top of the whole viewport by default (it
+     doesn't fit this app's look, and it shoves the page down by adding an
+     inline top offset to <body> — both undone here), keeping just the small
+     language dropdown we placed in the setup field. The banner iframe's own
+     class is Closure-obfuscated and not stable across Google's builds, so
+     this targets it structurally instead: it's the one direct child of
+     <body> that Google marks with its "don't translate me" class. */
+  body > .skiptranslate { display: none !important; }
+  body { top: 0 !important; }
+  #google_translate_element .goog-te-gadget {
+    font-family: var(--font) !important; font-size: 13px; color: var(--muted);
+  }
+  #google_translate_element .goog-te-gadget-simple {
+    background: var(--bg-2); border: 2px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; display: inline-block;
+  }
+
+  /* ====================================================================== */
+  /*  Play screen                                                           */
+  /* ====================================================================== */
+  .play { padding: 0; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 16px 10px; }
+  .progress { flex: 1; height: 16px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--green); border-radius: 999px;
+    transition: width .35s ease; position: relative; }
+  .progress-fill::after { content: ""; position: absolute; left: 8px; right: 8px; top: 3px; height: 4px;
+    background: rgba(255,255,255,.35); border-radius: 999px; }
+  .progress-count { flex: 1; text-align: center; font-weight: 800; font-size: 14px; color: var(--muted); }
+  .streak-chip { display: flex; align-items: center; gap: 4px; color: var(--gold); font-weight: 900; font-size: 17px; }
+  .streak-chip svg { width: 20px; height: 20px; }
+  .streak-chip.cold { color: var(--faint); }
+
+  .play-main { flex: 1; padding: 6px 18px 16px; display: flex; flex-direction: column; }
+  .learn-label { align-self: flex-start; background: var(--bg-2); border: 2px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  .photo-card {
+    position: relative; width: 100%; aspect-ratio: 4/3; background: #f1eee3;
+    border: 2px solid var(--line); border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 6px 16px rgba(58,53,46,.08);
+  }
+  /* The strip holds one full-width slot per photo; the browser's own scroll-snap
+     is what lets you swipe or scroll between them — no extra JS needed for that part. */
+  .photo-strip {
+    display: flex; width: 100%; height: 100%; overflow-x: auto;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .photo-strip::-webkit-scrollbar { display: none; }
+  /* object-fit: contain (not "cover") so the whole photo is always visible —
+     nothing gets cropped to fill the frame. */
+  .photo-strip img {
+    flex: 0 0 100%; width: 100%; height: 100%; object-fit: contain;
+    background: var(--bg-2); display: block; scroll-snap-align: start;
+  }
+  .photo-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  /* One slot of the sound-mode "gallery" — same strip/scroll-snap mechanics
+     as a photo slot, just centering an icon + native audio player instead. */
+  .sound-slot {
+    flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: var(--bg-2); padding: 20px;
+  }
+  .sound-slot .sound-icon { width: 60px; height: 60px; color: var(--blue); }
+  .sound-slot audio { width: 100%; max-width: 300px; }
+  .photo-nav {
+    position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px;
+    border-radius: 50%; background: rgba(0,0,0,.4); border: none; color: #fff;
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .photo-nav:hover { background: rgba(0,0,0,.6); }
+  .photo-nav svg { width: 18px; height: 18px; }
+  .photo-nav.prev { left: 8px; } .photo-nav.next { right: 8px; }
+  .photo-nav.expand { top: 10px; left: 10px; transform: none; }
+  .photo-count {
+    position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff;
+    font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px;
+  }
+
+  /* ---- The full-screen zoom lightbox ------------------------------------ */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 60; background: rgba(10,10,10,.94);
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none;   /* we handle pinch/pan ourselves, instead of the page doing it */
+  }
+  .lightbox-stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .lightbox-stage img {
+    max-width: 100%; max-height: 100%; touch-action: none; user-select: none;
+    -webkit-user-drag: none; will-change: transform;
+  }
+  .lightbox-btn {
+    position: absolute; border: none; border-radius: 50%; background: rgba(255,255,255,.15);
+    color: #fff; display: grid; place-items: center; cursor: pointer;
+  }
+  .lightbox-btn:hover { background: rgba(255,255,255,.28); }
+  .lightbox-btn.close { top: 14px; right: 14px; width: 42px; height: 42px; }
+  .lightbox-btn.close svg { width: 20px; height: 20px; }
+  .lightbox-btn.nav { top: 50%; transform: translateY(-50%); width: 46px; height: 46px; }
+  .lightbox-btn.nav svg { width: 22px; height: 22px; }
+  .lightbox-btn.nav.prev { left: 14px; } .lightbox-btn.nav.next { right: 14px; }
+  .lightbox-count {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,255,255,.15); color: #fff; font-size: 13px; font-weight: 800;
+    padding: 5px 14px; border-radius: 999px;
+  }
+  .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 8px 2px 0; }
+  .credit a { color: var(--faint); }
+  .prompt { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 18px 2px 12px; }
+  .answer-input { font-size: 20px; font-style: italic; padding: 15px; }
+
+  /* bottom action bar + the slide-up feedback banner */
+  .bottombar { position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); }
+  .action-row { display: flex; gap: 12px; align-items: center; }
+  .action-row .btn-ghost { flex: none; }
+  .action-row .btn-primary { flex: 1; }
+  .feedback { display: none; }
+  .feedback.show { display: block; animation: slideUp .2s ease; }
+  /* fb-* is shared between the feedback banner and the learn-more pop-up's
+     result header (see .learn-result below) — kept unscoped so both can use it. */
+  .fb-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .fb-icon {
+    width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; flex: none;
+    background: #fbf3e4; border: 2px solid var(--line);
+  }
+  .fb-icon svg { width: 52px; height: 52px; }
+  .fb-icon.legendary { animation: wiggle .5s ease-in-out infinite; }
+  .fb-combo { font-size: 13px; font-weight: 800; color: var(--gold); margin: 1px 0 2px; }
+  .fb-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
+  .fb-name { font-style: italic; font-weight: 800; }
+  .fb-common { font-style: normal; font-weight: 700; color: inherit; opacity: .8; }
+  .fb-you { display: block; font-weight: 700; font-size: 13px; opacity: .8; margin-top: 2px; }
+  .fb-learn {
+    display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 800;
+    color: var(--blue); text-decoration: none;
+  }
+  .fb-learn:hover { text-decoration: underline; }
+  .feedback.correct, .learn-result.correct { color: var(--green-text); }
+  .feedback.wrong, .learn-result.wrong { color: var(--red-text); }
+  .feedback .btn { width: 100%; }
+  .learn-result { margin-bottom: 6px; }
+  .feedback.correct .btn { background: var(--green); }
+  .feedback.wrong .btn { background: var(--red); }
+
+  /* the optional distribution map + facts, shown as a pop-up when "Show
+     distribution & facts" is switched on at setup */
+  .learn-popup {
+    position: fixed; inset: 0; z-index: 55; background: rgba(58,53,46,.55);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .learn-popup-card {
+    position: relative; background: var(--bg); border-radius: var(--radius);
+    max-width: 480px; width: 100%; max-height: 86vh; overflow-y: auto;
+    padding: 20px; box-shadow: 0 24px 60px rgba(58,53,46,.28);
+  }
+  .learn-popup-close { position: absolute; top: 8px; right: 8px; }
+  .learn-popup-card h3 {
+    font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--faint); margin: 16px 0 8px;
+  }
+  .learn-popup-card > h3:first-of-type { margin-top: 4px; }
+  .learn-popup-card .btn { margin-top: 18px; }
+  .learn-map { width: 100%; height: 200px; border-radius: 10px; overflow: hidden; background: #f1eee3; border: 2px solid var(--line); }
+  .learn-facts p { font-size: 14px; line-height: 1.5; margin: 0 0 6px; }
+  .learn-loading, .learn-empty { font-size: 13px; color: var(--muted); padding: 10px 2px; }
+  #learnWikiLink {
+    display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 800;
+    color: var(--blue); text-decoration: none;
+  }
+  #learnWikiLink:hover { text-decoration: underline; }
+  .learn-obs-note { font-size: 11px; color: var(--faint); font-weight: 700; line-height: 1.5; margin: 12px 2px 0; }
+  .learn-obs-note a { color: var(--faint); text-decoration: underline; }
+
+  /* ====================================================================== */
+  /*  Results (lesson complete) screen                                      */
+  /* ====================================================================== */
+  .done { padding: 30px 18px; align-items: center; justify-content: center; text-align: center; gap: 0; }
+  .done h2 { font-family: var(--font-display); font-size: 28px; font-weight: 600; color: var(--gold); margin: 14px 0 4px; }
+  .done .sub { color: var(--muted); margin: 0 0 22px; }
+  .done .stat-cards { display: flex; gap: 12px; width: 100%; margin-bottom: 26px; }
+  .stat-card { flex: 1; border: 3px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .stat-card .top { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+    color: #fff; padding: 4px; }
+  .stat-card .val { font-size: 24px; font-weight: 900; padding: 8px 4px; }
+  .stat-card.gold { border-color: var(--gold); } .stat-card.gold .top { background: var(--gold); } .stat-card.gold .val { color: var(--gold); }
+  .stat-card.green { border-color: var(--green); } .stat-card.green .top { background: var(--green); } .stat-card.green .val { color: var(--green); }
+  .stat-card.blue { border-color: var(--blue); } .stat-card.blue .top { background: var(--blue); } .stat-card.blue .val { color: var(--blue); }
+  .done .btn { width: 100%; margin-bottom: 10px; }
+  .done .mascot { width: 72px; height: 72px; }
+
+  /* ====================================================================== */
+  /*  Progress panel (weak spots / over time / vs others)                   */
+  /* ====================================================================== */
+  .panel { padding: 18px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .panel-head h2 { font-family: var(--font-display); font-size: 24px; font-weight: 600; margin: 0; }
+  .tabs { display: flex; gap: 6px; background: var(--bg-2); padding: 5px; border-radius: 12px; margin: 12px 0 16px; }
+  .tab { flex: 1; border: none; background: none; font-family: var(--font); font-weight: 700; font-size: 13.5px;
+    color: var(--muted); padding: 9px 6px; border-radius: 9px; cursor: pointer; }
+  .tab.active { background: var(--bg); color: var(--ink); box-shadow: 0 1px 4px rgba(58,53,46,.1); }
+  .panel-sub { color: var(--muted); font-size: 13px; font-weight: 700; margin: 0 0 14px; }
+  .panel h3 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--faint); margin: 20px 0 10px; }
+
+  /* the accuracy donut + quick counts, sitting above the Family/Genus/Species bars */
+  .wk-overview { display: flex; align-items: center; gap: 16px; margin: 6px 0 16px; }
+  .wk-donut { flex: none; }
+  .wk-overview-stats { display: flex; flex-direction: column; gap: 4px; }
+  .wk-overview-line { font-size: 15px; font-weight: 800; }
+  .wk-overview-line.muted { font-size: 13px; font-weight: 700; color: var(--muted); }
+  .level-switch { margin-bottom: 4px; }
+
+  .wk-row { display: grid; grid-template-columns: minmax(0,1fr) 80px 46px; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .wk-row.now .wk-label .fam { color: var(--blue); }
+  .wk-label { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .wk-label .fam { font-weight: 800; }
+  .wk-label .sci { font-weight: 800; font-style: italic; }
+  .wk-count { color: var(--faint); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .wk-track { height: 12px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .wk-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+  .wk-fill.weak { background: var(--red); } .wk-fill.ok { background: var(--gold); } .wk-fill.strong { background: var(--green); }
+  .wk-pct { font-weight: 900; text-align: right; }
+  .wk-species { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 2px solid var(--line); }
+  .wk-species .sci { font-style: italic; font-weight: 800; }
+  .wk-species .fam { font-weight: 800; }
+  .wk-species .delta.up { color: var(--green); } .wk-species .delta.down { color: var(--red); }
+
+  .cmp-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 2px solid var(--line);
+    border-radius: 12px; margin-bottom: 8px; }
+  .cmp-row.you { border-color: var(--green); background: var(--green-soft); }
+  .cmp-rank { font-weight: 900; color: var(--faint); width: 22px; }
+  .cmp-name { font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmp-acc { font-weight: 900; }
+  .code-box { display: flex; gap: 8px; margin-bottom: 6px; }
+  .code-box .input { font-size: 13px; font-weight: 700; }
+  .code-box .btn { flex: none; }
+
+  .empty { color: var(--muted); font-weight: 700; padding: 30px 6px; text-align: center; }
+
+  /* ---- Spinner / toast ------------------------------------------------- */
+  .spinner { width: 30px; height: 30px; border-radius: 50%; border: 4px solid var(--line);
+    border-top-color: var(--green); animation: spin .8s linear infinite; }
+  .busy { flex: 1; display: grid; place-items: center; gap: 12px; color: var(--muted); text-align: center; padding: 40px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 800;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 100; opacity: 0; transition: opacity .2s; pointer-events: none;
+    max-width: 90%; text-align: center; }
+  #toast.show { opacity: 1; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes pop { 0%{transform:scale(1);} 40%{transform:scale(1.05);} 100%{transform:scale(1);} }
+  .pop { animation: pop .3s ease; }
+  /* The "legendary" mood (a long streak) gets a little extra chaos on top of .pop. */
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(-9deg) scale(1.07); }
+    75% { transform: rotate(9deg) scale(1.07); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- ============================ SETUP ============================ -->
+  <section id="setup" class="screen setup">
+    <div class="brand">
+      <div class="mascot">
+        <svg viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="48" fill="#eef1e4"/>
+          <path d="M50 78 V44" stroke="#34573f" stroke-width="7" stroke-linecap="round"/>
+          <path d="M50 52 C34 52 26 40 28 28 C42 28 52 38 50 52Z" fill="#4a7c59"/>
+          <path d="M50 46 C64 46 74 36 72 24 C58 24 48 34 50 46Z" fill="#7aa584"/>
+        </svg>
+      </div>
+      <h1>Determinare</h1>
+      <p class="tagline">Learn to name species from real photos and sounds.</p>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <div class="field-label">Playing as</div>
+        <div class="player-row">
+          <select id="profileSelect" class="select"></select>
+          <button id="renameProfileBtn" class="icon-btn" type="button" aria-label="Rename this player">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
+        <input id="renameInput" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
+        <input id="newProfileName" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
+      </div>
+
+      <div class="field">
+        <div class="field-label">How do you want to identify?</div>
+        <div id="mediaChips" class="chips"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Translate this page</div>
+        <div id="google_translate_element"></div>
+        <div class="hint" style="margin-top:6px;">Powered by Google Translate — translates the whole app, including species names. Sends the page's text to Google.</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">What do you want to learn?</div>
+        <div class="search">
+          <input id="taxonSearch" class="input" placeholder="Search a group — Plantae, Poaceae, Carex…" autocomplete="off" spellcheck="false">
+          <div id="taxonSuggest" class="suggest hidden"></div>
+        </div>
+        <div id="taxonChips" class="chips"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Where?</div>
+        <div class="search">
+          <input id="regionSearch" class="input" placeholder="Search a place — pick more than one if you like" autocomplete="off" spellcheck="false">
+          <div id="regionSuggest" class="suggest hidden"></div>
+        </div>
+        <div id="regionChips" class="chips"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">How many species?</div>
+        <div id="roundSizeChips" class="chips"></div>
+      </div>
+
+      <label class="toggle field">
+        <span>
+          <b>Repeat species</b>
+          <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
+        </span>
+        <input id="repeatToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field" style="margin-bottom:0;">
+        <span>
+          <b>Show distribution &amp; facts after each answer</b>
+          <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
+        </span>
+        <input id="learnMoreToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field" style="margin-bottom:0;">
+        <span>
+          <b>Suggest names as I type</b>
+          <span class="hint">Type <i>dro rot</i> → pick <i>Drosera rotundifolia</i>. Turn off to type every name in full.</span>
+        </span>
+        <input id="assistToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field" style="margin-bottom:0;">
+        <span>
+          <b>Answer with common names</b>
+          <span class="hint">Type <i>dandelion</i> instead of <i>Taraxacum officinale</i>. Species without a common name still fall back to the scientific one.</span>
+        </span>
+        <input id="commonNamesToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+    </div>
+
+    <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
+    <button id="progressBtnSetup" class="btn btn-ghost btn-big">My progress</button>
+  </section>
+
+  <!-- ============================ PLAY ============================ -->
+  <section id="play" class="screen play hidden">
+    <header class="topbar">
+      <button id="quitBtn" class="icon-btn" aria-label="Finish and see results">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div id="progressWrap" class="progress"><div id="progressFill" class="progress-fill"></div></div>
+      <div id="progressCount" class="progress-count hidden"></div>
+      <div id="streakChip" class="streak-chip cold">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3-1 4-2 6-1 2 0 4 2 4 1 0 2-1 2-3 2 2 3 4 3 6a5 5 0 11-10 0c0-4 3-6 5-13z"/></svg>
+        <span id="streakTop">0</span>
+      </div>
+    </header>
+
+    <main id="playMain" class="play-main">
+      <div id="learnLabel" class="learn-label"></div>
+      <!-- This markup is duplicated in clearBusy() below (JS rebuilds it after a
+           busy screen) — keep the two in sync if you change this structure. -->
+      <div class="photo-card">
+        <div id="photoLoading" class="photo-loading"><div class="spinner"></div></div>
+        <div id="photoStrip" class="photo-strip"></div>
+        <button id="photoExpand" class="photo-nav expand" aria-label="View full-screen, with zoom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>
+        </button>
+        <button id="photoPrev" class="photo-nav prev hidden" aria-label="Previous photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button id="photoNext" class="photo-nav next hidden" aria-label="Next photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <span id="photoCount" class="photo-count hidden"></span>
+      </div>
+      <div id="credit" class="credit"></div>
+      <h2 id="promptText" class="prompt">What species is this?</h2>
+      <div class="search answer">
+        <input id="answerInput" class="input answer-input" placeholder="Type the species" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <div id="answerSuggest" class="suggest hidden"></div>
+      </div>
+    </main>
+
+    <div class="bottombar">
+      <div id="feedback" class="feedback"></div>
+      <div id="actionRow" class="action-row">
+        <button id="skipBtn" class="btn btn-ghost">Skip for now</button>
+        <button id="checkBtn" class="btn btn-primary" disabled>Check</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ DONE ============================ -->
+  <section id="done" class="screen done hidden">
+    <div id="doneContent" style="width:100%;"></div>
+  </section>
+
+  <!-- ============================ PROGRESS PANEL ============================ -->
+  <section id="progressPanel" class="screen panel hidden"></section>
+
+  <div id="toast"></div>
+</div>
+
+<!-- ============================ PHOTO LIGHTBOX ============================
+     A full-screen zoomable view of the current photo. Lives outside .app (it's
+     position:fixed, so that doesn't matter for layout) so it always covers the
+     whole viewport regardless of which screen is showing underneath. -->
+<div id="lightbox" class="lightbox hidden">
+  <button id="lightboxClose" class="lightbox-btn close" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <button id="lightboxPrev" class="lightbox-btn nav prev hidden" aria-label="Previous photo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+  </button>
+  <button id="lightboxNext" class="lightbox-btn nav next hidden" aria-label="Next photo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div id="lightboxStage" class="lightbox-stage">
+    <img id="lightboxImg" alt="Species photo, zoomed in">
+  </div>
+  <span id="lightboxCount" class="lightbox-count hidden"></span>
+</div>
+
+<!-- ============================ LEARN-MORE POPUP ===========================
+     The distribution map + facts, shown as a pop-up over the feedback banner
+     when "Show distribution & facts" is switched on. Static markup, like the
+     lightbox — it's shown/hidden and its contents refilled each question,
+     rather than being rebuilt from scratch every time. -->
+<div id="learnPopup" class="learn-popup hidden">
+  <div class="learn-popup-card">
+    <button id="learnPopupClose" class="icon-btn learn-popup-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div id="learnResultHeader" class="learn-result"></div>
+    <h3>Where in the world?</h3>
+    <div id="learnMap" class="learn-map"><div class="learn-loading">Loading map…</div></div>
+    <div id="learnEtymologySection" class="hidden">
+      <h3>Etymology</h3>
+      <div id="learnEtymology" class="learn-facts"><div class="learn-loading">Loading…</div></div>
+    </div>
+    <h3>Ecology</h3>
+    <div id="learnEcology" class="learn-facts"><div class="learn-loading">Loading…</div></div>
+    <a id="learnWikiLink" href="#" target="_blank" rel="noopener">Read more on Wikipedia →</a>
+    <div id="learnObsNote" class="learn-obs-note"></div>
+    <button id="learnPopupContinue" class="btn btn-primary btn-big">Continue</button>
+  </div>
+</div>
+
+<script>
+// ==========================================================================
+//  DETERMINARE
+// --------------------------------------------------------------------------
+//  1. Configuration & small helpers
+//  2. Talking to the iNaturalist API
+//  3. Turning observations into quiz questions
+//  4. Game state
+//  5. Players & scoring, saved in the browser (no login)
+//  6. Weak spots, milestones & share-codes
+//  7. Autocomplete (setup pickers + the "dro rot" answer matcher)
+//  8. Setup screen
+//  9. Playing a lesson (questions, checking, review)
+// 10. Rendering (screens, feedback, results, progress panel)
+// 11. Wiring up the controls
+// 12. Start-up
+// ==========================================================================
+
+
+// == 1. Configuration & small helpers =====================================
+
+const API        = "https://api.inaturalist.org/v1";
+const PER_PAGE   = 200;   // observations per request (the API allows up to 200)
+const MAX_PAGE   = 50;    // observations only page through the first 10'000 results
+// How many species per round — offered as choices rather than one fixed
+// number. "No limit" is plain Infinity: every place that compares against
+// round.size already works correctly with Infinity with no special-casing,
+// except the progress bar, which switches to a running count instead (see
+// updateProgress()).
+const ROUND_SIZE_OPTIONS = [
+  { label: "10", value: 10 },
+  { label: "50", value: 50 },
+  { label: "100", value: 100 },
+  { label: "No limit", value: Infinity },
+];
+const DEFAULT_ROUND_SIZE = 10;
+// iNaturalist tracks photo and sound observations the same way (a quality
+// grade, a taxon, and a media array) — "media" here just says which of those
+// arrays we require and display.
+const MEDIA_OPTIONS = [
+  { label: "📷 By photo", value: "photo" },
+  { label: "🔊 By sound", value: "sound" },
+];
+const DEFAULT_MEDIA = "photo";
+// The word for the current media type, singular or plural — used anywhere
+// status text would otherwise hardcode "photo" regardless of quiz mode.
+const mediaWord = (plural) => (game.media === "sound" ? "sound" : "photo") + (plural ? "s" : "");
+const TOP_UP_AT  = 5;     // refill the question queue when it drops this low
+const MAX_MEDIA_PER_QUESTION = 6;   // cap the photo/sound gallery per species shown
+const PLANTAE_ID = 47126; // the Plantae kingdom id (stable) — the default group
+
+const el = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Lower-case, trim, and collapse runs of whitespace to a single space.
+const normalize = (text) => (text || "").toLowerCase().trim().replace(/\s+/g, " ");
+
+// Escape text before putting it into innerHTML — names come from people.
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (ch) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+function shuffle(array) {
+  const out = array.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Edit distance, used to forgive small typos in answers.
+function levenshtein(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const temp = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = temp;
+    }
+  }
+  return row[b.length];
+}
+
+// Run a function only after the user stops typing for `ms` — for live search.
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+}
+
+let toastTimer;
+function toast(message) {
+  const box = el("toast");
+  box.textContent = message;
+  box.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => box.classList.remove("show"), 2600);
+}
+
+
+// == 2. Talking to the iNaturalist API =====================================
+//  Every call is a plain GET, which the API allows from the browser (CORS).
+//  No key or login is needed to read public data. We retry once on failure
+//  and time out slow requests, so a flaky connection doesn't hang the app.
+
+async function apiGet(path, params, tries = 2) {
+  const url = new URL(API + path);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== "") url.searchParams.set(key, value);
+  });
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (response.status === 429) throw new Error("busy");   // rate-limited
+      if (!response.ok) throw new Error("http " + response.status);
+      return await response.json();
+    } catch (err) {
+      if (attempt === tries) throw err;
+      await sleep(700);
+    }
+  }
+}
+
+// Live search for a taxon (group). Returns up to `n` matches for a dropdown.
+async function searchTaxa(query, n = 8) {
+  const data = await apiGet("/taxa/autocomplete", { q: query, per_page: n });
+  return (data.results || []).filter((t) => t.is_active !== false).map((t) => ({
+    id: t.id, name: t.name, rank: t.rank || "",
+    commonName: t.preferred_common_name || "",
+  }));
+}
+
+// Live search for a place. "World" is represented by a null id (no filter).
+async function searchPlaces(query, n = 8) {
+  const data = await apiGet("/places/autocomplete", { q: query, per_page: n });
+  return (data.results || []).map((p) => ({ id: p.id, name: p.display_name || p.name }));
+}
+
+// The region's species list, most-observed first — powers the name suggestions.
+// iNaturalist's species_counts endpoint is a count aggregation, not a normal
+// paged list, and it's only reliable for its first ~500 results: paging past
+// that point is known to return errors or duplicate data (an iNaturalist API
+// limitation, not something we can page around). So we take that one reliable
+// page — which already covers the common species for almost any region — and
+// let the checklist grow the rest of the way during play: growChecklist()
+// (below) adds every species you're actually shown, so nothing you see on
+// screen is ever unspellable, even once we're past this initial list.
+async function fetchTopSpecies(taxonIds, placeId) {
+  const data = await apiGet("/observations/species_counts", {
+    taxon_id: taxonIds, place_id: placeId, quality_grade: "research", per_page: 500, page: 1,
+  });
+  return (data.results || []).map((row) => ({
+    id: row.taxon.id, scientificName: row.taxon.name,
+    commonName: row.taxon.preferred_common_name || "", count: row.count || 0,
+  }));
+}
+
+// A page of research-grade observations that have the chosen media (photo or
+// sound) and a species ID.
+function fetchObservations(taxonIds, placeId, page, perPage = PER_PAGE) {
+  const params = {
+    taxon_id: taxonIds, place_id: placeId, quality_grade: "research",
+    rank: "species", page, per_page: perPage,
+  };
+  params[game.media === "sound" ? "sounds" : "photos"] = "true";
+  return apiGet("/observations", params);
+}
+
+
+// == 3. Turning observations into quiz questions ===========================
+
+const biggerPhoto = (url) => url.replace("/square.", "/large.");
+
+function toQuestions(observations) {
+  const wantSound = game.media === "sound";
+  return (observations || [])
+    .filter((obs) => obs.taxon && obs.taxon.name &&
+      (wantSound ? (obs.sounds || []).length > 0 : (obs.photos || []).length > 0))
+    .filter((obs) => obs.taxon.name.trim().split(/\s+/).length >= 2)   // a real binomial
+    .map((obs) => {
+      const base = {
+        observationId: obs.id,
+        taxonId: obs.taxon.id,
+        scientificName: obs.taxon.name,
+        commonName: obs.taxon.preferred_common_name || "",
+      };
+      if (wantSound) {
+        // Keep every clip of the observation (capped, same idea as photos
+        // below). soundUrl/attribution stay as a convenient alias for the
+        // first clip, since the review pile only ever needs one.
+        const sounds = obs.sounds.slice(0, MAX_MEDIA_PER_QUESTION)
+          .map((sound) => ({ url: sound.file_url, attribution: sound.attribution || "" }));
+        return { ...base, sounds, soundUrl: sounds[0].url, attribution: sounds[0].attribution };
+      }
+      // Keep every photo of the observation (capped, so a heavily-photographed
+      // record doesn't turn into an endless strip). photoUrl/attribution stay
+      // as a convenient alias for the first photo, since a few other places
+      // (the review pile) only ever need one representative image.
+      const photos = obs.photos.slice(0, MAX_MEDIA_PER_QUESTION)
+        .map((photo) => ({ url: biggerPhoto(photo.url), attribution: photo.attribution || "" }));
+      return { ...base, photos, photoUrl: photos[0].url, attribution: photos[0].attribution };
+    });
+}
+
+
+// == 4. Game state =========================================================
+
+const game = {
+  // Chosen on the setup screen:
+  taxa: [{ id: PLANTAE_ID, name: "Plantae" }],   // one or more groups (with real ids)
+  taxaTouched: false,   // becomes true on your first deliberate pick — see addTaxon()
+  regions: [{ id: null, name: "World" }],   // one or more places — "World" means no place filter at all
+  regionsTouched: false,   // becomes true on your first deliberate pick — see addRegion()
+  media: DEFAULT_MEDIA,    // "photo" or "sound" — which iNaturalist media type to quiz on
+  assist: true,
+  useCommonNames: false,   // type/match against the common name instead of the scientific one
+  learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
+  roundSize: DEFAULT_ROUND_SIZE,   // how many species per round — Infinity means "no limit"
+  allowRepeats: true,              // false = every species appears at most once per round
+  taxonIds: String(PLANTAE_ID),
+  placeId: null,
+  label: "Plantae · World",
+
+  // The pool of upcoming questions:
+  queue: [], seen: new Set(), maxPage: 1, fetching: false,
+  checklist: [],            // whole-region species list, powers name suggestions
+  current: null, answered: false,
+
+  // The current lesson:
+  mode: "normal",           // "normal" or "review"
+  round: { size: DEFAULT_ROUND_SIZE, index: 0, correct: 0 },
+  streak: 0,
+  askedTaxa: new Set(),     // species already asked this round — used when allowRepeats is off
+  roundLog: [],             // every species actually answered this round, for the end-of-round overview
+
+  // The review pile (species you got wrong):
+  missed: new Map(),        // taxonId -> { taxonId, scientificName, commonName, photos: [] }
+  reviewQueue: [],
+
+  // Long-term scoring lives in named PROFILES (see section 5). game.stats always
+  // points at the active profile's tally, so other code needn't know about profiles.
+  activeId: null,
+  profiles: new Map(),      // id -> { id, name, createdAt, stats: Map, snapshots: [] }
+  stats: new Map(),
+  familyCache: new Map(),   // taxonId -> { taxonId, familyName, isFamily } (shared)
+  compares: [],             // other people's summaries, imported from share-codes
+};
+
+
+// == 5. Players & scoring, saved in the browser (no login) =================
+
+const STORE_KEY = "determinare.v2";
+const OLD_KEY   = "determinare.stats.v1";   // migrated on first load if present
+
+const newProfileId  = () => "p_" + Math.random().toString(36).slice(2, 8);
+const currentProfile = () => game.profiles.get(game.activeId);
+
+function createProfile(name) {
+  const profile = { id: newProfileId(), name: name || "Player", createdAt: Date.now(),
+                    stats: new Map(), snapshots: [] };
+  game.profiles.set(profile.id, profile);
+  activateProfile(profile.id);
+  return profile;
+}
+
+// Rename whichever profile is currently active — e.g. turning the
+// auto-created "Player 1" into your actual name.
+function renameProfile(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  currentProfile().name = trimmed;
+  saveStore();
+  populateProfileSelect();
+}
+
+// Make a profile active; game.stats always points at its tally.
+function activateProfile(id) {
+  game.activeId = id;
+  game.stats = currentProfile().stats;
+  saveStore();
+}
+
+function saveStore() {
+  try {
+    const profiles = [...game.profiles.values()].map((p) => ({
+      id: p.id, name: p.name, createdAt: p.createdAt,
+      stats: [...p.stats.values()], snapshots: p.snapshots,
+    }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      activeId: game.activeId,
+      families: [...game.familyCache.values()],
+      compares: game.compares,
+      profiles,
+    }));
+  } catch (err) { /* storage blocked (e.g. preview sandbox) — memory only */ }
+}
+
+function loadStore() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (err) { /* none */ }
+
+  if (saved && saved.profiles) {
+    (saved.families || []).forEach((f) => game.familyCache.set(f.taxonId, f));
+    game.compares = saved.compares || [];
+    saved.profiles.forEach((p) => {
+      const stats = new Map((p.stats || []).map((s) => [s.taxonId, s]));
+      game.profiles.set(p.id, { id: p.id, name: p.name, createdAt: p.createdAt,
+                                stats, snapshots: p.snapshots || [] });
+    });
+    game.activeId = saved.activeId;
+  } else {
+    migrateOldStore();
+  }
+
+  // Always end up with an active player whose tally game.stats points at.
+  if (!currentProfile()) {
+    const first = [...game.profiles.values()][0];
+    if (first) game.activeId = first.id;
+    else createProfile("Player 1");
+  }
+  game.stats = currentProfile().stats;
+  saveStore();
+}
+
+// One-time move of the previous single-profile save into a "Player 1" profile.
+function migrateOldStore() {
+  try {
+    const old = JSON.parse(localStorage.getItem(OLD_KEY));
+    if (!old) return;
+    (old.families || []).forEach((f) => game.familyCache.set(f.taxonId, f));
+    const profile = createProfile("Player 1");
+    (old.stats || []).forEach((s) => profile.stats.set(s.taxonId, s));
+    saveStore();
+  } catch (err) { /* nothing to migrate */ }
+}
+
+// Record one result for a species. Called in normal play only, so the picture
+// stays honest (review answers, where you may have just seen the name, don't count).
+function recordResult(question, wasCorrect) {
+  const stat = game.stats.get(question.taxonId) || {
+    taxonId: question.taxonId, scientificName: question.scientificName,
+    commonName: question.commonName, correct: 0, wrong: 0,
+  };
+  if (wasCorrect) stat.correct += 1; else stat.wrong += 1;
+  game.stats.set(question.taxonId, stat);
+  saveStore();
+}
+
+
+// == 6. Weak spots, milestones & share-codes ===============================
+
+// -- tiny shared helpers ---------------------------------------------------
+const withAccuracy = (rows) => rows.map((r) => {
+  const total = r.correct + r.wrong;
+  return { ...r, total, accuracy: total ? r.correct / total : 0 };
+});
+const byWeakest = (a, b) => a.accuracy - b.accuracy || b.total - a.total;
+const accuracyClass = (accuracy) => accuracy < 0.5 ? "weak" : accuracy < 0.75 ? "ok" : "strong";
+const pct = (x) => Math.round(x * 100) + "%";
+
+// UTF-8-safe base64, so share-codes survive names with accents (e.g. "Müller").
+const toBase64   = (obj)  => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+const fromBase64 = (code) => JSON.parse(decodeURIComponent(escape(atob(code))));
+const CODE_PREFIX = "DET1:";
+
+// For any attempted species whose family we don't know yet, look it up (family
+// is the ancestor with rank "family"; genus is the fallback). Cached + saved.
+async function resolveFamilies() {
+  const unknown = [...game.stats.keys()].filter((id) => !game.familyCache.has(id));
+  for (let i = 0; i < unknown.length; i += 30) {
+    const chunk = unknown.slice(i, i + 30);
+    try {
+      const data = await apiGet("/taxa/" + chunk.join(","), { per_page: 30 });
+      (data.results || []).forEach((taxon) => {
+        const family = (taxon.ancestors || []).find((a) => a.rank === "family");
+        const genus = (taxon.name || "").split(" ")[0];
+        game.familyCache.set(taxon.id, { taxonId: taxon.id,
+          familyName: family ? family.name : (genus || "Other"), isFamily: Boolean(family) });
+      });
+    } catch (err) { /* leave unresolved; they group under "Unknown" */ }
+  }
+  saveStore();
+}
+
+// Roll any stats Map up to family level, weakest group first.
+function familyRollup(statsMap) {
+  const families = new Map();
+  statsMap.forEach((stat) => {
+    const known = game.familyCache.get(stat.taxonId);
+    const key = known ? known.familyName : "Unknown";
+    const row = families.get(key) ||
+      { name: key, isFamily: known ? known.isFamily : true, correct: 0, wrong: 0 };
+    row.correct += stat.correct;
+    row.wrong += stat.wrong;
+    families.set(key, row);
+  });
+  return withAccuracy([...families.values()]).sort(byWeakest);
+}
+
+// Roll any stats Map up to genus level — the first word of the scientific name.
+// Unlike family, genus never needs an API lookup: it's already sitting right
+// there in the name we recorded when you answered.
+function genusRollup(statsMap) {
+  const genera = new Map();
+  statsMap.forEach((stat) => {
+    const key = (stat.scientificName || "Unknown").split(" ")[0] || "Unknown";
+    const row = genera.get(key) || { name: key, correct: 0, wrong: 0 };
+    row.correct += stat.correct;
+    row.wrong += stat.wrong;
+    genera.set(key, row);
+  });
+  return withAccuracy([...genera.values()]).sort(byWeakest);
+}
+
+// The flat, unrolled species list — one row per species you've been asked.
+function speciesRollup(statsMap) {
+  return withAccuracy([...statsMap.values()])
+    .map((s) => ({ name: s.scientificName, correct: s.correct, wrong: s.wrong, total: s.total, accuracy: s.accuracy }))
+    .sort(byWeakest);
+}
+
+const weaknessesByFamily  = () => familyRollup(game.stats);
+const weaknessesByGenus   = () => genusRollup(game.stats);
+const weaknessesBySpecies = () => speciesRollup(game.stats);
+
+// Species that have actually tripped you up at least once, weakest first.
+// Requiring a real wrong answer (not just "enough attempts") matters: without
+// it, a species you've always gotten right can still end up "toughest" simply
+// for being the least-perfect entry among an otherwise flawless history.
+function toughestSpecies(limit = 8) {
+  return weaknessesBySpecies().filter((s) => s.wrong > 0).slice(0, limit);
+}
+
+// A simple inline SVG ring showing one accuracy figure — no chart library
+// needed for something this small. Colour matches the family/genus/species
+// bars (accuracyClass) so the whole panel reads consistently at a glance.
+function accuracyDonut(accuracy, size = 84) {
+  const stroke = 10;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const color = accuracy < 0.5 ? "var(--red)" : accuracy < 0.75 ? "var(--gold)" : "var(--green)";
+  return "<svg class='wk-donut' viewBox='0 0 " + size + " " + size + "' width='" + size + "' height='" + size + "'>" +
+    "<circle cx='" + size / 2 + "' cy='" + size / 2 + "' r='" + radius + "' fill='none' stroke='var(--line)' stroke-width='" + stroke + "'/>" +
+    "<circle cx='" + size / 2 + "' cy='" + size / 2 + "' r='" + radius + "' fill='none' stroke='" + color + "' stroke-width='" + stroke + "' " +
+      "stroke-linecap='round' stroke-dasharray='" + circumference + "' stroke-dashoffset='" + (circumference * (1 - accuracy)) + "' " +
+      "transform='rotate(-90 " + size / 2 + " " + size / 2 + ")'/>" +
+    "<text x='50%' y='51%' text-anchor='middle' dominant-baseline='middle' font-size='" + Math.round(size * 0.26) +
+      "' font-weight='900' fill='var(--ink)'>" + pct(accuracy) + "</text>" +
+  "</svg>";
+}
+
+// A compact overview of a stats Map: totals plus the family breakdown.
+function summarize(statsMap) {
+  const rows = [...statsMap.values()];
+  const answers = rows.reduce((n, s) => n + s.correct + s.wrong, 0);
+  const correct = rows.reduce((n, s) => n + s.correct, 0);
+  return { answers, correct, accuracy: answers ? correct / answers : 0,
+           families: familyRollup(statsMap) };
+}
+
+// -- milestones (compare with your past self) ------------------------------
+function saveMilestone(profile) {
+  const s = summarize(profile.stats);
+  profile.snapshots.push({ at: Date.now(), answers: s.answers, correct: s.correct,
+    families: s.families.map((f) => ({ name: f.name, isFamily: f.isFamily, correct: f.correct, total: f.total })) });
+  saveStore();
+}
+
+// Quietly record one milestone per calendar day, so progress is tracked even
+// if you never press the button.
+function maybeAutoMilestone(profile) {
+  if (!profile) return;
+  const today = new Date().toDateString();
+  const already = profile.snapshots.some((sn) => new Date(sn.at).toDateString() === today);
+  const answers = [...profile.stats.values()].reduce((n, s) => n + s.correct + s.wrong, 0);
+  if (!already && answers > 0) saveMilestone(profile);
+}
+
+// -- share-codes (compare with other people, no server) --------------------
+function exportCode(profile) {
+  const s = summarize(profile.stats);
+  return CODE_PREFIX + toBase64({
+    name: profile.name, at: Date.now(), answers: s.answers, correct: s.correct,
+    families: s.families.map((f) => ({ name: f.name, isFamily: f.isFamily, correct: f.correct, total: f.total })),
+  });
+}
+
+function importCode(text) {
+  const data = fromBase64(text.trim().replace(CODE_PREFIX, ""));
+  if (!data || typeof data.name !== "string" || !Array.isArray(data.families)) throw new Error("bad code");
+  game.compares.push({ name: data.name, at: data.at || Date.now(),
+    answers: data.answers || 0, correct: data.correct || 0, families: data.families });
+  saveStore();
+}
+
+function removeCompare(index) { game.compares.splice(index, 1); saveStore(); }
+
+// Everyone lined up: you, other local players, and any imported codes.
+function comparisonEntries() {
+  const entries = [];
+  game.profiles.forEach((p) => {
+    const s = summarize(p.stats);
+    entries.push({ name: p.name, kind: p.id === game.activeId ? "you" : "local",
+      answers: s.answers, correct: s.correct, accuracy: s.accuracy, families: s.families });
+  });
+  game.compares.forEach((c, index) => {
+    entries.push({ name: c.name, kind: "shared", index,
+      answers: c.answers, correct: c.correct,
+      accuracy: c.answers ? c.correct / c.answers : 0, families: c.families });
+  });
+  return entries.filter((e) => e.answers > 0).sort((a, b) => b.accuracy - a.accuracy || b.answers - a.answers);
+}
+
+
+// == 7. Autocomplete (setup pickers + the "dro rot" answer matcher) ========
+
+// -- the abbreviation matcher ---------------------------------------------
+// "dro rot" matches "Drosera rotundifolia": each space-separated piece of the
+// query must start the matching word in the name, in order.
+function matchesAbbreviation(query, name) {
+  const pieces = normalize(query).split(" ").filter(Boolean);
+  const words  = normalize(name).split(" ");
+  if (pieces.length === 0 || pieces.length > words.length) return false;
+  return pieces.every((piece, i) => words[i].startsWith(piece));
+}
+
+// Species from the whole-region checklist matching what's typed, commonest first.
+function answerSuggestions(query, limit = 6) {
+  const q = normalize(query);
+  if (!q) return [];
+  return game.checklist
+    .filter((sp) => matchesAbbreviation(q, sp.scientificName) ||
+                    (sp.commonName && normalize(sp.commonName).includes(q)))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+// -- answer checking (forgiving of small typos) ----------------------------
+const genusAndEpithet = (name) => normalize(name).split(" ").slice(0, 2).join(" ");
+
+// Same "small typos forgiven" tolerance rule used for the scientific name,
+// applied to whichever string is being checked — pulled out so the common
+// name gets the same leniency instead of requiring an exact match.
+const closeEnough = (a, b) => a === b || levenshtein(a, b) <= (b.length > 8 ? 2 : 1);
+
+function isCorrect(answer, question) {
+  const given = genusAndEpithet(answer);
+  const target = genusAndEpithet(question.scientificName);
+  if (given && closeEnough(given, target)) return true;
+  if (question.commonName && closeEnough(normalize(answer), normalize(question.commonName))) return true;
+  return false;
+}
+
+
+// == 8. Setup screen =======================================================
+
+// -- the group (taxon) picker ----------------------------------------------
+//  One row of chips does double duty: the fixed quick-pick presets (shown in
+//  plain English, since that's friendlier than making someone recognise
+//  "Papilionoidea" on sight) plus whatever you've actually picked — a preset
+//  lights up once it's selected, and anything you found via search that
+//  *isn't* one of the presets shows up right alongside them as its own chip.
+// There's deliberately no separate row of "selected" tags above this one.
+const TAXON_PRESETS = [
+  { label: "Plants", query: "Plantae" },
+  { label: "Grasshoppers", query: "Orthoptera" },
+  { label: "Butterflies", query: "Papilionoidea" },
+  { label: "Birds", query: "Aves" },
+];
+
+// A friendly singular noun for whichever group is being learned, e.g. "this
+// bird" rather than always assuming "this plant" — used wherever the copy
+// needs to refer back to the subject in prose. Only the four presets have
+// one; anything else (a custom search, or more than one group at once) falls
+// back to the always-correct-but-generic "species".
+const TAXON_NOUNS = { Plantae: "plant", Orthoptera: "grasshopper", Papilionoidea: "butterfly", Aves: "bird" };
+const subjectNoun = () => (game.taxa.length === 1 && TAXON_NOUNS[game.taxa[0].name]) || "species";
+
+function renderTaxonChips() {
+  const presetNames = new Set(TAXON_PRESETS.map((p) => normalize(p.query)));
+
+  const presetChips = TAXON_PRESETS.map((p) => {
+    const picked = game.taxa.some((t) => normalize(t.name) === normalize(p.query));
+    return "<button class='chip" + (picked ? " active" : "") + "' data-taxon-preset='" + escapeHtml(p.query) + "'>" +
+      escapeHtml(p.label) + (picked ? " ✕" : "") + "</button>";
+  }).join("");
+
+  const extraChips = game.taxa
+    .filter((t) => !presetNames.has(normalize(t.name)))
+    .map((t) => "<button class='chip sci active' data-taxon-extra='" + t.id + "'>" + escapeHtml(t.name) + " ✕</button>")
+    .join("");
+
+  el("taxonChips").innerHTML = presetChips + extraChips;
+}
+
+function addTaxon(taxon) {
+  // The very first pick you make replaces the "Plantae" placeholder you started
+  // with, rather than adding to it — otherwise picking "Poaceae" would silently
+  // stay filtered to all of Plantae (Poaceae is already inside it), and your
+  // choice would look like it did nothing. After that, picks add up normally,
+  // so "Poaceae" then "Rosaceae" gives you both.
+  if (!game.taxaTouched) { game.taxa = []; game.taxaTouched = true; }
+  if (game.taxa.some((t) => t.id === taxon.id)) return;   // no duplicates
+  game.taxa.push({ id: taxon.id, name: taxon.name });
+  renderTaxonChips();
+}
+
+function removeTaxon(id) {
+  game.taxa = game.taxa.filter((t) => t.id !== Number(id));
+  game.taxaTouched = true;
+  renderTaxonChips();
+}
+
+// Resolve a name to a real taxon and add it — used by the preset chips and
+// by typing a name straight into the search box.
+async function addTaxonByName(name) {
+  try {
+    const hits = await searchTaxa(name, 6);
+    const exact = hits.find((h) => normalize(h.name) === normalize(name));
+    const hit = exact || hits[0];
+    if (hit) addTaxon(hit); else toast("Couldn't find “" + name + "”.");
+  } catch (err) { toast("Couldn't reach iNaturalist. Try again."); }
+}
+
+// A preset chip toggles: click it again to remove that group.
+async function toggleTaxonPreset(query) {
+  const picked = game.taxa.find((t) => normalize(t.name) === normalize(query));
+  if (picked) removeTaxon(picked.id); else await addTaxonByName(query);
+}
+
+// -- the region picker --------------------------------------------------
+//  Same idea as the taxon picker above: one merged row, presets that light
+//  up once picked, and any non-preset pick shown alongside them.
+const REGION_PRESETS = [
+  { label: "Switzerland", query: "Switzerland" },
+  { label: "Uri", query: "Uri" },
+  { label: "Ticino", query: "Ticino" },
+];
+
+function renderRegionChips() {
+  const presetNames = new Set(REGION_PRESETS.map((p) => normalize(p.query)));
+
+  const presetChips = REGION_PRESETS.map((p) => {
+    const picked = game.regions.some((r) => normalize(r.name) === normalize(p.query));
+    return "<button class='chip" + (picked ? " active" : "") + "' data-region-preset='" + escapeHtml(p.query) + "'>" +
+      escapeHtml(p.label) + (picked ? " ✕" : "") + "</button>";
+  }).join("");
+
+  // The "World" placeholder never shows as a chip of its own — an empty
+  // selection already reads clearly enough as "nothing picked yet".
+  const extraChips = game.regions
+    .filter((r) => r.id !== null && !presetNames.has(normalize(r.name)))
+    .map((r) => "<button class='chip active' data-region-extra='" + r.id + "'>" + escapeHtml(r.name) + " ✕</button>")
+    .join("");
+
+  el("regionChips").innerHTML = presetChips + extraChips;
+}
+
+function addRegion(place) {
+  // Same idea as addTaxon(): your first deliberate pick replaces the "World"
+  // placeholder you started with, rather than adding to it — picking "Uri"
+  // alongside "World" would still just mean "World" (nowhere is excluded),
+  // so your choice would look like it did nothing. After that, picks add up
+  // normally, so "Uri" then "Graubünden" gives you both together.
+  if (!game.regionsTouched) { game.regions = []; game.regionsTouched = true; }
+  if (game.regions.some((r) => r.id === place.id)) return;   // no duplicates
+  game.regions.push({ id: place.id, name: place.name });
+  renderRegionChips();
+}
+
+// Removing the last specific place falls back to "World" — an empty region
+// list isn't an error the way an empty taxon list is, it just means no place
+// filter, which is exactly what "World" already represents.
+function removeRegion(id) {
+  game.regions = game.regions.filter((r) => r.id !== Number(id));
+  if (game.regions.length === 0) { game.regions = [{ id: null, name: "World" }]; game.regionsTouched = false; }
+  renderRegionChips();
+}
+
+// Resolve a place name and add it — used by the preset chips and by typing
+// a name straight into the search box. "World" is special: rather than being
+// added alongside other places, it resets back to no place filter at all.
+async function addRegionByName(name) {
+  if (normalize(name) === "world") {
+    game.regions = [{ id: null, name: "World" }];
+    game.regionsTouched = false;
+    renderRegionChips();
+    return;
+  }
+  try {
+    const hits = await searchPlaces(name, 8);
+    const exact = hits.find((h) => normalize(h.name) === normalize(name));
+    const hit = exact || hits[0];
+    if (hit) addRegion(hit); else toast("Couldn't find “" + name + "”.");
+  } catch (err) { toast("Couldn't reach iNaturalist. Try again."); }
+}
+
+// A preset chip toggles: click it again to remove that place.
+async function toggleRegionPreset(query) {
+  const picked = game.regions.find((r) => normalize(r.name) === normalize(query));
+  if (picked) removeRegion(picked.id); else await addRegionByName(query);
+}
+
+// -- preset chips & the profile dropdown ----------------------------------
+let roundSizeChoice = DEFAULT_ROUND_SIZE;   // which "How many species?" chip is picked
+let mediaChoice = DEFAULT_MEDIA;            // which "How do you want to identify?" chip is picked
+
+function renderRoundSizeChips() {
+  el("roundSizeChips").innerHTML = ROUND_SIZE_OPTIONS.map((opt) =>
+    "<button class='chip" + (opt.value === roundSizeChoice ? " active" : "") + "' data-round-size='" + opt.value + "'>" +
+      escapeHtml(opt.label) + "</button>").join("");
+}
+
+function renderMediaChips() {
+  el("mediaChips").innerHTML = MEDIA_OPTIONS.map((opt) =>
+    "<button class='chip" + (opt.value === mediaChoice ? " active" : "") + "' data-media='" + opt.value + "'>" +
+      escapeHtml(opt.label) + "</button>").join("");
+}
+
+function buildChips() {
+  renderTaxonChips();
+  renderRegionChips();
+  renderRoundSizeChips();
+  renderMediaChips();
+}
+
+function populateProfileSelect() {
+  const sel = el("profileSelect");
+  sel.innerHTML = [...game.profiles.values()].map((p) =>
+    "<option value='" + p.id + "'>" + escapeHtml(p.name) + "</option>").join("") +
+    "<option value='__new__'>+ New player…</option>";
+  if (game.activeId) sel.value = game.activeId;
+  el("newProfileName").classList.toggle("hidden", sel.value !== "__new__");
+  el("renameInput").classList.add("hidden");
+}
+
+
+// == 9. Playing a lesson ===================================================
+
+// Show one of the top-level screens and hide the rest.
+function showScreen(name) {
+  ["setup", "play", "done", "progressPanel"].forEach((id) =>
+    el(id).classList.toggle("hidden", id !== name));
+}
+
+// Kick off a session with the chosen groups + region(s).
+async function startSession() {
+  game.taxonIds = game.taxa.map((t) => t.id).join(",");
+  // "World" (id null) means no place filter, so it's left out of the joined
+  // list entirely — an empty string here is what tells apiGet() to omit the
+  // place_id parameter altogether, the same way it already does for null.
+  game.placeId  = game.regions.map((r) => r.id).filter((id) => id !== null).join(",");
+  game.label    = game.taxa.map((t) => t.name).join(" + ") + " · " + game.regions.map((r) => r.name).join(" + ");
+  game.assist         = el("assistToggle").checked;
+  game.useCommonNames = el("commonNamesToggle").checked;
+  game.learnMore      = el("learnMoreToggle").checked;
+  game.allowRepeats   = el("repeatToggle").checked;
+  game.roundSize      = roundSizeChoice;
+  game.media          = mediaChoice;
+
+  game.queue = []; game.seen = new Set(); game.checklist = [];
+  game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
+
+  showScreen("play");
+  setBusy("Loading " + mediaWord(true) + "…");
+
+  try {
+    // First request tells us how many observations exist (so we know the page range).
+    const first = await fetchObservations(game.taxonIds, game.placeId, 1);
+    const total = first.total_results || 0;
+    game.maxPage = Math.min(Math.max(1, Math.ceil(total / PER_PAGE)), MAX_PAGE);
+
+    // For variety, play from a random page rather than the newest uploads.
+    let batch = first.results || [];
+    if (game.maxPage > 1) {
+      const data = await fetchObservations(game.taxonIds, game.placeId, randomInt(1, game.maxPage));
+      batch = data.results || batch;
+    }
+    const candidates = shuffle(toQuestions(batch));
+    candidates.forEach((q) => game.seen.add(q.observationId));
+    game.queue = filterUnique(candidates);
+    growChecklist(candidates);
+
+    if (game.queue.length === 0) { showEmpty(); return; }
+
+    loadTopSpeciesInBackground();   // enrich name suggestions without blocking
+    startRound("normal");
+  } catch (err) {
+    showError(err);
+  }
+}
+
+// Add any species we haven't seen yet to the suggestion list. Called every
+// time fresh questions come in (initial load, queue top-ups, review photos),
+// so an answer is always typable even before or beyond the regional list below.
+function growChecklist(questions) {
+  const known = new Set(game.checklist.map((s) => s.id));
+  questions.forEach((q) => {
+    if (q.taxonId && !known.has(q.taxonId)) {
+      game.checklist.push({ id: q.taxonId, scientificName: q.scientificName, commonName: q.commonName, count: 0 });
+      known.add(q.taxonId);
+    }
+  });
+}
+
+// When "Repeat species" is off, keep at most one question per species: drop
+// anything that's already been asked this round, is already waiting in the
+// queue, or is a second copy of the same species sitting in this very batch.
+function filterUnique(candidates) {
+  if (game.allowRepeats) return candidates;
+  const exclude = new Set([...game.askedTaxa, ...game.queue.map((q) => q.taxonId)]);
+  const kept = [];
+  candidates.forEach((q) => {
+    if (exclude.has(q.taxonId)) return;
+    exclude.add(q.taxonId);
+    kept.push(q);
+  });
+  return kept;
+}
+
+// Fetch the region's top species list in the background and merge it in.
+async function loadTopSpeciesInBackground() {
+  try {
+    const top = await fetchTopSpecies(game.taxonIds, game.placeId);
+    growChecklist(top.map((s) => ({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName })));
+    // Prefer the real observation counts from the region list over the count:0
+    // placeholders growChecklist uses, so "commonest first" sorting stays accurate.
+    const byId = new Map(top.map((s) => [s.id, s]));
+    game.checklist = game.checklist.map((s) => byId.get(s.id) || s);
+  } catch (err) { /* suggestions just stay seeded from the questions you've seen */ }
+}
+
+function startRound(mode) {
+  game.mode = mode;
+  game.round = { size: game.roundSize, index: 0, correct: 0 };
+  game.askedTaxa = new Set();   // a fresh round can repeat species asked in an earlier one
+  game.roundLog = [];
+  showScreen("play");
+  updateProgress();
+  nextQuestion();
+}
+
+function startReview(useFreshPhotos) {
+  const entries = shuffle([...game.missed.values()]);
+  if (entries.length === 0) return;
+  game.mode = "review";
+  game.round = { size: entries.length, index: 0, correct: 0 };
+  game.roundLog = [];
+  game.reviewQueue = entries.map((entry) => useFreshPhotos
+    ? { taxonId: entry.taxonId, scientificName: entry.scientificName, commonName: entry.commonName, fresh: true }
+    : questionFromSavedMedia(entry, entry.media[0]));
+  showScreen("play");
+  updateProgress();
+  nextQuestion();
+}
+
+// Rebuild a playable question from one saved review-pile media item. Shared
+// by startReview() (replaying a saved item) and fallbackPhoto() (when a fresh
+// fetch for the review pile comes up empty) so both stay in sync with
+// whichever media type ("photo" or "sound") the current session is quizzing on.
+function questionFromSavedMedia(base, media) {
+  const q = { taxonId: base.taxonId, scientificName: base.scientificName, commonName: base.commonName,
+    attribution: media ? media.attribution : "", observationId: media ? media.observationId : null };
+  q[game.media === "sound" ? "soundUrl" : "photoUrl"] = media ? media.url : "";
+  return q;
+}
+
+// -- keeping the question queue topped up ---------------------------------
+async function topUpQueue() {
+  if (game.fetching) return;
+  game.fetching = true;
+  try {
+    const data = await fetchObservations(game.taxonIds, game.placeId, randomInt(1, game.maxPage || 1));
+    const candidates = shuffle(toQuestions(data.results)).filter((q) => !game.seen.has(q.observationId));
+    candidates.forEach((q) => game.seen.add(q.observationId));
+    const fresh = filterUnique(candidates);
+    game.queue.push(...fresh);
+    growChecklist(candidates);
+    if (game.seen.size > 4000) game.seen = new Set([...game.seen].slice(-1000));
+  } catch (err) { /* nextQuestion() surfaces a message if truly empty */ }
+  finally { game.fetching = false; }
+}
+const topUpIfLow = () => { if (game.queue.length <= TOP_UP_AT && !game.fetching) topUpQueue(); };
+
+// -- fresh media for review ------------------------------------------------
+async function fetchFreshPhoto(item) {
+  try {
+    const params = { taxon_id: item.taxonId, quality_grade: "research", rank: "species", per_page: 40, page: 1 };
+    params[game.media === "sound" ? "sounds" : "photos"] = "true";
+    const data = await apiGet("/observations", params);
+    const options = toQuestions(data.results).filter((q) => !game.seen.has(q.observationId));
+    if (options.length === 0) return null;
+    const chosen = options[randomInt(0, options.length - 1)];
+    game.seen.add(chosen.observationId);
+    return chosen;
+  } catch (err) { return null; }
+}
+function fallbackPhoto(item) {
+  const entry = game.missed.get(item.taxonId);
+  return questionFromSavedMedia(item, entry && entry.media[0]);
+}
+
+// -- the review pile ------------------------------------------------------
+function recordMiss(question) {
+  const entry = game.missed.get(question.taxonId) ||
+    { taxonId: question.taxonId, scientificName: question.scientificName, commonName: question.commonName, media: [] };
+  const url = game.media === "sound" ? question.soundUrl : question.photoUrl;
+  if (url && !entry.media.some((m) => m.observationId === question.observationId)) {
+    entry.media.push({ url, attribution: question.attribution, observationId: question.observationId });
+  }
+  game.missed.set(question.taxonId, entry);
+}
+const recordMastered = (question) => game.missed.delete(question.taxonId);
+
+// -- advancing through the lesson -----------------------------------------
+async function nextQuestion() {
+  closeLearnPopup();   // in case it was still open when Continue was clicked directly
+  if (game.round.index >= game.round.size) return showDone();
+  hideFeedback();
+
+  if (game.mode === "review") {
+    let q = game.reviewQueue.shift();
+    if (!q) return showDone();
+    if (q.fresh) {
+      setBusy("Finding another " + mediaWord() + "…");
+      const fresh = await fetchFreshPhoto(q);
+      q = fresh || fallbackPhoto(q);
+    }
+    game.current = q;
+    presentQuestion();
+    return;
+  }
+
+  topUpIfLow();
+  if (game.queue.length === 0) {
+    setBusy("Finding " + mediaWord(true) + "…");
+    await topUpQueue();
+    if (game.queue.length === 0) {
+      // With "Repeat species" off, running dry mid-round isn't an error — it
+      // just means every available species has already been asked. Show
+      // what you've got instead of an error message.
+      if (!game.allowRepeats && game.round.index > 0) return showDone();
+      showEmpty();
+      return;
+    }
+  }
+  game.current = game.queue.shift();
+  presentQuestion();
+}
+
+// -- the photo gallery ------------------------------------------------------
+//  Most questions come with several photos of the same observation. We show
+//  all of them in a horizontally-scrolling strip; the browser's own CSS
+//  scroll-snap does the actual swiping/scrolling, so the JS here only has to
+//  build the strip and keep the "2 / 5" counter and credit line in sync.
+
+// A question always has *some* photo to show. Full-pool questions carry a
+// `photos` array; review questions only ever keep one saved photo, so we
+// wrap that single one into a one-item array and the rendering code below
+// doesn't need to know the difference.
+function questionPhotos(question) {
+  if (question.photos && question.photos.length) return question.photos;
+  return [{ url: question.photoUrl, attribution: question.attribution }];
+}
+
+// Same idea as questionPhotos(), for the sound quiz mode.
+function questionSounds(question) {
+  if (question.sounds && question.sounds.length) return question.sounds;
+  return [{ url: question.soundUrl, attribution: question.attribution }];
+}
+
+function showPhotoGallery(photos) {
+  game.currentMedia = photos;   // read by the scroll handler as you swipe
+
+  const strip = el("photoStrip");
+  strip.innerHTML = photos.map((p) => "<img src='" + p.url + "' alt='Species to identify'>").join("");
+  strip.scrollLeft = 0;
+
+  const multiple = photos.length > 1;
+  el("photoPrev").classList.toggle("hidden", !multiple);
+  el("photoNext").classList.toggle("hidden", !multiple);
+  el("photoCount").classList.toggle("hidden", !multiple);
+  el("photoExpand").classList.remove("hidden");
+
+  el("photoLoading").classList.remove("hidden");
+  const firstImage = strip.querySelector("img");
+  firstImage.onload  = () => el("photoLoading").classList.add("hidden");
+  firstImage.onerror = () => nextQuestion();   // the lead photo is broken — just skip ahead
+
+  updatePhotoIndicator();   // sets the "1 / n" pill and the credit line for photo 1
+}
+
+// The sound-mode equivalent of showPhotoGallery() — reuses the same strip,
+// prev/next, count and credit-line plumbing (they only ever cared about an
+// "attribution" field, not what medium it belongs to), but with an audio
+// player in each slot instead of an <img>, and no full-screen zoom button
+// since there's nothing to zoom into.
+function showSoundGallery(sounds) {
+  game.currentMedia = sounds;
+
+  const strip = el("photoStrip");
+  strip.innerHTML = sounds.map((s) =>
+    "<div class='sound-slot'>" + SOUND_ICON_SVG +
+    "<audio controls preload='none' src='" + s.url + "'></audio></div>").join("");
+  strip.scrollLeft = 0;
+
+  const multiple = sounds.length > 1;
+  el("photoPrev").classList.toggle("hidden", !multiple);
+  el("photoNext").classList.toggle("hidden", !multiple);
+  el("photoCount").classList.toggle("hidden", !multiple);
+  el("photoExpand").classList.add("hidden");   // nothing to zoom into for a sound clip
+
+  el("photoLoading").classList.add("hidden");   // audio needs no preload spinner
+  const firstAudio = strip.querySelector("audio");
+  firstAudio.onerror = () => nextQuestion();   // the lead clip is broken — just skip ahead
+
+  updatePhotoIndicator();
+}
+
+const SOUND_ICON_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' " +
+  "stroke-linecap='round' stroke-linejoin='round' class='sound-icon'>" +
+  "<path d='M9 18V5l12-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='18' cy='16' r='3'/></svg>";
+
+// Which photo is centred in the strip right now, worked out from scroll position.
+function currentPhotoIndex() {
+  const strip = el("photoStrip");
+  if (!strip || strip.clientWidth === 0) return 0;
+  return Math.round(strip.scrollLeft / strip.clientWidth);
+}
+
+// Called on load and again every time you scroll/swipe the strip.
+function updatePhotoIndicator() {
+  const photos = game.currentMedia || [];
+  if (photos.length === 0) return;
+  const index = Math.min(currentPhotoIndex(), photos.length - 1);
+
+  if (photos.length > 1) el("photoCount").textContent = (index + 1) + " / " + photos.length;
+
+  const attribution = photos[index].attribution;
+  el("credit").innerHTML = attribution
+    ? escapeHtml(attribution) + " · <a href='https://www.inaturalist.org/observations/" +
+      game.current.observationId + "' target='_blank' rel='noopener'>iNaturalist</a>" : "";
+}
+
+// The prev/next arrow buttons — scroll by exactly one photo's width.
+function scrollPhotos(direction) {
+  const strip = el("photoStrip");
+  strip.scrollBy({ left: direction * strip.clientWidth, behavior: "smooth" });
+}
+
+// -- the full-screen zoom lightbox ------------------------------------------
+//  Opens over the current question's photo gallery, for a proper close look.
+//  Zooming works the same way on touch and mouse, thanks to Pointer Events:
+//  one finger (or the mouse wheel) zooms, two fingers pinch-zoom, and
+//  dragging pans around once you've zoomed in. Everything here is just
+//  tracking a "scale" and an "x, y" offset and applying them as one CSS
+//  transform — there's no image-processing magic involved.
+const lightbox = { photos: [], index: 0, scale: 1, x: 0, y: 0 };
+const lightboxPointers = new Map();   // active touches/clicks, keyed by pointerId
+let pinchStartDistance = 0, pinchStartScale = 1;
+let panStart = null;                  // { pointerX, pointerY, fromX, fromY } while dragging
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+function openLightbox(index) {
+  lightbox.photos = game.currentMedia || [];
+  if (lightbox.photos.length === 0) return;
+  lightbox.index = index;
+  renderLightboxPhoto();
+  el("lightbox").classList.remove("hidden");
+  document.documentElement.style.overflow = "hidden";   // stop the page scrolling behind it
+}
+function closeLightbox() {
+  el("lightbox").classList.add("hidden");
+  document.documentElement.style.overflow = "";
+}
+
+// Every time the photo changes, the zoom resets — starting zoomed into
+// whatever the previous photo happened to show would be confusing.
+function renderLightboxPhoto() {
+  const photo = lightbox.photos[lightbox.index];
+  const img = el("lightboxImg");
+  img.src = photo.url;
+  img.onerror = closeLightbox;   // shouldn't happen (it's already loaded elsewhere), but just in case
+  resetZoom();
+
+  const multiple = lightbox.photos.length > 1;
+  el("lightboxPrev").classList.toggle("hidden", !multiple);
+  el("lightboxNext").classList.toggle("hidden", !multiple);
+  el("lightboxCount").classList.toggle("hidden", !multiple);
+  if (multiple) el("lightboxCount").textContent = (lightbox.index + 1) + " / " + lightbox.photos.length;
+}
+function browseLightbox(step) {
+  lightbox.index = (lightbox.index + step + lightbox.photos.length) % lightbox.photos.length;
+  renderLightboxPhoto();
+}
+
+function resetZoom() { lightbox.scale = 1; lightbox.x = 0; lightbox.y = 0; applyZoom(); }
+function applyZoom() {
+  el("lightboxImg").style.transform =
+    "translate(" + lightbox.x + "px, " + lightbox.y + "px) scale(" + lightbox.scale + ")";
+}
+
+// The distance between the two fingers of a pinch — bigger gap means zoom in.
+function pinchDistance() {
+  const [a, b] = [...lightboxPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function onLightboxPointerDown(e) {
+  lightboxPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (lightboxPointers.size === 2) {
+    pinchStartDistance = pinchDistance();
+    pinchStartScale = lightbox.scale;
+    panStart = null;   // a second finger landed — this is a pinch, not a pan
+  } else if (lightboxPointers.size === 1 && lightbox.scale > 1) {
+    panStart = { pointerX: e.clientX, pointerY: e.clientY, fromX: lightbox.x, fromY: lightbox.y };
+  }
+}
+function onLightboxPointerMove(e) {
+  if (!lightboxPointers.has(e.pointerId)) return;
+  lightboxPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (lightboxPointers.size === 2) {
+    lightbox.scale = clamp(pinchStartScale * (pinchDistance() / pinchStartDistance), 1, 4);
+    applyZoom();
+  } else if (panStart) {
+    lightbox.x = panStart.fromX + (e.clientX - panStart.pointerX);
+    lightbox.y = panStart.fromY + (e.clientY - panStart.pointerY);
+    applyZoom();
+  }
+}
+function onLightboxPointerUp(e) {
+  lightboxPointers.delete(e.pointerId);
+  if (lightboxPointers.size < 2) pinchStartDistance = 0;
+  if (lightboxPointers.size === 0) panStart = null;
+}
+
+// A double-click or double-tap jumps between "fit to screen" and a closer look.
+function onLightboxDoubleClick() {
+  if (lightbox.scale > 1) resetZoom();
+  else { lightbox.scale = 2.5; applyZoom(); }
+}
+
+// Mouse-wheel / trackpad zoom, for anyone without a touchscreen pinch gesture.
+function onLightboxWheel(e) {
+  e.preventDefault();
+  lightbox.scale = clamp(lightbox.scale - e.deltaY * 0.0015, 1, 4);
+  if (lightbox.scale === 1) { lightbox.x = 0; lightbox.y = 0; }
+  applyZoom();
+}
+
+function presentQuestion() {
+  clearBusy();
+  game.answered = false;
+  game.askedTaxa.add(game.current.taxonId);
+
+  if (game.media === "sound") showSoundGallery(questionSounds(game.current));
+  else showPhotoGallery(questionPhotos(game.current));
+  el("promptText").textContent = game.media === "sound" ? "What species is calling?" : "What species is this?";
+
+  el("learnLabel").textContent = game.mode === "review" ? "Reviewing your misses" : game.label;
+
+  const input = el("answerInput");
+  input.value = ""; input.disabled = false;
+  input.placeholder = game.useCommonNames
+    ? "Type the common name"
+    : (game.assist ? "Type a name — e.g. dro rot" : "Type the full scientific name");
+  hideSuggest("answerSuggest");
+  el("checkBtn").disabled = true;
+  showActionRow();
+  input.focus();
+}
+
+// Check the typed answer (Enter or the Check button).
+// Whichever name a suggestion should display/insert as — the common name
+// when that mode is on and this species actually has one, else the
+// scientific name (the only thing every species is guaranteed to have).
+const answerLabelFor = (sp) => (game.useCommonNames && sp.commonName) ? sp.commonName : sp.scientificName;
+
+function submitAnswer() {
+  if (game.answered) return;
+  // In assist mode, "dro rot" + Enter expands to the top suggestion, then checks.
+  if (game.assist) {
+    const list = answerSuggestions(el("answerInput").value);
+    const pick = activeAnswerSuggestion >= 0 ? list[activeAnswerSuggestion] : list[0];
+    const already = list.some((sp) => normalize(answerLabelFor(sp)) === normalize(el("answerInput").value));
+    if (pick && !already) el("answerInput").value = answerLabelFor(pick);
+  }
+  const typed = el("answerInput").value.trim();
+  if (!typed) return;
+  finishAnswer(isCorrect(typed, game.current), typed);
+}
+
+// "Skip for now" doesn't mark the question wrong or use up a round slot — it
+// just puts it back at the end of the queue so it comes up again later.
+function skipForLater() {
+  if (game.answered) return;
+  const q = game.current;
+  if (game.mode === "review") game.reviewQueue.push(q); else game.queue.push(q);
+  toast("We'll come back to this one later.");
+  nextQuestion();
+}
+
+function finishAnswer(wasCorrect, typed) {
+  game.answered = true;
+  game.round.index += 1;
+  el("answerInput").disabled = true;
+  hideSuggest("answerSuggest");
+
+  if (game.mode === "normal") {
+    if (wasCorrect) { game.round.correct += 1; game.streak += 1; } else { game.streak = 0; }
+    recordResult(game.current, wasCorrect);
+  }
+  if (wasCorrect) recordMastered(game.current); else recordMiss(game.current);
+
+  // Every species you actually answer (right or wrong) goes on the round's
+  // overview list, shown on the "Lesson complete" screen.
+  game.roundLog.push({ scientificName: game.current.scientificName, commonName: game.current.commonName, wasCorrect });
+
+  updateProgress();
+  updateStreak();
+  showFeedback(wasCorrect, typed);
+}
+
+
+// == 10. Rendering =========================================================
+
+// -- busy / empty / error states inside the play area ---------------------
+function setBusy(message) {
+  el("playMain").innerHTML = "<div class='busy'><div class='spinner'></div><p>" + escapeHtml(message) + "</p></div>";
+  el("actionRow").classList.add("hidden");
+  hideFeedback();
+}
+// Rebuild the play area's normal contents after a busy state.
+function clearBusy() {
+  if (el("photoStrip")) return;   // still present -> nothing to rebuild
+  // Kept identical to the static markup in the <body> above — see the comment there.
+  el("playMain").innerHTML =
+    "<div id='learnLabel' class='learn-label'></div>" +
+    "<div class='photo-card'>" +
+      "<div id='photoLoading' class='photo-loading'><div class='spinner'></div></div>" +
+      "<div id='photoStrip' class='photo-strip'></div>" +
+      "<button id='photoExpand' class='photo-nav expand' aria-label='View full-screen, with zoom'>" +
+        "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3'/></svg></button>" +
+      "<button id='photoPrev' class='photo-nav prev hidden' aria-label='Previous photo'>" +
+        "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M15 6l-6 6 6 6'/></svg></button>" +
+      "<button id='photoNext' class='photo-nav next hidden' aria-label='Next photo'>" +
+        "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg></button>" +
+      "<span id='photoCount' class='photo-count hidden'></span>" +
+    "</div>" +
+    "<div id='credit' class='credit'></div>" +
+    "<h2 id='promptText' class='prompt'>What species is this?</h2>" +
+    "<div class='search answer'><input id='answerInput' class='input answer-input' placeholder='Type the species' " +
+      "autocomplete='off' autocapitalize='none' spellcheck='false'><div id='answerSuggest' class='suggest hidden'></div></div>";
+  wireAnswerInput();   // re-attach listeners to the fresh input
+  wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
+}
+function showEmpty() {
+  el("playMain").innerHTML = "<div class='busy'><p>No research-grade " + mediaWord(true) + " matched that choice.<br>" +
+    "Try a broader group (like Plantae) or a larger region (like World).</p>" +
+    "<button class='btn btn-primary' onclick='backToSetup()'>Change selection</button></div>";
+  el("actionRow").classList.add("hidden");
+}
+function showError(err) {
+  const message = err && err.message === "busy"
+    ? "iNaturalist is busy right now — wait a few seconds and try again."
+    : "Couldn't reach iNaturalist. Check your connection and try again.";
+  el("playMain").innerHTML = "<div class='busy'><p>" + message + "</p>" +
+    "<button class='btn btn-primary' onclick='backToSetup()'>Back</button></div>";
+  el("actionRow").classList.add("hidden");
+}
+
+// -- progress bar & streak ------------------------------------------------
+function updateProgress() {
+  const unlimited = !isFinite(game.round.size);
+  el("progressWrap").classList.toggle("hidden", unlimited);
+  el("progressCount").classList.toggle("hidden", !unlimited);
+  if (unlimited) el("progressCount").textContent = game.round.index + " answered";
+  else el("progressFill").style.width = (100 * game.round.index / game.round.size) + "%";
+}
+function updateStreak() {
+  el("streakTop").textContent = game.streak;
+  el("streakChip").classList.toggle("cold", game.streak === 0);
+  if (game.streak > 0) { el("streakChip").classList.remove("pop"); void el("streakChip").offsetWidth; el("streakChip").classList.add("pop"); }
+}
+
+// -- the cow mascot ---------------------------------------------------------
+//  One cow head, drawn once, with just the eyes/mouth swapped per mood — so
+//  every expression is a small, easy-to-read face string layered on the same
+//  shared drawing, rather than six separate full cow illustrations.
+const COW_HEAD =
+  "<ellipse cx='16' cy='16' rx='8' ry='11' fill='#f7dcb4' transform='rotate(-25 16 16)'/>" +  // left ear
+  "<ellipse cx='48' cy='16' rx='8' ry='11' fill='#f7dcb4' transform='rotate(25 48 16)'/>" +   // right ear
+  "<ellipse cx='32' cy='33' rx='27' ry='24' fill='#fff2da' stroke='#e3c79a' stroke-width='1.5'/>" +  // head
+  "<ellipse cx='23' cy='17' rx='9' ry='11' fill='#caa06a' opacity='.85'/>" +   // a brown patch, for character
+  "<ellipse cx='32' cy='47' rx='15' ry='10' fill='#fff8ec'/>" +               // snout
+  "<ellipse cx='27' cy='46' rx='2' ry='3' fill='#b8895a'/>" +                 // left nostril
+  "<ellipse cx='37' cy='46' rx='2' ry='3' fill='#b8895a'/>";                  // right nostril
+
+const SPARKLE = (cx, cy, r) =>
+  "<path d='M" + cx + " " + (cy - r) + " L" + (cx + r * 0.3) + " " + (cy - r * 0.3) +
+  " L" + (cx + r) + " " + cy + " L" + (cx + r * 0.3) + " " + (cy + r * 0.3) +
+  " L" + cx + " " + (cy + r) + " L" + (cx - r * 0.3) + " " + (cy + r * 0.3) +
+  " L" + (cx - r) + " " + cy + " L" + (cx - r * 0.3) + " " + (cy - r * 0.3) + " Z' fill='#ffd35c'/>";
+
+// Each mood is just eyes + mouth (+ the occasional sparkle or tear) on top of
+// the shared head above.
+const COW_FACES = {
+  // One right answer.
+  happy:
+    "<circle cx='22' cy='28' r='4' fill='#4a3626'/><circle cx='42' cy='28' r='4' fill='#4a3626'/>" +
+    "<circle cx='23.2' cy='26.6' r='1.2' fill='#fff'/><circle cx='43.2' cy='26.6' r='1.2' fill='#fff'/>" +
+    "<path d='M22 52 Q32 58 42 52' stroke='#8a5a34' stroke-width='2.4' fill='none' stroke-linecap='round'/>",
+
+  // A short streak — a couple in a row.
+  combo:
+    "<path d='M16 26 Q22 20 28 26' stroke='#4a3626' stroke-width='3' fill='none' stroke-linecap='round'/>" +
+    "<path d='M36 26 Q42 20 48 26' stroke='#4a3626' stroke-width='3' fill='none' stroke-linecap='round'/>" +
+    "<path d='M20 51 Q32 60 44 51' stroke='#8a5a34' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
+    SPARKLE(8, 12, 5) + SPARKLE(56, 10, 4),
+
+  // On a real streak now — heart eyes and a big grin.
+  ecstatic:
+    "<path d='M17 27 Q22 20 27 27 Q22 31 17 27 Z' fill='#e0567a'/>" +
+    "<path d='M37 27 Q42 20 47 27 Q42 31 37 27 Z' fill='#e0567a'/>" +
+    "<path d='M19 50 Q32 62 45 50 Q32 57 19 50 Z' fill='#8a5a34'/>" +
+    SPARKLE(6, 10, 5) + SPARKLE(58, 8, 4) + SPARKLE(32, 3, 3.5),
+
+  // A long streak — this cow has lost it, in the best way. Paired with a
+  // wiggle animation (see .fb-icon.legendary) since a still face undersells it.
+  legendary:
+    "<path d='M17 27 Q22 19 27 27 Q22 32 17 27 Z' fill='#e0567a'/>" +
+    "<path d='M37 27 Q42 19 47 27 Q42 32 37 27 Z' fill='#e0567a'/>" +
+    "<path d='M18 48 Q32 66 46 48 Q32 60 18 48 Z' fill='#7a4a2a'/>" +
+    SPARKLE(6, 8, 5) + SPARKLE(58, 6, 4.5) + SPARKLE(32, 1, 4) + SPARKLE(4, 40, 3.5) + SPARKLE(60, 42, 3.5),
+
+  // Wrong species, but you had the right genus — a small miss, not a disaster.
+  genus:
+    "<path d='M17 22 Q22 19 27 22' stroke='#4a3626' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
+    "<path d='M37 22 Q42 19 47 22' stroke='#4a3626' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
+    "<circle cx='22' cy='29' r='3.6' fill='#4a3626'/><circle cx='42' cy='29' r='3.6' fill='#4a3626'/>" +
+    "<path d='M23 54 Q32 49 41 54' stroke='#8a5a34' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
+    "<path d='M18 33 q-2 4 -1 7' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>",   // one tear
+
+  // Wrong genus too — a real miss.
+  miss:
+    "<path d='M16 20 Q22 24 28 20' stroke='#4a3626' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
+    "<path d='M36 20 Q42 24 48 20' stroke='#4a3626' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
+    "<path d='M18 27 l8 6 M26 27 l-8 6' stroke='#4a3626' stroke-width='2.4' stroke-linecap='round'/>" +      // x eye
+    "<path d='M38 27 l8 6 M46 27 l-8 6' stroke='#4a3626' stroke-width='2.4' stroke-linecap='round'/>" +      // x eye
+    "<path d='M22 56 Q32 47 42 56' stroke='#8a5a34' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
+    "<path d='M17 33 q-2 5 -1 9' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>" +
+    "<path d='M47 33 q2 5 1 9' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>",
+
+  // You skipped — no guess means no judgment, just a curious look.
+  skip:
+    "<circle cx='22' cy='29' r='3.6' fill='#4a3626'/><circle cx='42' cy='29' r='3.6' fill='#4a3626'/>" +
+    "<path d='M25 53 L39 53' stroke='#8a5a34' stroke-width='2.4' stroke-linecap='round'/>",
+};
+
+const cowMascot = (mood) => "<svg viewBox='0 0 64 64'>" + COW_HEAD + COW_FACES[mood] + "</svg>";
+
+// Correct answers get happier the longer your streak runs.
+const correctMood = (streak) =>
+  streak >= 10 ? "legendary" : streak >= 6 ? "ecstatic" : streak >= 3 ? "combo" : "happy";
+
+// Work out which face fits the answer. This is purely cosmetic — it never
+// changes scoring — so it's fine to run its own quick genus check here rather
+// than reuse isCorrect(), which is stricter about spelling than we need for
+// "did you at least have the right genus".
+function pickMood(wasCorrect, typed) {
+  if (wasCorrect) return correctMood(game.streak);
+  if (!typed) return "skip";
+  const givenGenus  = normalize(typed).split(" ")[0];
+  const targetGenus = normalize(game.current.scientificName).split(" ")[0];
+  const rightGenus = givenGenus && levenshtein(givenGenus, targetGenus) <= 1;
+  return rightGenus ? "genus" : "miss";
+}
+
+// -- the slide-up feedback banner (the Duolingo-style bit) ----------------
+function showActionRow() { el("actionRow").classList.remove("hidden"); hideFeedback(); }
+function hideFeedback()  { el("feedback").classList.remove("show"); }
+
+// A Google search for the species, narrowed to your region(s) — unless
+// that's just "World", which isn't a real place to search for.
+function learnMoreUrl(question) {
+  const terms = [question.scientificName];
+  const placeNames = game.regions.filter((r) => r.id !== null).map((r) => r.name);
+  terms.push(...placeNames);
+  return "https://www.google.com/search?q=" + encodeURIComponent(terms.join(" "));
+}
+
+// -- the optional distribution map + facts block ---------------------------
+//  Only fetched when "Show distribution & facts" is switched on at setup, so
+//  people who don't want it never pay for the extra network calls. Both
+//  pieces load independently — if either one fails, it just shows a short
+//  "couldn't load" note in its own spot rather than breaking the other.
+//
+//  The pop-up's markup is created once in the page and reused every question
+//  (see #learnPopup in the HTML), so two things need care that wouldn't
+//  matter if it were rebuilt from scratch each time:
+//   - a Leaflet map can only be created once per container, so we remove the
+//     previous one before building a new one (see currentDistributionMap).
+//   - if you answer quickly, an old question's slow network request could
+//     still be in flight when a new question opens the pop-up. learnMoreToken
+//     is bumped every time the pop-up opens, so a late-arriving result from an
+//     earlier question can recognise it's stale and quietly do nothing.
+
+let learnMoreToken = 0;
+let currentDistributionMap = null;   // the Leaflet map currently in the pop-up, if any
+
+// GBIF's own taxon id for a species, found by matching its scientific name
+// against GBIF's backbone taxonomy. Returns null if there's no good match.
+async function gbifTaxonKey(scientificName) {
+  const res = await fetch("https://api.gbif.org/v1/species/match?name=" + encodeURIComponent(scientificName));
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data.matchType && data.matchType !== "NONE" && data.usageKey) ? data.usageKey : null;
+}
+
+// The bounding box GBIF actually has records within, for this species — or
+// null if it has none (or the request fails). Used to zoom the map to where
+// the species occurs, rather than leaving it zoomed out on the whole world,
+// which for a less-recorded species can look empty even when it's working
+// correctly — the dots are just too small and scattered to see at that zoom.
+async function gbifOccurrenceBounds(taxonKey) {
+  try {
+    const res = await fetch("https://api.gbif.org/v2/map/occurrence/density/capabilities.json?taxonKey=" + taxonKey);
+    if (!res.ok) return null;
+    const { minLat, minLng, maxLat, maxLng, total } = await res.json();
+    const bounds = [minLat, minLng, maxLat, maxLng];
+    if (!total || bounds.some((v) => typeof v !== "number")) return null;
+    return [[minLat, minLng], [maxLat, maxLng]];
+  } catch (err) { return null; }
+}
+
+// Build the distribution map, using GBIF's own tile styling end to end — the
+// same "violet" dark basemap and hex-binned density tiles their own site
+// uses, both served straight from GBIF's servers. GBIF doesn't offer a way
+// to embed their actual map page (their team's own answer to that question
+// is "use the Maps API with Leaflet" — see their community forum), so this
+// Leaflet map *is* the documented way to get their map elsewhere, not a
+// workaround. Hex-binning also tends to show up much better at a low zoom
+// than raw points, since sparse occurrences get grouped into a visible cell
+// rather than staying scattered, tiny dots.
+async function showDistributionMap(mapBox, scientificName, token) {
+  const taxonKey = await gbifTaxonKey(scientificName);
+  if (token !== learnMoreToken) return;   // a newer question has since taken over the pop-up
+  if (!taxonKey) { mapBox.innerHTML = "<div class='learn-empty'>No GBIF match for this species.</div>"; return; }
+
+  if (currentDistributionMap) { currentDistributionMap.remove(); currentDistributionMap = null; }
+  mapBox.innerHTML = "";   // clear the "Loading…" placeholder before Leaflet takes over the box
+  const map = L.map(mapBox, { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView([15, 10], 2);
+  currentDistributionMap = map;
+  L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-violet", {
+    maxZoom: 6, attribution: "GBIF",
+  }).addTo(map);
+  L.tileLayer("https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?style=classic.poly&bin=hex&hexPerTile=60&taxonKey=" + taxonKey, {
+    maxZoom: 6, attribution: "GBIF",
+  }).addTo(map);
+
+  const bounds = await gbifOccurrenceBounds(taxonKey);
+  if (token !== learnMoreToken) return;   // check again — the second await was another chance to go stale
+  if (bounds) map.fitBounds(bounds, { maxZoom: 6, padding: [10, 10] });
+  map.invalidateSize();   // guards against Leaflet caching a stale size for the container
+}
+
+// A short, plain-language summary of the species from Wikipedia. Used both
+// as the "always works" link to the species' Wikipedia page, and as the
+// fallback Ecology text when there's no dedicated section to pull from
+// instead. Always English — the on-page Google Translate widget (see the
+// setup screen) is what handles reading it in another language, rather than
+// this fetching a different Wikipedia edition itself.
+async function wikipediaSummary(title) {
+  const res = await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title));
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.extract) return null;
+  const url = (data.content_urls && data.content_urls.desktop && data.content_urls.desktop.page) ||
+    ("https://en.wikipedia.org/wiki/" + encodeURIComponent(title));
+  return { extract: data.extract, url };
+}
+
+// -- name etymology & ecology ---------------------------------------------
+//  What a species is actually called usually comes from Greek or Latin roots
+//  describing its look, habitat, or discoverer — genuinely interesting, and
+//  far more specific than a generic species summary. Wikimedia's API can
+//  hand us just one named section of a page directly (no need to parse the
+//  whole article ourselves): first find which numbered section is headed
+//  "Etymology" (or "Ecology", "Habitat", ...), then fetch that one section's
+//  already-rendered text.
+
+// All the sections on a Wikimedia page, as { line, index } pairs.
+async function fetchSections(host, title) {
+  const url = "https://" + host + "/w/api.php?action=parse&page=" + encodeURIComponent(title) +
+    "&prop=sections&format=json&formatversion=2&origin=*";
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.parse && data.parse.sections) || [];
+}
+
+// Which section (by number) on a Wikimedia page is headed something matching
+// `pattern` — or null if the page has no such section.
+async function findNamedSection(host, title, pattern) {
+  const sections = await fetchSections(host, title);
+  const match = sections.find((s) => pattern.test(s.line));
+  return match ? match.index : null;
+}
+const findEtymologySection = (host, title) => findNamedSection(host, title, /etymology/i);
+
+// Sections that read as more specifically "ecological" than a Wikipedia
+// lead paragraph — tried in this order, first match wins.
+const ECOLOGY_SECTION_PATTERN = /ecology|habitat|behaviou?r|diet|reproduction|life cycle|description/i;
+
+// The plain text of one section of a Wikimedia page. Fetching by section
+// number means MediaWiki does the work of isolating it for us, and templates
+// and links inside it are already expanded into normal rendered text — we
+// only need to strip tags and citation clutter, not parse wiki markup.
+async function fetchSectionText(host, title, sectionIndex) {
+  const url = "https://" + host + "/w/api.php?action=parse&page=" + encodeURIComponent(title) +
+    "&prop=text&section=" + sectionIndex + "&format=json&formatversion=2&origin=*";
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const html = data.parse && data.parse.text;
+  return html ? cleanWikiHtml(html) : null;
+}
+
+// Turn one rendered Wikimedia section into plain prose. Beyond the obvious
+// tags, this also has to remove <style>/<script> elements outright — mobile
+// maintenance-box templates ship their CSS inline as a <style> tag, and
+// textContent walks straight into it, which is why "Etymology" facts used to
+// sometimes come back as a wall of raw ".mw-parser-output{...}" rules.
+function cleanWikiHtml(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll(
+    "style, script, sup.reference, table, h1, h2, h3, h4, .mw-editsection, " +
+    ".reference, .citation, .mbox, .ambox, .maintenance-box, .maintenance-line, " +
+    ".request-box, .hatnote, .navbox, .infobox, .sistersitebox, .noprint, .metadata, " +
+    ".thumb, .thumbcaption, figure, figcaption, .gallery, .mw-references-wrap, .etytree"
+  ).forEach((node) => node.remove());   // .maintenance-line is Wiktionary's "this
+  // etymology is missing or incomplete" stub notice, .thumb/figure are inline
+  // image captions, and .etytree is Wiktionary's collapsible "Etymology tree"
+  // diagram — all three read as real-looking prose once flattened to plain
+  // text, but none of them actually is, so they must never survive to reach
+  // the pop-up. The tree in particular is a diagram (parent/child word
+  // derivations laid out visually), not linear prose, so textContent turns
+  // it into an unreadable run-on of every term in the tree.
+  let text = doc.body.textContent.replace(/\s+/g, " ").trim();
+  // Belt-and-braces for citation dumps that still slip through as plain text
+  // rather than an element we can remove outright — Wiktionary uses "↑" as its
+  // footnote backlink glyph, Wikipedia uses "^" (e.g. "...présbus). ↑ 1.0 1.1
+  // De Vaan, Michiel (2008), ..., →ISBN, page 45"). Keep only what comes
+  // before the first one, as long as there's real content to keep.
+  const footnoteBreak = Math.min(
+    ...["↑", " ^ "].map((marker) => { const i = text.indexOf(marker); return i === -1 ? Infinity : i; })
+  );
+  if (footnoteBreak > 20 && footnoteBreak < Infinity) text = text.slice(0, footnoteBreak).trim();
+  return text || null;
+}
+
+// Cuts prose down to its first `n` sentences, so the pop-up stays a quick
+// read instead of dumping a whole Wikipedia section. Species descriptions are
+// full of measurements like "0.98–4.92 ft" — decimal points there would
+// otherwise get mistaken for sentence endings, so they're protected before
+// splitting and restored after.
+function trimToSentences(text, n) {
+  const DECIMAL_MARK = "\u0001";   // placeholder no real text will contain
+  const guarded = text.replace(/(\d)\.(\d)/g, "$1" + DECIMAL_MARK + "$2");
+  const sentences = guarded.split(/(?<=[.!?])\s+/);
+  const trimmed = sentences.length <= n ? guarded : sentences.slice(0, n).join(" ");
+  return trimmed.split(DECIMAL_MARK).join(".").trim();
+}
+
+// Look for a dedicated "Etymology" section: on the species' own Wikipedia
+// page first (when it exists, it usually covers the whole name as one piece
+// of prose), otherwise on Wiktionary for the genus and the species epithet
+// separately — Wiktionary documents the individual Greek/Latin roots for far
+// more words than there are Wikipedia articles about the species themselves.
+async function findEtymology(scientificName) {
+  const wikipediaSection = await findEtymologySection("en.wikipedia.org", scientificName);
+  if (wikipediaSection !== null) {
+    const text = await fetchSectionText("en.wikipedia.org", scientificName, wikipediaSection);
+    if (text) return text;
+  }
+
+  const [genus, epithet] = scientificName.split(" ");
+  const [genusText, epithetText] = await Promise.all([
+    wiktionaryEtymology(genus),
+    epithet ? wiktionaryEtymology(epithet) : Promise.resolve(null),
+  ]);
+  if (!genusText && !epithetText) return null;
+  return [genusText && genus + ": " + genusText, epithetText && epithet + ": " + epithetText]
+    .filter(Boolean).join("\n\n");
+}
+async function wiktionaryEtymology(word) {
+  const section = await findEtymologySection("en.wiktionary.org", word);
+  return section !== null ? fetchSectionText("en.wiktionary.org", word, section) : null;
+}
+
+// Show or hide the Etymology block as a whole (heading + text) depending on
+// whether we found one — unlike Ecology, there's no reasonable fallback for
+// it, so an empty state would just be dead space.
+function renderEtymology(box, text) {
+  el("learnEtymologySection").classList.toggle("hidden", !text);
+  if (text) box.innerHTML = text.split("\n\n").map((p) => "<p>" + escapeHtml(p) + "</p>").join("");
+}
+
+async function showFacts(etymologyBox, ecologyBox, question, token) {
+  const name = question.scientificName;
+
+  let etymology = null;
+  try { etymology = await findEtymology(name); } catch (err) { /* leave the section hidden */ }
+  if (token !== learnMoreToken) return;   // a newer question has since taken over the pop-up
+  renderEtymology(etymologyBox, etymology);
+
+  let summary = null;
+  try { summary = await wikipediaSummary(name) || await wikipediaSummary(name.split(" ")[0]); }
+  catch (err) { /* no summary available — the Wikipedia link falls back to a search */ }
+  if (token !== learnMoreToken) return;
+
+  let ecologyText = null;
+  try {
+    const sectionIndex = await findNamedSection("en.wikipedia.org", name, ECOLOGY_SECTION_PATTERN);
+    if (token !== learnMoreToken) return;
+    if (sectionIndex !== null) ecologyText = await fetchSectionText("en.wikipedia.org", name, sectionIndex);
+  } catch (err) { /* fall back to the plain summary below */ }
+  if (token !== learnMoreToken) return;
+
+  const ecologySource = ecologyText || (summary && summary.extract);
+  ecologyBox.innerHTML = ecologySource
+    ? "<p>" + escapeHtml(trimToSentences(ecologySource, ecologyText ? 3 : 4)) + "</p>"
+    : "<div class='learn-empty'>No ecological notes found for this species.</div>";
+
+  // Always give a way through to Wikipedia — the real article if we found
+  // one, otherwise a search for the name, so the link is never a dead end.
+  el("learnWikiLink").href = (summary && summary.url) ||
+    "https://en.wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(name);
+}
+
+// Builds the mascot + title + streak-combo + species-name header shared by
+// the feedback banner and the learn-more pop-up — the pop-up covers the
+// banner whenever it's open, so it needs its own copy of the same verdict
+// rather than leaving the user to peek at what's underneath. `extraHtml` is
+// appended inside the same text column (the banner uses it for the "learn
+// more" link; the pop-up has no need for it).
+function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
+  const mood = pickMood(wasCorrect, typed);
+  const common = question.commonName ? " <span class='fb-common'>· " + escapeHtml(question.commonName) + "</span>" : "";
+  const title = wasCorrect ? pickPraise() : "Correct answer:";
+  const you = (!wasCorrect && typed) ? "<span class='fb-you'>You wrote “" + escapeHtml(typed) + "”</span>" : "";
+  const combo = (mood === "combo" || mood === "ecstatic" || mood === "legendary")
+    ? "<div class='fb-combo'>🔥 " + game.streak + " in a row!</div>" : "";
+  return "<div class='fb-head'><div class='fb-icon pop " + mood + "'>" + cowMascot(mood) + "</div>" +
+    "<div><div class='fb-title'>" + title + "</div>" + combo +
+    "<div><span class='fb-name'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + you +
+    (extraHtml ? "<div>" + extraHtml + "</div>" : "") + "</div></div>";
+}
+
+// Open the pop-up and kick off both fetches. Each is wrapped in its own
+// try/catch so a network hiccup in one doesn't take out the other.
+function openLearnPopup(question, wasCorrect, typed) {
+  learnMoreToken += 1;
+  const token = learnMoreToken;
+  el("learnResultHeader").className = "learn-result " + (wasCorrect ? "correct" : "wrong");
+  el("learnResultHeader").innerHTML = resultHeaderHtml(question, wasCorrect, typed);
+  el("learnMap").innerHTML = "<div class='learn-loading'>Loading map…</div>";
+  el("learnEtymologySection").classList.add("hidden");   // hidden until showFacts knows there is one
+  el("learnEtymology").innerHTML = "<div class='learn-loading'>Loading…</div>";
+  el("learnEcology").innerHTML = "<div class='learn-loading'>Loading…</div>";
+  el("learnWikiLink").href = "https://en.wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(question.scientificName);
+  el("learnObsNote").innerHTML = question.observationId
+    ? "<a href='https://www.inaturalist.org/observations/" + question.observationId +
+      "' target='_blank' rel='noopener'>View the iNaturalist observation</a> — " +
+      "spotted something misidentified there? Feel free to suggest a correction on iNaturalist."
+    : "";
+  el("learnPopup").classList.remove("hidden");
+
+  const mapBox = el("learnMap");
+  showDistributionMap(mapBox, question.scientificName, token).catch(() => {
+    if (token === learnMoreToken) mapBox.innerHTML = "<div class='learn-empty'>Couldn't load the distribution map.</div>";
+  });
+  showFacts(el("learnEtymology"), el("learnEcology"), question, token).catch(() => {
+    if (token === learnMoreToken) {
+      el("learnEtymologySection").classList.add("hidden");
+      el("learnEcology").innerHTML = "<div class='learn-empty'>Couldn't load species facts.</div>";
+    }
+  });
+}
+function closeLearnPopup() { el("learnPopup").classList.add("hidden"); }
+// Closing the pop-up — by any means — always means "I'm done, next species."
+function closeLearnPopupAndAdvance() { closeLearnPopup(); nextQuestion(); }
+
+function showFeedback(wasCorrect, typed) {
+  const q = game.current;
+  const learnMore = "<a class='fb-learn' href='" + learnMoreUrl(q) + "' target='_blank' rel='noopener'>" +
+    "🔍 Do you want to learn more about this " + subjectNoun() + "?</a>";
+
+  el("feedback").className = "feedback show " + (wasCorrect ? "correct" : "wrong");
+  el("feedback").innerHTML =
+    resultHeaderHtml(q, wasCorrect, typed, learnMore) +
+    "<button class='btn' id='continueBtn'>Continue</button>";
+  el("actionRow").classList.add("hidden");
+  el("continueBtn").addEventListener("click", nextQuestion);
+  // The distribution map + facts show as a pop-up over this banner, rather
+  // than being appended to the bottom of it — so it gets its own copy of the
+  // same verdict header rather than leaving it hidden underneath.
+  if (game.learnMore) openLearnPopup(q, wasCorrect, typed);
+}
+const PRAISE = ["Nice!", "Correct!", "Well done!", "Exactly!", "You got it!", "Spot on!"];
+const pickPraise = () => PRAISE[randomInt(0, PRAISE.length - 1)];
+
+// -- the results (lesson complete) screen ---------------------------------
+function showDone() {
+  showScreen("done");
+  const reviewMode = game.mode === "review";
+  const accuracy = game.round.size ? Math.round(100 * game.round.correct / game.round.size) : 0;
+  const xp = game.round.correct * 10;
+  const missCount = game.missed.size;
+
+  const stats = reviewMode
+    ? "<div class='stat-cards'>" +
+        card("gold", "Mastered", game.round.correct) +
+        card("green", "Reviewed", game.round.size) +
+        card("blue", "Still to go", missCount) + "</div>"
+    : "<div class='stat-cards'>" +
+        card("gold", "XP", xp) +
+        card("green", "Accuracy", accuracy + "%") +
+        card("blue", "Streak", game.streak) + "</div>";
+
+  const reviewButtons = missCount > 0
+    ? "<button class='btn btn-blue btn-big' onclick='startReview(false)'>Review " + missCount +
+        " missed (same " + mediaWord(true) + ")</button>" +
+      "<button class='btn btn-ghost btn-big' onclick='startReview(true)'>Review with new " + mediaWord(true) + "</button>"
+    : "";
+
+  el("doneContent").innerHTML =
+    "<div class='mascot'><svg viewBox='0 0 100 100' fill='none'><circle cx='50' cy='50' r='48' fill='#f3ead2'/>" +
+      "<path d='M50 78 V44' stroke='#34573f' stroke-width='7' stroke-linecap='round'/>" +
+      "<path d='M50 52 C34 52 26 40 28 28 C42 28 52 38 50 52Z' fill='#4a7c59'/>" +
+      "<path d='M50 46 C64 46 74 36 72 24 C58 24 48 34 50 46Z' fill='#7aa584'/></svg></div>" +
+    "<h2>" + (reviewMode ? "Review complete!" : "Lesson complete!") + "</h2>" +
+    "<p class='sub'>" + escapeHtml(game.label) + "</p>" +
+    stats +
+    "<button class='btn btn-primary btn-big' onclick='startRound(\"normal\")'>Continue</button>" +
+    reviewButtons +
+    "<button class='btn btn-ghost btn-big' onclick='openProgress()'>My progress</button>" +
+    "<button class='btn btn-ghost btn-big' onclick='backToSetup()'>Change groups / region</button>";
+}
+const card = (cls, top, val) =>
+  "<div class='stat-card " + cls + "'><div class='top'>" + top + "</div><div class='val'>" + val + "</div></div>";
+
+// -- the progress panel (three tabs) --------------------------------------
+let panelTab = "weak";
+
+async function openProgress() {
+  showScreen("progressPanel");
+  panelTab = "weak";
+  weakLevel = "family";
+  el("progressPanel").innerHTML = "<div class='busy'><div class='spinner'></div><p>Working things out…</p></div>";
+  await resolveFamilies();
+  renderPanel();
+}
+function closeProgress() { backToSetup(); }
+
+function renderPanel() {
+  const p = currentProfile();
+  const tab = (id, label) => "<button class='tab" + (panelTab === id ? " active" : "") + "' data-tab='" + id + "'>" + label + "</button>";
+  const head =
+    "<div class='panel-head'><h2>" + escapeHtml(p ? p.name : "Player") + "</h2>" +
+      "<button class='btn-link' data-panel='close'>Close</button></div>" +
+    "<div class='tabs'>" + tab("weak", "Weak spots") + tab("time", "Over time") + tab("vs", "Vs others") + "</div>";
+  let body;
+  if (panelTab === "weak") body = renderWeakTab();
+  else if (panelTab === "time") body = renderTimeTab();
+  else body = renderVsTab();
+  el("progressPanel").innerHTML = head + body;
+}
+
+// One row of the bar chart — shared by the family, genus, and species views.
+// `italic` follows taxonomic convention: species and genus names are set in
+// italics, family names upright.
+const weakBar = (r, italic) =>
+  "<div class='wk-row'><div class='wk-label'><span class='" + (italic ? "sci" : "fam") + "'>" +
+    escapeHtml(r.name) + "</span><span class='wk-count'>" + r.correct + "/" + r.total + "</span></div>" +
+  "<div class='wk-track'><div class='wk-fill " + accuracyClass(r.accuracy) + "' style='width:" + pct(r.accuracy) + "'></div></div>" +
+  "<div class='wk-pct'>" + pct(r.accuracy) + "</div></div>";
+
+// Which grouping level the Weak Spots tab is currently showing.
+let weakLevel = "family";   // "family" | "genus" | "species"
+
+// The donut plus a couple of quick counts — a visual anchor before the bars.
+function renderWeakOverview(summary) {
+  const genusCount  = new Set([...game.stats.values()].map((s) => (s.scientificName || "").split(" ")[0])).size;
+  const familyCount = summary.families.length;
+  return "<div class='wk-overview'>" + accuracyDonut(summary.accuracy) +
+    "<div class='wk-overview-stats'>" +
+      "<div class='wk-overview-line'><b>" + summary.correct + "/" + summary.answers + "</b> correct overall</div>" +
+      "<div class='wk-overview-line muted'>" + game.stats.size + " species · " + genusCount + " genera · " + familyCount + " families</div>" +
+    "</div></div>";
+}
+
+// The small Family / Genus / Species switcher, styled like the existing chips.
+function weakLevelSwitch() {
+  const btn = (id, label) => "<button class='chip" + (weakLevel === id ? " active" : "") +
+    "' data-weak-level='" + id + "'>" + label + "</button>";
+  return "<div class='chips level-switch'>" + btn("family", "Family") + btn("genus", "Genus") + btn("species", "Species") + "</div>";
+}
+
+function renderWeakTab() {
+  const summary = summarize(game.stats);
+  if (summary.answers === 0) return "<div class='empty'>No data yet — answer a few species and your weak spots show up here.</div>";
+
+  let body;
+  if (weakLevel === "family") {
+    body = "<h3>By family</h3>" + weaknessesByFamily().map((r) => weakBar(r, !r.isFamily)).join("");
+  } else if (weakLevel === "genus") {
+    body = "<h3>By genus</h3>" + weaknessesByGenus().map((r) => weakBar(r, true)).join("");
+  } else {
+    const tough = toughestSpecies();
+    const toughSection = tough.length === 0 ? "" :
+      "<h3>Needs the most work</h3>" + tough.map((r) => weakBar(r, true)).join("");
+    body = toughSection + "<h3>Every species</h3>" + weaknessesBySpecies().map((r) => weakBar(r, true)).join("");
+  }
+
+  return "<p class='panel-sub'>" + summary.answers + " answers so far. " +
+      "<button class='btn-link' data-panel='reset'>Reset this player</button></p>" +
+    renderWeakOverview(summary) + weakLevelSwitch() + body;
+}
+
+function renderTimeTab() {
+  const p = currentProfile();
+  const now = summarize(p.stats);
+  if (now.answers === 0) return "<div class='empty'>Answer some species first, then track your progress here.</div>";
+  const fmt = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const line = (label, answers, acc, now) =>
+    "<div class='wk-row" + (now ? " now" : "") + "'><div class='wk-label'><span class='fam'>" + label + "</span>" +
+    "<span class='wk-count'>" + answers + " answers</span></div>" +
+    "<div class='wk-track'><div class='wk-fill " + accuracyClass(acc) + "' style='width:" + pct(acc) + "'></div></div>" +
+    "<div class='wk-pct'>" + pct(acc) + "</div></div>";
+
+  const points = "<h3>Accuracy over time</h3>" + line("Now", now.answers, now.accuracy, true) +
+    p.snapshots.slice().reverse().map((sn) => line(fmt(sn.at), sn.answers, sn.answers ? sn.correct / sn.answers : 0, false)).join("");
+
+  let progress = "";
+  const first = p.snapshots[0];
+  if (first) {
+    const past = new Map(first.families.map((f) => [f.name, f]));
+    const deltas = now.families.map((f) => {
+      const before = past.get(f.name);
+      const beforeAcc = before && before.total ? before.correct / before.total : null;
+      return { name: f.name, isFamily: f.isFamily, nowAcc: f.accuracy, beforeAcc };
+    }).filter((d) => d.beforeAcc !== null).map((d) => ({ ...d, delta: d.nowAcc - d.beforeAcc }))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 6);
+    if (deltas.length) progress = "<h3>Since " + fmt(first.at) + "</h3>" + deltas.map((d) => {
+      const cls = d.delta > 0 ? "up" : d.delta < 0 ? "down" : "";
+      const sign = d.delta >= 0 ? "+" : "";
+      return "<div class='wk-species'><span class='" + (d.isFamily ? "fam" : "sci") + "'>" + escapeHtml(d.name) + "</span>" +
+        "<span class='delta " + cls + "'>" + pct(d.beforeAcc) + " → " + pct(d.nowAcc) +
+        " (" + sign + Math.round(d.delta * 100) + ")</span></div>";
+    }).join("");
+  }
+  return "<p class='panel-sub'>How " + escapeHtml(p.name) + " is doing over time. " +
+    "<button class='btn-link' data-panel='milestone'>Save milestone now</button></p>" + points + progress;
+}
+
+function renderVsTab() {
+  const p = currentProfile();
+  const code = exportCode(p);
+  const entries = comparisonEntries();
+  const board = entries.length === 0
+    ? "<div class='empty'>Play a little, then share your code or add a friend's.</div>"
+    : entries.map((e, i) =>
+        "<div class='cmp-row" + (e.kind === "you" ? " you" : "") + "'><span class='cmp-rank'>" + (i + 1) + "</span>" +
+        "<span class='cmp-name'>" + escapeHtml(e.name) + (e.kind === "you" ? " (you)" : e.kind === "shared" ? " · shared" : "") + "</span>" +
+        "<span class='cmp-acc'>" + pct(e.accuracy) + "</span>" +
+        "<span class='wk-count'>" + e.correct + "/" + e.answers + "</span>" +
+        (e.kind === "shared" ? "<button class='btn-link' data-remove='" + e.index + "'>✕</button>" : "") + "</div>").join("");
+  return "<p class='panel-sub'>No server, no login. Share your code, paste a friend's — everyone lines up below. " +
+      "Other players on this device appear automatically.</p>" +
+    "<h3>Your share-code</h3>" +
+    "<div class='code-box'><input id='shareCode' class='input' type='text' readonly value='" + code + "'>" +
+      "<button class='btn btn-ghost' data-panel='copy'>Copy</button></div>" +
+    "<h3>Add someone's code</h3>" +
+    "<div class='code-box'><input id='importField' class='input' type='text' placeholder='Paste a DET1:… code'>" +
+      "<button class='btn btn-ghost' data-panel='import'>Add</button></div>" +
+    "<div id='importMsg' class='panel-sub'></div>" +
+    "<h3>Leaderboard</h3>" + board;
+}
+
+// -- progress-panel actions -----------------------------------------------
+function resetHistory() {
+  const p = currentProfile();
+  p.stats = new Map(); p.snapshots = [];
+  game.stats = p.stats; saveStore(); renderPanel();
+}
+function copyShareCode(button) {
+  const input = el("shareCode");
+  input.select();
+  try { navigator.clipboard.writeText(input.value); } catch (e) { try { document.execCommand("copy"); } catch (e2) {} }
+  if (button) { button.textContent = "Copied"; setTimeout(() => { button.textContent = "Copy"; }, 1200); }
+}
+function doImport() {
+  try { importCode(el("importField").value); renderPanel(); }
+  catch (err) { el("importMsg").textContent = "That code didn't look right — paste the whole DET1:… code."; }
+}
+
+
+// == 11. Wiring up the controls ============================================
+
+function backToSetup() {
+  populateProfileSelect();
+  showScreen("setup");
+}
+
+// -- setup: taxon search (live) -------------------------------------------
+const runTaxonSearch = debounce(async (query) => {
+  if (!query) return hideSuggest("taxonSuggest");
+  try {
+    const hits = await searchTaxa(query);
+    const box = el("taxonSuggest");
+    if (hits.length === 0) return hideSuggest("taxonSuggest");
+    box.innerHTML = hits.map((h) =>
+      "<div class='suggest-item' data-taxon-id='" + h.id + "' data-taxon-name='" + escapeHtml(h.name) + "'>" +
+      "<span class='" + (h.rank === "genus" || h.rank === "species" ? "sci" : "") + "'>" + escapeHtml(h.name) + "</span>" +
+      (h.commonName ? "<span class='meta'>" + escapeHtml(h.commonName) + "</span>" : "") +
+      "<span class='rank'>" + escapeHtml(h.rank) + "</span></div>").join("");
+    box.classList.remove("hidden");
+  } catch (err) { hideSuggest("taxonSuggest"); }
+}, 220);
+
+// -- setup: region search (live) ------------------------------------------
+const runRegionSearch = debounce(async (query) => {
+  if (!query) return hideSuggest("regionSuggest");
+  try {
+    const hits = await searchPlaces(query);
+    const box = el("regionSuggest");
+    if (hits.length === 0) return hideSuggest("regionSuggest");
+    box.innerHTML = hits.map((h) =>
+      "<div class='suggest-item' data-place-id='" + h.id + "' data-place-name='" + escapeHtml(h.name) + "'>" +
+      "<span>" + escapeHtml(h.name) + "</span></div>").join("");
+    box.classList.remove("hidden");
+  } catch (err) { hideSuggest("regionSuggest"); }
+}, 220);
+
+// Add a taxon/region from a suggestion row. Shared by a mouse click and
+// pressing Enter (Enter always takes the top row, since neither of these two
+// fields has arrow-key highlighting — that would be more to keep track of
+// for a feature that's really just "the obvious choice is already at the top").
+function pickTaxonSuggestion(item) {
+  if (!item) return;
+  addTaxon({ id: Number(item.dataset.taxonId), name: item.dataset.taxonName });
+  el("taxonSearch").value = "";
+  hideSuggest("taxonSuggest");
+}
+function pickRegionSuggestion(item) {
+  if (!item) return;
+  addRegion({ id: Number(item.dataset.placeId), name: item.dataset.placeName });
+  el("regionSearch").value = "";
+  hideSuggest("regionSuggest");
+}
+
+const hideSuggest = (id) => el(id) && el(id).classList.add("hidden");
+
+// -- the answer autocomplete (with keyboard navigation) -------------------
+let activeAnswerSuggestion = -1;
+
+function renderAnswerSuggestions() {
+  if (!game.assist || game.answered) return hideSuggest("answerSuggest");
+  const list = answerSuggestions(el("answerInput").value);
+  const box = el("answerSuggest");
+  if (list.length === 0) return hideSuggest("answerSuggest");
+  box.innerHTML = list.map((sp, i) => {
+    // In common-names mode, lead with the common name and demote the
+    // scientific one to the secondary slot — but only when this species
+    // actually has one; otherwise there's nothing to lead with but the
+    // scientific name anyway.
+    const useCommon = game.useCommonNames && sp.commonName;
+    const secondary = useCommon ? sp.scientificName : sp.commonName;
+    return "<div class='suggest-item" + (i === activeAnswerSuggestion ? " active" : "") + "' data-answer='" + escapeHtml(answerLabelFor(sp)) + "'>" +
+      "<span class='" + (useCommon ? "" : "sci") + "'>" + escapeHtml(answerLabelFor(sp)) + "</span>" +
+      (secondary ? "<span class='meta" + (useCommon ? " sci" : "") + "'>" + escapeHtml(secondary) + "</span>" : "") + "</div>";
+  }).join("");
+  box.classList.remove("hidden");
+  box.querySelectorAll(".suggest-item").forEach((row) => {
+    row.addEventListener("mousedown", (event) => {   // mousedown beats blur
+      event.preventDefault();
+      el("answerInput").value = row.dataset.answer;
+      hideSuggest("answerSuggest");
+      submitAnswer();
+    });
+  });
+}
+
+// (Re)attach listeners to the answer input — needed after clearBusy rebuilds it.
+function wireAnswerInput() {
+  const input = el("answerInput");
+  input.addEventListener("input", () => {
+    activeAnswerSuggestion = -1;
+    el("checkBtn").disabled = input.value.trim() === "";
+    renderAnswerSuggestions();
+  });
+  input.addEventListener("keydown", (event) => {
+    const open = !el("answerSuggest").classList.contains("hidden");
+    const rows = el("answerSuggest").querySelectorAll(".suggest-item");
+    if (event.key === "ArrowDown" && open) { event.preventDefault(); activeAnswerSuggestion = Math.min(activeAnswerSuggestion + 1, rows.length - 1); renderAnswerSuggestions(); }
+    else if (event.key === "ArrowUp" && open) { event.preventDefault(); activeAnswerSuggestion = Math.max(activeAnswerSuggestion - 1, 0); renderAnswerSuggestions(); }
+    else if (event.key === "Tab" && open && rows.length) { event.preventDefault(); input.value = (activeAnswerSuggestion >= 0 ? rows[activeAnswerSuggestion] : rows[0]).dataset.answer; hideSuggest("answerSuggest"); el("checkBtn").disabled = false; }
+    else if (event.key === "Enter") {
+      event.preventDefault();
+      // stopPropagation matters here: submitAnswer() can open the learn-more
+      // pop-up synchronously (via finishAnswer -> showFeedback), and without
+      // this, that same keydown would go on to reach the document-level
+      // "advance on Enter" handler (see wireLearnPopup) and immediately
+      // close the pop-up it just opened. finishAnswer() also disables this
+      // input, so it never receives a *second* Enter itself — that next
+      // press reaches the document-level handler on its own, which is what
+      // actually advances to the next question.
+      event.stopPropagation();
+      submitAnswer();
+    }
+    else if (event.key === "Escape") { hideSuggest("answerSuggest"); }
+  });
+}
+
+// (Re)attach listeners to the gallery controls — needed after clearBusy rebuilds them.
+function wirePhotoGallery() {
+  el("photoPrev").addEventListener("click", () => scrollPhotos(-1));
+  el("photoNext").addEventListener("click", () => scrollPhotos(1));
+  el("photoStrip").addEventListener("scroll", updatePhotoIndicator);
+  el("photoExpand").addEventListener("click", () => openLightbox(currentPhotoIndex()));
+  // Tapping the photo itself also opens it — a swipe to browse still just
+  // scrolls the strip, since that never fires a "click".
+  el("photoStrip").addEventListener("click", (e) => {
+    if (e.target.tagName === "IMG") openLightbox(currentPhotoIndex());
+  });
+}
+
+// -- attach all the fixed listeners once ----------------------------------
+function wireControls() {
+  // setup: profiles
+  el("profileSelect").addEventListener("change", () => {
+    el("newProfileName").classList.toggle("hidden", el("profileSelect").value !== "__new__");
+    el("renameInput").classList.add("hidden");
+  });
+  // The pencil button opens a plain text box, pre-filled with your current
+  // name; pressing Enter or clicking away commits it.
+  el("renameProfileBtn").addEventListener("click", () => {
+    const input = el("renameInput");
+    input.value = currentProfile().name;
+    input.classList.remove("hidden");
+    input.focus();
+    input.select();
+  });
+  el("renameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") el("renameInput").blur(); });
+  el("renameInput").addEventListener("blur", () => {
+    renameProfile(el("renameInput").value);
+    el("renameInput").classList.add("hidden");
+  });
+
+  // setup: taxon
+  el("taxonSearch").addEventListener("input", (e) => runTaxonSearch(e.target.value.trim()));
+  el("taxonSearch").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    pickTaxonSuggestion(el("taxonSuggest").querySelector(".suggest-item"));   // always the top one
+  });
+  el("taxonSuggest").addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".suggest-item");
+    if (item) { e.preventDefault(); pickTaxonSuggestion(item); }
+  });
+  el("taxonChips").addEventListener("click", (e) => {
+    if (e.target.dataset.taxonPreset !== undefined) toggleTaxonPreset(e.target.dataset.taxonPreset);
+    else if (e.target.dataset.taxonExtra !== undefined) removeTaxon(e.target.dataset.taxonExtra);
+  });
+
+  // setup: region
+  el("regionSearch").addEventListener("input", (e) => runRegionSearch(e.target.value.trim()));
+  el("regionSearch").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    pickRegionSuggestion(el("regionSuggest").querySelector(".suggest-item"));   // always the top one
+  });
+  el("regionSuggest").addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".suggest-item");
+    if (item) { e.preventDefault(); pickRegionSuggestion(item); }
+  });
+  el("regionChips").addEventListener("click", (e) => {
+    if (e.target.dataset.regionPreset !== undefined) toggleRegionPreset(e.target.dataset.regionPreset);
+    else if (e.target.dataset.regionExtra !== undefined) removeRegion(e.target.dataset.regionExtra);
+  });
+
+  // setup: round size + media (photo/sound) chips
+  el("roundSizeChips").addEventListener("click", (e) => {
+    if (e.target.dataset.roundSize === undefined) return;
+    roundSizeChoice = e.target.dataset.roundSize === "Infinity" ? Infinity : Number(e.target.dataset.roundSize);
+    renderRoundSizeChips();
+  });
+  el("mediaChips").addEventListener("click", (e) => {
+    if (e.target.dataset.media === undefined) return;
+    mediaChoice = e.target.dataset.media;
+    renderMediaChips();
+  });
+
+  // start / progress
+  el("startBtn").addEventListener("click", () => {
+    const sel = el("profileSelect").value;
+    if (sel === "__new__") createProfile(el("newProfileName").value.trim() || ("Player " + (game.profiles.size + 1)));
+    else if (sel) activateProfile(sel);
+    maybeAutoMilestone(currentProfile());
+    if (game.taxa.length === 0) return toast("Pick at least one group to learn.");
+    startSession();
+  });
+  el("progressBtnSetup").addEventListener("click", openProgress);
+
+  // play controls
+  el("checkBtn").addEventListener("click", submitAnswer);
+  el("skipBtn").addEventListener("click", skipForLater);
+  el("quitBtn").addEventListener("click", backToSetup);
+
+  // progress panel (delegated)
+  el("progressPanel").addEventListener("click", (e) => {
+    if (e.target.dataset.tab) { panelTab = e.target.dataset.tab; renderPanel(); return; }
+    if (e.target.dataset.weakLevel) { weakLevel = e.target.dataset.weakLevel; renderPanel(); return; }
+    const action = e.target.dataset.panel;
+    if (action === "close") return closeProgress();
+    if (action === "reset") return resetHistory();
+    if (action === "milestone") { saveMilestone(currentProfile()); renderPanel(); return; }
+    if (action === "copy") return copyShareCode(e.target);
+    if (action === "import") return doImport();
+    if (e.target.dataset.remove !== undefined) { removeCompare(Number(e.target.dataset.remove)); renderPanel(); }
+  });
+
+  wireAnswerInput();
+  wirePhotoGallery();
+  wireLightbox();
+  wireLearnPopup();
+
+  // close dropdowns when clicking away
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".search")) { hideSuggest("taxonSuggest"); hideSuggest("regionSuggest"); hideSuggest("answerSuggest"); }
+  });
+}
+
+// The lightbox's markup is static (it's not inside playMain, so clearBusy()
+// never rebuilds it), so unlike wirePhotoGallery() this only needs wiring once.
+function wireLightbox() {
+  el("lightboxClose").addEventListener("click", closeLightbox);
+  el("lightboxPrev").addEventListener("click", () => browseLightbox(-1));
+  el("lightboxNext").addEventListener("click", () => browseLightbox(1));
+  // Clicking the dark backdrop closes it; clicking the image or the buttons shouldn't.
+  el("lightbox").addEventListener("click", (e) => { if (e.target.id === "lightbox") closeLightbox(); });
+
+  const stage = el("lightboxStage");
+  stage.addEventListener("pointerdown", onLightboxPointerDown);
+  stage.addEventListener("pointermove", onLightboxPointerMove);
+  stage.addEventListener("pointerup", onLightboxPointerUp);
+  stage.addEventListener("pointercancel", onLightboxPointerUp);
+  stage.addEventListener("dblclick", onLightboxDoubleClick);
+  stage.addEventListener("wheel", onLightboxWheel, { passive: false });
+
+  document.addEventListener("keydown", (e) => {
+    if (el("lightbox").classList.contains("hidden")) return;
+    if (e.key === "Escape") closeLightbox();
+    if (e.key === "ArrowLeft") browseLightbox(-1);
+    if (e.key === "ArrowRight") browseLightbox(1);
+  });
+}
+
+// The learn-more pop-up's markup is also static, so this only needs wiring
+// once too. Every way of dismissing it — the close button, clicking the dark
+// backdrop, Escape, or Enter — advances to the next question, same as
+// Continue.
+//
+// The Enter handling below covers two cases, both deliberately living on
+// the document rather than the answer input's own keydown handler:
+//  - pop-up open: Enter needs to work even though the Leaflet map inside it
+//    is itself keyboard-focusable, and clicking or dragging it moves focus
+//    off the answer input, which would otherwise leave Enter doing nothing.
+//  - pop-up off entirely (or already dismissed): finishAnswer() disables the
+//    answer input once you've answered, so it stops receiving keydowns at
+//    all — there's nowhere else for the "Enter advances to the next
+//    question" behaviour to live.
+function wireLearnPopup() {
+  el("learnPopupClose").addEventListener("click", closeLearnPopupAndAdvance);
+  el("learnPopupContinue").addEventListener("click", closeLearnPopupAndAdvance);
+  el("learnPopup").addEventListener("click", (e) => { if (e.target.id === "learnPopup") closeLearnPopupAndAdvance(); });
+  document.addEventListener("keydown", (e) => {
+    const popupOpen = !el("learnPopup").classList.contains("hidden");
+    if (e.key === "Escape" && popupOpen) return closeLearnPopupAndAdvance();
+    // Skip when Enter's target is a button (Continue, Skip, the pop-up's own
+    // buttons, ...) — a focused button already advances on its own via the
+    // browser's native "Enter activates the focused button" behaviour, and
+    // handling it here too would advance twice.
+    if (e.key === "Enter" && game.answered && e.target.tagName !== "BUTTON") {
+      return popupOpen ? closeLearnPopupAndAdvance() : nextQuestion();
+    }
+  });
+}
+
+
+// == 12. Start-up ==========================================================
+
+loadStore();            // restore players + weak-spot history from this device
+buildChips();           // draws the taxon/region/round-size chips, including today's defaults
+populateProfileSelect();
+wireControls();
+</script>
+</body>
+</html>
