@@ -44,9 +44,17 @@
      Google shows by default. -->
 <script>
   function googleTranslateElementInit() {
+    // Default layout (no SIMPLE) renders a real native <select> (.goog-te-combo)
+    // rather than a link that opens Google's own iframe menu — the native
+    // select is far more reliable, especially on mobile where the iframe menu
+    // tends to clip or land off-screen. includedLanguages keeps the list to a
+    // clean curated set instead of Google's full ~100. autoDisplay:false stops
+    // Google auto-translating based on the browser's language.
+    // Keep this list in sync with TRANSLATE_LANGS below (minus "en"): the
+    // engine's combo must contain every code our own <select> can request.
     new google.translate.TranslateElement(
       { pageLanguage: "en", autoDisplay: false,
-        layout: google.translate.TranslateElement.InlineLayout.SIMPLE },
+        includedLanguages: "ar,bg,cs,da,de,el,es,fi,fr,he,hi,hu,id,it,ja,ko,nl,no,pl,pt,ro,ru,sv,th,tr,uk,vi,zh-CN,zh-TW" },
       "google_translate_element"
     );
   }
@@ -99,7 +107,7 @@
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
   }
-  .app { max-width: 560px; margin: 0 auto; min-height: 100vh; background: var(--bg); position: relative;
+  .app { max-width: 560px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; background: var(--bg); position: relative;
          box-shadow: 0 0 40px rgba(0,0,0,.04); }
   /* On anything wider than a phone, let the app float as a card with room to
      breathe, rather than stretching a phone-shaped column across the screen. */
@@ -107,7 +115,7 @@
     .app { margin: 32px auto; border-radius: 28px; overflow: hidden; min-height: 0;
       box-shadow: 0 24px 60px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.06); }
   }
-  .screen { display: flex; flex-direction: column; min-height: 100vh; }
+  .screen { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
   .hidden { display: none !important; }
   i { font-style: italic; }
 
@@ -168,10 +176,14 @@
   /* ---- Chips ------------------------------------------------------------ */
   .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
   .chip {
+    display: inline-flex; align-items: center; gap: 6px;
     background: var(--bg); border: 1.5px solid var(--line);
     color: var(--muted); border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 700; cursor: pointer;
   }
   .chip:hover { background: var(--bg-2); color: var(--ink); }
+  /* Icons inside chips inherit the chip's text colour, so they flip to white
+     on the active (coloured) chip just like the label does. */
+  .chip svg { width: 15px; height: 15px; flex: none; pointer-events: none; }
   .chip.sci { font-style: italic; }
   .chip[disabled] { opacity: .5; cursor: default; }
   .chip.active { background: var(--blue); border-color: var(--blue-dark); color: #fff; }
@@ -212,23 +224,24 @@
 
   .setup .btn-big { margin-bottom: 10px; }
 
-  /* Google Translate's widget: hide the big "this page has been translated"
-     banner it shows across the top of the whole viewport by default (it
-     doesn't fit this app's look, and it shoves the page down by adding an
-     inline top offset to <body> — both undone here), keeping just the small
-     language dropdown we placed in the setup field. The banner iframe's own
-     class is Closure-obfuscated and not stable across Google's builds, so
-     this targets it structurally instead: it's the one direct child of
-     <body> that Google marks with its "don't translate me" class. */
-  body > .skiptranslate { display: none !important; }
+  /* Google Translate machinery: we drive its translation ENGINE from our own
+     styled <select> (#langSelect), and keep Google's own widget only as the
+     off-screen engine that select talks to. So everything Google renders is
+     hidden:
+       - #google_translate_element (the widget/combo) is pulled off-screen but
+         left in the DOM, since the engine reads/writes it.
+       - the top "this page has been translated" banner and Google's various
+         fixed spinner/menu overlays are direct children of <body>. Their
+         classes are Closure-obfuscated (not stable across builds), so we
+         match them structurally: the "don't translate me" skiptranslate class,
+         and any <body>-level div whose class starts with Google's "VIpgJd"
+         prefix (the spinner that otherwise floats over the top-left).
+       - the banner also shoves the page down with an inline body top offset,
+         undone here. */
+  #google_translate_element { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+  body > .skiptranslate,
+  body > div[class^="VIpgJd"] { display: none !important; }
   body { top: 0 !important; }
-  #google_translate_element .goog-te-gadget {
-    font-family: var(--font) !important; font-size: 13px; color: var(--muted);
-  }
-  #google_translate_element .goog-te-gadget-simple {
-    background: var(--bg-2); border: 2px solid var(--line); border-radius: 12px;
-    padding: 10px 12px; display: inline-block;
-  }
 
   /* ====================================================================== */
   /*  Play screen                                                           */
@@ -321,6 +334,22 @@
   .credit a { color: var(--faint); }
   .prompt { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 18px 2px 12px; }
   .answer-input { font-size: 20px; font-style: italic; padding: 15px; }
+
+  /* Progressive hints — a graded scaffold so a learner can work toward the
+     answer instead of just failing (and then has it reinforced in review). */
+  .hint-area { margin-top: 12px; }
+  .hint-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .hint-item {
+    background: var(--bg-2); border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 8px 12px; font-size: 13.5px; font-weight: 700; color: var(--ink); animation: slideUp .2s ease;
+  }
+  .hint-item i { font-style: italic; }
+  .hint-btn {
+    background: none; border: 1.5px dashed var(--line-2); color: var(--muted);
+    border-radius: 999px; padding: 7px 15px; font-family: var(--font); font-weight: 700;
+    font-size: 13px; cursor: pointer;
+  }
+  .hint-btn:hover { background: var(--bg-2); color: var(--ink); }
 
   /* bottom action bar + the slide-up feedback banner */
   .bottombar { position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
@@ -513,8 +542,11 @@
 
       <div class="field">
         <div class="field-label">Translate this page</div>
+        <select id="langSelect" class="select"></select>
+        <!-- Google's own widget stays in the DOM but off-screen (see CSS); the
+             select above drives its translation engine. -->
         <div id="google_translate_element"></div>
-        <div class="hint" style="margin-top:6px;">Powered by Google Translate — translates the whole app, including species names. Sends the page's text to Google.</div>
+        <div class="hint" style="margin-top:6px;">Translated by Google Translate — the whole app, including species names. Sends the page's text to Google.</div>
       </div>
 
       <div class="field">
@@ -549,7 +581,7 @@
         <span class="switch"></span>
       </label>
 
-      <label class="toggle field" style="margin-bottom:0;">
+      <label class="toggle field">
         <span>
           <b>Show distribution &amp; facts after each answer</b>
           <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
@@ -558,7 +590,7 @@
         <span class="switch"></span>
       </label>
 
-      <label class="toggle field" style="margin-bottom:0;">
+      <label class="toggle field">
         <span>
           <b>Suggest names as I type</b>
           <span class="hint">Type <i>dro rot</i> → pick <i>Drosera rotundifolia</i>. Turn off to type every name in full.</span>
@@ -567,7 +599,7 @@
         <span class="switch"></span>
       </label>
 
-      <label class="toggle field" style="margin-bottom:0;">
+      <label class="toggle field">
         <span>
           <b>Answer with common names</b>
           <span class="hint">Type <i>dandelion</i> instead of <i>Taraxacum officinale</i>. Species without a common name still fall back to the scientific one.</span>
@@ -616,15 +648,24 @@
       <div id="credit" class="credit"></div>
       <h2 id="promptText" class="prompt">What species is this?</h2>
       <div class="search answer">
-        <input id="answerInput" class="input answer-input" placeholder="Type the species" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <!-- autocomplete/autocorrect are aggressively disabled: the browser's own
+             autofill overlay and iOS/Safari autocorrect both fight the app's own
+             suggestion dropdown and mangle Latin binomials. name is deliberately
+             omitted and the data-*-ignore hints tell password managers (1Password,
+             LastPass) to leave this field alone too. -->
+        <input id="answerInput" class="input answer-input" placeholder="Type the species"
+               type="text" autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false" enterkeyhint="go" data-lpignore="true" data-1p-ignore data-form-type="other">
         <div id="answerSuggest" class="suggest hidden"></div>
       </div>
+      <div id="hintArea" class="hint-area"></div>
     </main>
 
     <div class="bottombar">
       <div id="feedback" class="feedback"></div>
       <div id="actionRow" class="action-row">
-        <button id="skipBtn" class="btn btn-ghost">Skip for now</button>
+        <button id="skipBtn" class="btn btn-ghost">Skip</button>
+        <button id="revealBtn" class="btn btn-ghost">Reveal</button>
         <button id="checkBtn" class="btn btn-primary" disabled>Check</button>
       </div>
     </div>
@@ -725,9 +766,16 @@ const DEFAULT_ROUND_SIZE = 10;
 // iNaturalist tracks photo and sound observations the same way (a quality
 // grade, a taxon, and a media array) — "media" here just says which of those
 // arrays we require and display.
+// Monochrome inline icons (stroke = currentColor, so they take the chip's
+// text colour) instead of emoji, which render muddily on the coloured active
+// chip and clash with the app's line-drawn icon set.
+const ICON_CAMERA = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'/><circle cx='12' cy='13' r='4'/></svg>";
+const ICON_SOUND = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M11 5 6 9H2v6h4l5 4z'/><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'/></svg>";
 const MEDIA_OPTIONS = [
-  { label: "📷 By photo", value: "photo" },
-  { label: "🔊 By sound", value: "sound" },
+  { label: "By photo", value: "photo", icon: ICON_CAMERA },
+  { label: "By sound", value: "sound", icon: ICON_SOUND },
 ];
 const DEFAULT_MEDIA = "photo";
 // The word for the current media type, singular or plural — used anywhere
@@ -1408,7 +1456,7 @@ function renderRoundSizeChips() {
 function renderMediaChips() {
   el("mediaChips").innerHTML = MEDIA_OPTIONS.map((opt) =>
     "<button class='chip" + (opt.value === mediaChoice ? " active" : "") + "' data-media='" + opt.value + "'>" +
-      escapeHtml(opt.label) + "</button>").join("");
+      opt.icon + escapeHtml(opt.label) + "</button>").join("");
 }
 
 function buildChips() {
@@ -1426,6 +1474,87 @@ function populateProfileSelect() {
   if (game.activeId) sel.value = game.activeId;
   el("newProfileName").classList.toggle("hidden", sel.value !== "__new__");
   el("renameInput").classList.add("hidden");
+}
+
+// -- page translation (our select → Google's engine) ----------------------
+//  Rather than expose Google's own widget (a link that opens a flaky iframe
+//  menu, with no clean "back to English"), we render our own native <select>
+//  and drive Google's hidden translation combo from it. Switching to a
+//  language translates live, in place, keeping the setup you've chosen;
+//  switching back to English clears Google's cookie and reloads (the widget
+//  offers no reliable in-place "un-translate"). Language names are autonyms so
+//  they read the same whatever the page is currently translated to.
+const TRANSLATE_LANGS = [
+  { code: "en", label: "English" },       { code: "ar", label: "العربية" },
+  { code: "bg", label: "Български" },      { code: "cs", label: "Čeština" },
+  { code: "da", label: "Dansk" },         { code: "de", label: "Deutsch" },
+  { code: "el", label: "Ελληνικά" },      { code: "es", label: "Español" },
+  { code: "fi", label: "Suomi" },         { code: "fr", label: "Français" },
+  { code: "he", label: "עברית" },         { code: "hi", label: "हिन्दी" },
+  { code: "hu", label: "Magyar" },        { code: "id", label: "Bahasa Indonesia" },
+  { code: "it", label: "Italiano" },      { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" },         { code: "nl", label: "Nederlands" },
+  { code: "no", label: "Norsk" },         { code: "pl", label: "Polski" },
+  { code: "pt", label: "Português" },     { code: "ro", label: "Română" },
+  { code: "ru", label: "Русский" },       { code: "sv", label: "Svenska" },
+  { code: "th", label: "ไทย" },           { code: "tr", label: "Türkçe" },
+  { code: "uk", label: "Українська" },    { code: "vi", label: "Tiếng Việt" },
+  { code: "zh-CN", label: "简体中文" },     { code: "zh-TW", label: "繁體中文" },
+];
+
+// The language Google is currently showing, read from its own cookie
+// (format: /en/<code>), so a reloaded page keeps our select in sync.
+function currentTranslateLang() {
+  const m = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "en";
+}
+function clearGoogTransCookie() {
+  const expire = "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+  document.cookie = "googtrans" + expire;
+  document.cookie = "googtrans" + expire + ";domain=" + location.hostname;
+  document.cookie = "googtrans" + expire + ";domain=." + location.hostname;
+}
+
+function setupTranslate() {
+  const sel = el("langSelect");
+  if (!sel) return;
+  // Mark our own control notranslate so Google leaves the autonyms alone.
+  sel.classList.add("notranslate");
+  sel.innerHTML = TRANSLATE_LANGS.map((l) =>
+    "<option value='" + l.code + "'>" + escapeHtml(l.label) + "</option>").join("");
+  const persisted = currentTranslateLang();
+  sel.value = persisted;
+
+  sel.addEventListener("change", () => driveTranslate(sel.value));
+
+  // On a fresh load Google (with autoDisplay:false) does NOT re-apply a saved
+  // language on its own, so the page would sit in English while our select
+  // says e.g. "Deutsch". Re-drive the engine once so a persisted language
+  // actually takes effect on load.
+  if (persisted !== "en") whenComboReady((combo) => driveCombo(combo, persisted));
+}
+
+// Wait for Google's hidden combo to exist (its script loads async), then run
+// `fn`. Gives up after ~10s so it never spins forever.
+function whenComboReady(fn) {
+  const existing = document.querySelector(".goog-te-combo");
+  if (existing) return fn(existing);
+  let tries = 0;
+  const iv = setInterval(() => {
+    const combo = document.querySelector(".goog-te-combo");
+    if (combo) { clearInterval(iv); fn(combo); }
+    else if (++tries > 40) clearInterval(iv);
+  }, 250);
+}
+function driveCombo(combo, code) { combo.value = code; combo.dispatchEvent(new Event("change")); }
+
+function driveTranslate(code) {
+  if (code === "en") { clearGoogTransCookie(); location.reload(); return; }
+  const combo = document.querySelector(".goog-te-combo");
+  if (combo) driveCombo(combo, code);
+  // Engine not ready yet: set the cookie and reload — the load path above
+  // re-drives it once the combo appears.
+  else { document.cookie = "googtrans=/en/" + code + ";path=/"; location.reload(); }
 }
 
 
@@ -1680,6 +1809,9 @@ function showPhotoGallery(photos) {
   const firstImage = strip.querySelector("img");
   firstImage.onload  = () => el("photoLoading").classList.add("hidden");
   firstImage.onerror = () => nextQuestion();   // the lead photo is broken — just skip ahead
+  // A cached image can already be complete before onload is attached, in which
+  // case onload never fires and the spinner would sit on top of it forever.
+  if (firstImage.complete && firstImage.naturalWidth > 0) el("photoLoading").classList.add("hidden");
 
   updatePhotoIndicator();   // sets the "1 / n" pill and the credit line for photo 1
 }
@@ -1863,7 +1995,14 @@ function presentQuestion() {
   hideSuggest("answerSuggest");
   el("checkBtn").disabled = true;
   showActionRow();
-  input.focus();
+  resetHints();   // fresh hint scaffold for this species
+  // Only auto-focus (and thus pop the on-screen keyboard) when a precise
+  // pointer exists — i.e. desktops and touch-laptops, not phones/tablets.
+  // On a phone, focusing every question slides the keyboard up and scrolls
+  // the photo out of view; there, the player taps the field themselves once
+  // they've looked at the photo. (any-pointer, not pointer, so a laptop that
+  // also has a touchscreen still counts as "has a real pointer".)
+  if (window.matchMedia("(any-pointer: fine)").matches) input.focus();
 }
 
 // Check the typed answer (Enter or the Check button).
@@ -1886,8 +2025,8 @@ function submitAnswer() {
   finishAnswer(isCorrect(typed, game.current), typed);
 }
 
-// "Skip for now" doesn't mark the question wrong or use up a round slot — it
-// just puts it back at the end of the queue so it comes up again later.
+// "Skip" doesn't mark the question wrong or use up a round slot — it just
+// puts it back at the end of the queue so it comes up again later.
 function skipForLater() {
   if (game.answered) return;
   const q = game.current;
@@ -1896,17 +2035,98 @@ function skipForLater() {
   nextQuestion();
 }
 
+// "Reveal" is for when you genuinely don't know it and want to learn the name
+// rather than guess wrong on purpose. It runs the same path as an empty
+// answer: shows the correct name with the neutral "no guess" mascot, resets
+// the streak, and drops the species into the review pile so it comes back —
+// which is the whole point, turning a blank into something to practise.
+function revealAnswer() {
+  if (game.answered) return;
+  finishAnswer(false, "");
+}
+
+// -- progressive hints -----------------------------------------------------
+//  A graded scaffold, built entirely from what we already know about the
+//  current species (no extra network): each tier narrows things down more,
+//  so a learner can reach the answer through effort — which cements it far
+//  better than failing outright — rather than guessing blindly. Reaching the
+//  answer with a hint still drops the species into the review pile (see
+//  finishAnswer), so a scaffolded win gets reinforced later.
+let currentHints = [];        // the hint tiers for the current question
+let hintsShown = 0;           // how many the player has revealed this question
+
+function buildHints(q) {
+  const words = q.scientificName.split(" ");
+  const genus = words[0];
+  const epithet = words.slice(1).join(" ");
+  const fam = game.familyCache.get(q.taxonId);
+  const hints = [];
+
+  // Gentle context first: the "other" name and, if we happen to know it, the
+  // family — placement without giving the spelling away.
+  if (game.useCommonNames && q.commonName) {
+    hints.push("Its scientific name is <i>" + escapeHtml(q.scientificName) + "</i>.");
+  } else if (q.commonName) {
+    hints.push("Its common name is “" + escapeHtml(q.commonName) + "”.");
+  }
+  if (fam && fam.isFamily && fam.familyName) hints.push("It's in the family " + escapeHtml(fam.familyName) + ".");
+
+  // Then the strongest nudge, aimed at the exact thing you have to type.
+  if (game.useCommonNames && q.commonName) {
+    const cn = q.commonName.trim();
+    hints.push(cn.length > 3
+      ? "It begins “<i>" + escapeHtml(cn.slice(0, 3)) + "…</i>”."
+      : "The answer is “<i>" + escapeHtml(cn) + "</i>”.");
+  } else if (epithet) {
+    // The genus alone gets you halfway; then reveal the start of the species word.
+    hints.push("The genus is <i>" + escapeHtml(genus) + "</i>.");
+    const ep = epithet.replace(/\s+/g, "");
+    hints.push(ep.length > 3
+      ? "The species word begins <i>" + escapeHtml(ep.slice(0, 3)) + "…</i> (" + ep.length + " letters)."
+      : "The species word is <i>" + escapeHtml(epithet) + "</i>.");
+  }
+  return hints;
+}
+
+function resetHints() {
+  currentHints = game.current ? buildHints(game.current) : [];
+  hintsShown = 0;
+  renderHintControl();
+}
+
+function renderHintControl() {
+  const area = el("hintArea");
+  if (!area) return;
+  let html = "";
+  if (hintsShown > 0) {
+    html += "<div class='hint-list'>" +
+      currentHints.slice(0, hintsShown).map((h) => "<div class='hint-item'>💡 " + h + "</div>").join("") +
+      "</div>";
+  }
+  if (!game.answered && hintsShown < currentHints.length) {
+    html += "<button type='button' id='hintBtn' class='hint-btn'>" +
+      (hintsShown === 0 ? "💡 Need a hint?" : "Show another hint") + "</button>";
+  }
+  area.innerHTML = html;
+  const btn = el("hintBtn");
+  if (btn) btn.addEventListener("click", () => { hintsShown += 1; renderHintControl(); });
+}
+
 function finishAnswer(wasCorrect, typed) {
   game.answered = true;
   game.round.index += 1;
   el("answerInput").disabled = true;
   hideSuggest("answerSuggest");
+  renderHintControl();   // drop the "another hint" button now that it's answered
 
   if (game.mode === "normal") {
     if (wasCorrect) { game.round.correct += 1; game.streak += 1; } else { game.streak = 0; }
     recordResult(game.current, wasCorrect);
   }
   if (wasCorrect) recordMastered(game.current); else recordMiss(game.current);
+  // A win you needed a hint for isn't really learned yet — keep it in the
+  // review pile so it comes back, even though it counted as correct.
+  if (wasCorrect && hintsShown > 0) recordMiss(game.current);
 
   // Every species you actually answer (right or wrong) goes on the round's
   // overview list, shown on the "Lesson complete" screen.
@@ -1946,7 +2166,10 @@ function clearBusy() {
     "<div id='credit' class='credit'></div>" +
     "<h2 id='promptText' class='prompt'>What species is this?</h2>" +
     "<div class='search answer'><input id='answerInput' class='input answer-input' placeholder='Type the species' " +
-      "autocomplete='off' autocapitalize='none' spellcheck='false'><div id='answerSuggest' class='suggest hidden'></div></div>";
+      "type='text' autocomplete='off' autocorrect='off' autocapitalize='none' spellcheck='false' " +
+      "enterkeyhint='go' data-lpignore='true' data-1p-ignore data-form-type='other'>" +
+      "<div id='answerSuggest' class='suggest hidden'></div></div>" +
+    "<div id='hintArea' class='hint-area'></div>";
   wireAnswerInput();   // re-attach listeners to the fresh input
   wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
 }
@@ -2812,6 +3035,7 @@ function wireControls() {
   // play controls
   el("checkBtn").addEventListener("click", submitAnswer);
   el("skipBtn").addEventListener("click", skipForLater);
+  el("revealBtn").addEventListener("click", revealAnswer);
   el("quitBtn").addEventListener("click", backToSetup);
 
   // progress panel (delegated)
@@ -2900,6 +3124,7 @@ function wireLearnPopup() {
 loadStore();            // restore players + weak-spot history from this device
 buildChips();           // draws the taxon/region/round-size chips, including today's defaults
 populateProfileSelect();
+setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 </script>
 </body>
