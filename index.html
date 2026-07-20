@@ -34,32 +34,15 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Google Translate's free website widget: the "Translate this page" field
-     on the setup screen (#google_translate_element). This is the one thing
-     in the app that talks to a third party besides iNaturalist/GBIF/
-     Wikipedia — it ships the page's text to Google to be translated, in
-     exchange for covering every language Google Translate supports (rather
-     than us hand-writing a translation for each one). SIMPLE layout + the
-     CSS further down keep it to a small dropdown instead of the big banner
-     Google shows by default. -->
-<script>
-  function googleTranslateElementInit() {
-    // Default layout (no SIMPLE) renders a real native <select> (.goog-te-combo)
-    // rather than a link that opens Google's own iframe menu — the native
-    // select is far more reliable, especially on mobile where the iframe menu
-    // tends to clip or land off-screen. includedLanguages keeps the list to a
-    // clean curated set instead of Google's full ~100. autoDisplay:false stops
-    // Google auto-translating based on the browser's language.
-    // Keep this list in sync with TRANSLATE_LANGS below (minus "en"): the
-    // engine's combo must contain every code our own <select> can request.
-    new google.translate.TranslateElement(
-      { pageLanguage: "en", autoDisplay: false,
-        includedLanguages: "ar,bg,cs,da,de,el,es,fi,fr,he,hi,hu,id,it,ja,ko,nl,no,pl,pt,ro,ru,sv,th,tr,uk,vi,zh-CN,zh-TW" },
-      "google_translate_element"
-    );
-  }
-</script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<!-- Page translation is handled by our own lightweight layer (see the i18n
+     section in the script below) which calls Google's translation endpoint
+     directly, rather than Google's website-translator widget. The widget was
+     unreliable (flaky iframe/combo machinery, no clean revert); talking to the
+     endpoint ourselves gives instant in-place translation of the whole app —
+     including text the game injects as you play — a one-click revert to English
+     with no reload, and it leaves Latin species names untouched. It's the only
+     third party we talk to besides iNaturalist/GBIF/Wikipedia; the page's text
+     is sent to Google to be translated. -->
 
 <style>
   /* ====================================================================== */
@@ -224,25 +207,6 @@
 
   .setup .btn-big { margin-bottom: 10px; }
 
-  /* Google Translate machinery: we drive its translation ENGINE from our own
-     styled <select> (#langSelect), and keep Google's own widget only as the
-     off-screen engine that select talks to. So everything Google renders is
-     hidden:
-       - #google_translate_element (the widget/combo) is pulled off-screen but
-         left in the DOM, since the engine reads/writes it.
-       - the top "this page has been translated" banner and Google's various
-         fixed spinner/menu overlays are direct children of <body>. Their
-         classes are Closure-obfuscated (not stable across builds), so we
-         match them structurally: the "don't translate me" skiptranslate class,
-         and any <body>-level div whose class starts with Google's "VIpgJd"
-         prefix (the spinner that otherwise floats over the top-left).
-       - the banner also shoves the page down with an inline body top offset,
-         undone here. */
-  #google_translate_element { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; overflow: hidden; }
-  body > .skiptranslate,
-  body > div[class^="VIpgJd"] { display: none !important; }
-  body { top: 0 !important; }
-
   /* ====================================================================== */
   /*  Play screen                                                           */
   /* ====================================================================== */
@@ -351,6 +315,29 @@
   }
   .hint-btn:hover { background: var(--bg-2); color: var(--ink); }
 
+  /* Multiple-choice ("Choose") answer grid — recognition instead of recall. */
+  .choice-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .choice {
+    font-family: var(--font); font-weight: 700; font-size: 15px; font-style: italic;
+    color: var(--ink); background: var(--bg-2); border: 2px solid var(--line);
+    border-radius: 12px; padding: 14px 12px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s;
+  }
+  .choice:hover:not(:disabled) { border-color: var(--blue); background: var(--bg); }
+  .choice:disabled { cursor: default; }
+  .choice.right { background: var(--green-soft); border-color: var(--green); color: var(--green-text); }
+  .choice.wrong { background: var(--red-soft); border-color: var(--red); color: var(--red-text); }
+  @media (max-width: 360px) { .choice-area { grid-template-columns: 1fr; } }
+
+  /* Study ("flashcard") mode — the answer shown with the photo, no test. */
+  .study-answer {
+    margin-top: 16px; text-align: center; background: var(--bg-2);
+    border: 2px solid var(--line); border-radius: var(--radius); padding: 16px;
+  }
+  .study-answer .sci { font-family: var(--font-display); font-style: italic; font-size: 22px; font-weight: 600; color: var(--green-dark); display: block; }
+  .study-answer .common { font-weight: 700; color: var(--muted); margin-top: 4px; display: block; }
+  .study-answer .tag { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); display: block; margin-bottom: 8px; }
+
   /* bottom action bar + the slide-up feedback banner */
   .bottombar { position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
     padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); }
@@ -457,8 +444,14 @@
   .wk-row.now .wk-label .fam { color: var(--blue); }
   .wk-label { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .wk-label .fam { font-weight: 800; }
-  .wk-label .sci { font-weight: 800; font-style: italic; }
+  .wk-label .sci { font-weight: 800; font-style: italic; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wk-count { color: var(--faint); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  /* per-species mastery pills (Learning / Familiar / Mastered) */
+  .mastery { flex: none; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+    padding: 2px 7px; border-radius: 999px; align-self: center; }
+  .mastery.mastered { background: var(--green-soft); color: var(--green-text); }
+  .mastery.familiar { background: #f4ead2; color: var(--gold); }
+  .mastery.learning { background: var(--red-soft); color: var(--red-text); }
   .wk-track { height: 12px; background: var(--line); border-radius: 999px; overflow: hidden; }
   .wk-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
   .wk-fill.weak { background: var(--red); } .wk-fill.ok { background: var(--gold); } .wk-fill.strong { background: var(--green); }
@@ -541,12 +534,15 @@
       </div>
 
       <div class="field">
+        <div class="field-label">How do you want to answer?</div>
+        <div id="answerModeChips" class="chips"></div>
+        <div id="answerModeHint" class="hint" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="field">
         <div class="field-label">Translate this page</div>
-        <select id="langSelect" class="select"></select>
-        <!-- Google's own widget stays in the DOM but off-screen (see CSS); the
-             select above drives its translation engine. -->
-        <div id="google_translate_element"></div>
-        <div class="hint" style="margin-top:6px;">Translated by Google Translate — the whole app, including species names. Sends the page's text to Google.</div>
+        <select id="langSelect" class="select notranslate"></select>
+        <div class="hint" style="margin-top:6px;">Translation by Google. Latin species names stay unchanged; pick English to switch back instantly.</div>
       </div>
 
       <div class="field">
@@ -659,6 +655,8 @@
         <div id="answerSuggest" class="suggest hidden"></div>
       </div>
       <div id="hintArea" class="hint-area"></div>
+      <div id="choiceArea" class="choice-area hidden"></div>
+      <div id="studyAnswer" class="study-answer hidden"></div>
     </main>
 
     <div class="bottombar">
@@ -781,6 +779,28 @@ const DEFAULT_MEDIA = "photo";
 // The word for the current media type, singular or plural — used anywhere
 // status text would otherwise hardcode "photo" regardless of quiz mode.
 const mediaWord = (plural) => (game.media === "sound" ? "sound" : "photo") + (plural ? "s" : "");
+// How you answer each question:
+//   type   — free-recall typing (the classic mode; hints + reinforcement apply)
+//   choose — multiple choice, recognition rather than recall (a gentle on-ramp)
+//   study  — flashcards: the answer is shown with the photo, no test, for a
+//            first pass at a new group before you start quizzing yourself.
+const ICON_TYPE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>";
+const ICON_CHOOSE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<polyline points='9 11 12 14 22 4'/><path d='M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'/></svg>";
+const ICON_STUDY = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/><path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/></svg>";
+const ANSWER_MODES = [
+  { label: "Type", value: "type", icon: ICON_TYPE },
+  { label: "Choose", value: "choose", icon: ICON_CHOOSE },
+  { label: "Study", value: "study", icon: ICON_STUDY },
+];
+const ANSWER_MODE_HINTS = {
+  type:   "Type the name from memory. Stuck? Use a hint, or Reveal to see it.",
+  choose: "Pick from four names — recognition is an easier way in for a new group.",
+  study:  "Just look and learn: each species is shown with its name, no quiz. Switch to Type or Choose when you're ready to test yourself.",
+};
+const DEFAULT_ANSWER_MODE = "type";
 const TOP_UP_AT  = 5;     // refill the question queue when it drops this low
 const MAX_MEDIA_PER_QUESTION = 6;   // cap the photo/sound gallery per species shown
 const PLANTAE_ID = 47126; // the Plantae kingdom id (stable) — the default group
@@ -954,6 +974,7 @@ const game = {
   regions: [{ id: null, name: "World" }],   // one or more places — "World" means no place filter at all
   regionsTouched: false,   // becomes true on your first deliberate pick — see addRegion()
   media: DEFAULT_MEDIA,    // "photo" or "sound" — which iNaturalist media type to quiz on
+  answerMode: DEFAULT_ANSWER_MODE,   // "type" | "choose" | "study"
   assist: true,
   useCommonNames: false,   // type/match against the common name instead of the scientific one
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
@@ -1099,6 +1120,17 @@ const withAccuracy = (rows) => rows.map((r) => {
 const byWeakest = (a, b) => a.accuracy - b.accuracy || b.total - a.total;
 const accuracyClass = (accuracy) => accuracy < 0.5 ? "weak" : accuracy < 0.75 ? "ok" : "strong";
 const pct = (x) => Math.round(x * 100) + "%";
+
+// How well a learner knows one species, from how many times they've named it
+// right and how reliably — so progress reads as "Learning → Familiar →
+// Mastered" rather than just a bare percentage. Wants a few correct hits AND
+// good accuracy for the top tier, so one lucky answer isn't "mastered".
+const MASTERY_LABEL = { mastered: "Mastered", familiar: "Familiar", learning: "Learning" };
+function masteryOf(row) {
+  if (row.correct >= 4 && row.accuracy >= 0.8) return "mastered";
+  if (row.correct >= 2 && row.accuracy >= 0.6) return "familiar";
+  return "learning";
+}
 
 // UTF-8-safe base64, so share-codes survive names with accents (e.g. "Müller").
 const toBase64   = (obj)  => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
@@ -1446,6 +1478,7 @@ async function toggleRegionPreset(query) {
 // -- preset chips & the profile dropdown ----------------------------------
 let roundSizeChoice = DEFAULT_ROUND_SIZE;   // which "How many species?" chip is picked
 let mediaChoice = DEFAULT_MEDIA;            // which "How do you want to identify?" chip is picked
+let answerModeChoice = DEFAULT_ANSWER_MODE; // which "How do you want to answer?" chip is picked
 
 function renderRoundSizeChips() {
   el("roundSizeChips").innerHTML = ROUND_SIZE_OPTIONS.map((opt) =>
@@ -1459,11 +1492,19 @@ function renderMediaChips() {
       opt.icon + escapeHtml(opt.label) + "</button>").join("");
 }
 
+function renderAnswerModeChips() {
+  el("answerModeChips").innerHTML = ANSWER_MODES.map((opt) =>
+    "<button class='chip" + (opt.value === answerModeChoice ? " active" : "") + "' data-answer-mode='" + opt.value + "'>" +
+      opt.icon + escapeHtml(opt.label) + "</button>").join("");
+  el("answerModeHint").textContent = ANSWER_MODE_HINTS[answerModeChoice];
+}
+
 function buildChips() {
   renderTaxonChips();
   renderRegionChips();
   renderRoundSizeChips();
   renderMediaChips();
+  renderAnswerModeChips();
 }
 
 function populateProfileSelect() {
@@ -1476,14 +1517,15 @@ function populateProfileSelect() {
   el("renameInput").classList.add("hidden");
 }
 
-// -- page translation (our select → Google's engine) ----------------------
-//  Rather than expose Google's own widget (a link that opens a flaky iframe
-//  menu, with no clean "back to English"), we render our own native <select>
-//  and drive Google's hidden translation combo from it. Switching to a
-//  language translates live, in place, keeping the setup you've chosen;
-//  switching back to English clears Google's cookie and reloads (the widget
-//  offers no reliable in-place "un-translate"). Language names are autonyms so
-//  they read the same whatever the page is currently translated to.
+// -- page translation (self-contained, via Google's translate endpoint) ----
+//  We translate the page ourselves instead of embedding Google's website
+//  widget, which was unreliable. Google's free translate_a/single endpoint
+//  (the same one the widget uses) is called directly per string; we walk the
+//  DOM's text nodes and input placeholders, swap in the translations, and
+//  keep each node's English original so switching back is instant with no
+//  reload. A MutationObserver re-translates anything the game injects while
+//  you play. Latin species names are left alone (see I18N_SKIP_SEL). Language
+//  names in the picker are autonyms so they read the same in any language.
 const TRANSLATE_LANGS = [
   { code: "en", label: "English" },       { code: "ar", label: "العربية" },
   { code: "bg", label: "Български" },      { code: "cs", label: "Čeština" },
@@ -1501,60 +1543,119 @@ const TRANSLATE_LANGS = [
   { code: "uk", label: "Українська" },    { code: "vi", label: "Tiếng Việt" },
   { code: "zh-CN", label: "简体中文" },     { code: "zh-TW", label: "繁體中文" },
 ];
+const LANG_STORE_KEY = "determinare.lang";
 
-// The language Google is currently showing, read from its own cookie
-// (format: /en/<code>), so a reloaded page keeps our select in sync.
-function currentTranslateLang() {
-  const m = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "en";
+// Never translate: our own language picker, anything explicitly opted out, and
+// scientific names / credits (Latin binomials and usernames must stay verbatim).
+const I18N_SKIP_SEL = ".notranslate,[translate='no'],#langSelect,.sci,.fb-name,.credit";
+const i18nCache = new Map();     // (lang + "␟" + english) -> translated
+let uiLang = "en";
+let i18nObserver = null;
+
+function i18nSkip(textNode) {
+  const p = textNode.parentElement;
+  if (!p) return true;
+  const tag = p.tagName;
+  if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "TEXTAREA") return true;
+  return !!p.closest(I18N_SKIP_SEL);
 }
-function clearGoogTransCookie() {
-  const expire = "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-  document.cookie = "googtrans" + expire;
-  document.cookie = "googtrans" + expire + ";domain=" + location.hostname;
-  document.cookie = "googtrans" + expire + ";domain=." + location.hostname;
+function i18nTextNodes(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (!n.nodeValue || !n.nodeValue.trim() || i18nSkip(n))
+      ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  const out = []; let n; while ((n = walker.nextNode())) out.push(n);
+  return out;
+}
+
+// Translate one English string to `lang` via Google's endpoint, cached. On any
+// failure it just returns the original, so a hiccup leaves that bit in English
+// rather than breaking the page.
+async function i18nTranslate(text, lang) {
+  const key = lang + "␟" + text;
+  if (i18nCache.has(key)) return i18nCache.get(key);
+  try {
+    const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=" +
+      encodeURIComponent(lang) + "&dt=t&q=" + encodeURIComponent(text);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    const out = (data[0] || []).map((seg) => seg[0]).join("") || text;
+    i18nCache.set(key, out);
+    return out;
+  } catch (err) { return text; }
+}
+
+// Run async `fn` over items at most `limit` at a time — keeps us from firing
+// dozens of endpoint requests in one burst.
+async function mapLimit(items, limit, fn) {
+  let i = 0;
+  const worker = async () => { while (i < items.length) { const idx = i++; await fn(items[idx]); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+// Translate (or, for "en", restore) every text node + placeholder under `root`.
+async function i18nApplyTo(root, lang) {
+  const nodes = root.nodeType === 3 ? (i18nSkip(root) ? [] : [root]) : i18nTextNodes(root);
+  const phEls = root.nodeType === 1
+    ? [...root.querySelectorAll("[placeholder]")].filter((e) => !e.closest(I18N_SKIP_SEL))
+    : [];
+  nodes.forEach((n) => { if (n.__i18n == null) n.__i18n = n.nodeValue; });
+  phEls.forEach((e) => { if (e.__i18nPh == null) e.__i18nPh = e.getAttribute("placeholder"); });
+
+  if (lang === "en") {
+    nodes.forEach((n) => { if (n.__i18n != null) n.nodeValue = n.__i18n; });
+    phEls.forEach((e) => { if (e.__i18nPh != null) e.setAttribute("placeholder", e.__i18nPh); });
+    return;
+  }
+  await mapLimit(nodes, 6, async (n) => {
+    const src = (n.__i18n || "").trim();
+    if (!src) return;
+    const lead = n.__i18n.match(/^\s*/)[0], tail = n.__i18n.match(/\s*$/)[0];
+    n.nodeValue = lead + await i18nTranslate(src, lang) + tail;
+  });
+  await mapLimit(phEls, 6, async (e) => {
+    const src = (e.__i18nPh || "").trim();
+    if (src) e.setAttribute("placeholder", await i18nTranslate(src, lang));
+  });
+}
+
+// Watch for content the game injects during play and translate it too. We only
+// observe childList (added nodes) — our own writes change nodeValue/attributes,
+// which this deliberately ignores, so there's no feedback loop.
+function startI18nObserver() {
+  if (i18nObserver) return;
+  i18nObserver = new MutationObserver((mutations) => {
+    if (uiLang === "en") return;
+    const roots = [];
+    mutations.forEach((m) => m.addedNodes.forEach((n) => {
+      if (n.nodeType === 1) roots.push(n);
+      else if (n.nodeType === 3 && n.nodeValue && n.nodeValue.trim() && !i18nSkip(n)) roots.push(n);
+    }));
+    roots.forEach((r) => i18nApplyTo(r, uiLang));
+  });
+  i18nObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+async function setUiLang(lang) {
+  uiLang = lang;
+  document.documentElement.lang = lang;
+  try { localStorage.setItem(LANG_STORE_KEY, lang); } catch (err) { /* storage blocked */ }
+  await i18nApplyTo(document.body, lang);   // "en" restores originals, instantly
+  if (lang !== "en") startI18nObserver();
 }
 
 function setupTranslate() {
   const sel = el("langSelect");
   if (!sel) return;
-  // Mark our own control notranslate so Google leaves the autonyms alone.
-  sel.classList.add("notranslate");
   sel.innerHTML = TRANSLATE_LANGS.map((l) =>
     "<option value='" + l.code + "'>" + escapeHtml(l.label) + "</option>").join("");
-  const persisted = currentTranslateLang();
-  sel.value = persisted;
-
-  sel.addEventListener("change", () => driveTranslate(sel.value));
-
-  // On a fresh load Google (with autoDisplay:false) does NOT re-apply a saved
-  // language on its own, so the page would sit in English while our select
-  // says e.g. "Deutsch". Re-drive the engine once so a persisted language
-  // actually takes effect on load.
-  if (persisted !== "en") whenComboReady((combo) => driveCombo(combo, persisted));
-}
-
-// Wait for Google's hidden combo to exist (its script loads async), then run
-// `fn`. Gives up after ~10s so it never spins forever.
-function whenComboReady(fn) {
-  const existing = document.querySelector(".goog-te-combo");
-  if (existing) return fn(existing);
-  let tries = 0;
-  const iv = setInterval(() => {
-    const combo = document.querySelector(".goog-te-combo");
-    if (combo) { clearInterval(iv); fn(combo); }
-    else if (++tries > 40) clearInterval(iv);
-  }, 250);
-}
-function driveCombo(combo, code) { combo.value = code; combo.dispatchEvent(new Event("change")); }
-
-function driveTranslate(code) {
-  if (code === "en") { clearGoogTransCookie(); location.reload(); return; }
-  const combo = document.querySelector(".goog-te-combo");
-  if (combo) driveCombo(combo, code);
-  // Engine not ready yet: set the cookie and reload — the load path above
-  // re-drives it once the combo appears.
-  else { document.cookie = "googtrans=/en/" + code + ";path=/"; location.reload(); }
+  let saved = "en";
+  try { saved = localStorage.getItem(LANG_STORE_KEY) || "en"; } catch (err) { /* none */ }
+  if (!TRANSLATE_LANGS.some((l) => l.code === saved)) saved = "en";
+  sel.value = saved;
+  sel.addEventListener("change", () => setUiLang(sel.value));
+  if (saved !== "en") setUiLang(saved);   // re-apply a remembered language on load
 }
 
 
@@ -1580,6 +1681,7 @@ async function startSession() {
   game.allowRepeats   = el("repeatToggle").checked;
   game.roundSize      = roundSizeChoice;
   game.media          = mediaChoice;
+  game.answerMode     = answerModeChoice;
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
@@ -1983,10 +2085,28 @@ function presentQuestion() {
 
   if (game.media === "sound") showSoundGallery(questionSounds(game.current));
   else showPhotoGallery(questionPhotos(game.current));
+
+  el("learnLabel").textContent = game.current.reinforced ? "🔁 Seen it — try again"
+    : game.mode === "review" ? "Reviewing your misses" : game.label;
+
+  const mode = game.answerMode;
+  // Show only the answer region for the current mode.
+  el("answerInput").closest(".search.answer").classList.toggle("hidden", mode !== "type");
+  el("hintArea").classList.toggle("hidden", mode !== "type");
+  el("choiceArea").classList.toggle("hidden", mode !== "choose");
+  el("studyAnswer").classList.toggle("hidden", mode !== "study");
+
+  if (mode === "study") presentStudy();
+  else if (mode === "choose") presentChoose();
+  else presentType();
+
+  showActionRow();
+  configureActionRow(mode);
+}
+
+// -- "Type" mode: free-recall typing (the classic flow) -------------------
+function presentType() {
   el("promptText").textContent = game.media === "sound" ? "What species is calling?" : "What species is this?";
-
-  el("learnLabel").textContent = game.mode === "review" ? "Reviewing your misses" : game.label;
-
   const input = el("answerInput");
   input.value = ""; input.disabled = false;
   input.placeholder = game.useCommonNames
@@ -1994,7 +2114,6 @@ function presentQuestion() {
     : (game.assist ? "Type a name — e.g. dro rot" : "Type the full scientific name");
   hideSuggest("answerSuggest");
   el("checkBtn").disabled = true;
-  showActionRow();
   resetHints();   // fresh hint scaffold for this species
   // Only auto-focus (and thus pop the on-screen keyboard) when a precise
   // pointer exists — i.e. desktops and touch-laptops, not phones/tablets.
@@ -2003,6 +2122,75 @@ function presentQuestion() {
   // they've looked at the photo. (any-pointer, not pointer, so a laptop that
   // also has a touchscreen still counts as "has a real pointer".)
   if (window.matchMedia("(any-pointer: fine)").matches) input.focus();
+}
+
+// -- "Choose" mode: multiple choice (recognition) -------------------------
+function presentChoose() {
+  el("promptText").textContent = game.media === "sound" ? "Which one is calling?" : "Which species is this?";
+  renderChoices();
+}
+
+// Three wrong names drawn from the region's checklist, plus the right one.
+function pickDistractors(excludeId, n) {
+  const pool = shuffle(game.checklist.filter((s) => s.id !== excludeId && s.scientificName));
+  return pool.slice(0, n).map((s) => ({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName }));
+}
+
+function renderChoices() {
+  const correct = { taxonId: game.current.taxonId, scientificName: game.current.scientificName, commonName: game.current.commonName };
+  const options = shuffle([correct].concat(pickDistractors(correct.taxonId, 3)));
+  el("choiceArea").innerHTML = options.map((o) =>
+    "<button type='button' class='choice notranslate' data-taxon='" + o.taxonId + "'>" +
+      escapeHtml(answerLabelFor(o)) + "</button>").join("");
+  el("choiceArea").querySelectorAll(".choice").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (game.answered) return;
+      chooseAnswer(Number(btn.dataset.taxon), btn.textContent);
+    });
+  });
+}
+
+function chooseAnswer(chosenId, label) {
+  const wasCorrect = chosenId === game.current.taxonId;
+  el("choiceArea").querySelectorAll(".choice").forEach((b) => {
+    const id = Number(b.dataset.taxon);
+    if (id === game.current.taxonId) b.classList.add("right");   // always reveal the right one
+    else if (id === chosenId) b.classList.add("wrong");
+    b.disabled = true;
+  });
+  finishAnswer(wasCorrect, label);
+}
+
+// -- "Study" mode: flashcards — the answer shown with the photo, no test --
+function presentStudy() {
+  el("promptText").textContent = game.media === "sound" ? "Listen and learn" : "Look and learn";
+  const q = game.current;
+  el("studyAnswer").innerHTML = "<span class='tag'>This is</span>" +
+    "<span class='sci notranslate'>" + escapeHtml(q.scientificName) + "</span>" +
+    (q.commonName ? "<span class='common'>" + escapeHtml(q.commonName) + "</span>" : "");
+}
+
+// Study cards aren't scored — just advance, counting toward the round total so
+// a fixed-size study run still ends.
+function studyNext() {
+  game.round.index += 1;
+  updateProgress();
+  nextQuestion();
+}
+
+// Show the right controls for the current answer mode.
+function configureActionRow(mode) {
+  el("skipBtn").classList.toggle("hidden", mode === "study");
+  el("revealBtn").classList.toggle("hidden", mode !== "type");   // Reveal only makes sense when typing
+  el("checkBtn").classList.toggle("hidden", mode === "choose");  // in Choose, tapping an option submits
+  if (mode === "study") { el("checkBtn").textContent = "Next"; el("checkBtn").disabled = false; }
+  else el("checkBtn").textContent = "Check";
+}
+
+// The primary button is "Check" in Type mode and "Next" in Study mode.
+function onPrimaryAction() {
+  if (game.answerMode === "study") studyNext();
+  else submitAnswer();
 }
 
 // Check the typed answer (Enter or the Check button).
@@ -2128,6 +2316,15 @@ function finishAnswer(wasCorrect, typed) {
   // review pile so it comes back, even though it counted as correct.
   if (wasCorrect && hintsShown > 0) recordMiss(game.current);
 
+  // In-session spaced repetition: a species you got wrong (or revealed) comes
+  // back a few questions later, this same session, while it's still fresh —
+  // a second retrieval attempt cements it far better than waiting for an
+  // end-of-round review you might skip. Gated to normal play with repeats on,
+  // so it never fights the "every species at most once" round setting.
+  if (game.mode === "normal" && game.allowRepeats && !wasCorrect) {
+    scheduleReinforcement(game.current);
+  }
+
   // Every species you actually answer (right or wrong) goes on the round's
   // overview list, shown on the "Lesson complete" screen.
   game.roundLog.push({ scientificName: game.current.scientificName, commonName: game.current.commonName, wasCorrect });
@@ -2135,6 +2332,14 @@ function finishAnswer(wasCorrect, typed) {
   updateProgress();
   updateStreak();
   showFeedback(wasCorrect, typed);
+}
+
+// Slip a fresh copy of the just-missed species back into the upcoming queue a
+// few places ahead, tagged so presentQuestion can flag it as a second attempt.
+function scheduleReinforcement(question) {
+  const copy = Object.assign({}, question, { reinforced: true });
+  const pos = Math.min(3, game.queue.length);
+  game.queue.splice(pos, 0, copy);
 }
 
 
@@ -2169,7 +2374,9 @@ function clearBusy() {
       "type='text' autocomplete='off' autocorrect='off' autocapitalize='none' spellcheck='false' " +
       "enterkeyhint='go' data-lpignore='true' data-1p-ignore data-form-type='other'>" +
       "<div id='answerSuggest' class='suggest hidden'></div></div>" +
-    "<div id='hintArea' class='hint-area'></div>";
+    "<div id='hintArea' class='hint-area'></div>" +
+    "<div id='choiceArea' class='choice-area hidden'></div>" +
+    "<div id='studyAnswer' class='study-answer hidden'></div>";
   wireAnswerInput();   // re-attach listeners to the fresh input
   wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
 }
@@ -2630,7 +2837,32 @@ const PRAISE = ["Nice!", "Correct!", "Well done!", "Exactly!", "You got it!", "S
 const pickPraise = () => PRAISE[randomInt(0, PRAISE.length - 1)];
 
 // -- the results (lesson complete) screen ---------------------------------
+const DONE_MASCOT =
+  "<div class='mascot'><svg viewBox='0 0 100 100' fill='none'><circle cx='50' cy='50' r='48' fill='#f3ead2'/>" +
+    "<path d='M50 78 V44' stroke='#34573f' stroke-width='7' stroke-linecap='round'/>" +
+    "<path d='M50 52 C34 52 26 40 28 28 C42 28 52 38 50 52Z' fill='#4a7c59'/>" +
+    "<path d='M50 46 C64 46 74 36 72 24 C58 24 48 34 50 46Z' fill='#7aa584'/></svg></div>";
+
+// Set the answer mode, then start a normal round — used by the study-complete
+// screen's "test yourself" buttons.
+function startAs(answerMode) { game.answerMode = answerMode; startRound("normal"); }
+
+// Study runs aren't scored, so they get their own gentle wrap-up that nudges
+// you toward actually testing what you just looked at.
+function showStudyDone() {
+  showScreen("done");
+  const n = game.round.index;
+  el("doneContent").innerHTML = DONE_MASCOT +
+    "<h2>Study complete!</h2>" +
+    "<p class='sub'>You looked at " + n + " species · " + escapeHtml(game.label) + "</p>" +
+    "<button class='btn btn-primary btn-big' onclick='startAs(\"type\")'>Test yourself — type the names</button>" +
+    "<button class='btn btn-blue btn-big' onclick='startAs(\"choose\")'>Test yourself — multiple choice</button>" +
+    "<button class='btn btn-ghost btn-big' onclick='startRound(\"normal\")'>Keep studying</button>" +
+    "<button class='btn btn-ghost btn-big' onclick='backToSetup()'>Change groups / region</button>";
+}
+
 function showDone() {
+  if (game.answerMode === "study") return showStudyDone();
   showScreen("done");
   const reviewMode = game.mode === "review";
   const accuracy = game.round.size ? Math.round(100 * game.round.correct / game.round.size) : 0;
@@ -2653,11 +2885,7 @@ function showDone() {
       "<button class='btn btn-ghost btn-big' onclick='startReview(true)'>Review with new " + mediaWord(true) + "</button>"
     : "";
 
-  el("doneContent").innerHTML =
-    "<div class='mascot'><svg viewBox='0 0 100 100' fill='none'><circle cx='50' cy='50' r='48' fill='#f3ead2'/>" +
-      "<path d='M50 78 V44' stroke='#34573f' stroke-width='7' stroke-linecap='round'/>" +
-      "<path d='M50 52 C34 52 26 40 28 28 C42 28 52 38 50 52Z' fill='#4a7c59'/>" +
-      "<path d='M50 46 C64 46 74 36 72 24 C58 24 48 34 50 46Z' fill='#7aa584'/></svg></div>" +
+  el("doneContent").innerHTML = DONE_MASCOT +
     "<h2>" + (reviewMode ? "Review complete!" : "Lesson complete!") + "</h2>" +
     "<p class='sub'>" + escapeHtml(game.label) + "</p>" +
     stats +
@@ -2699,9 +2927,11 @@ function renderPanel() {
 // One row of the bar chart — shared by the family, genus, and species views.
 // `italic` follows taxonomic convention: species and genus names are set in
 // italics, family names upright.
-const weakBar = (r, italic) =>
+const weakBar = (r, italic, mastery) =>
   "<div class='wk-row'><div class='wk-label'><span class='" + (italic ? "sci" : "fam") + "'>" +
-    escapeHtml(r.name) + "</span><span class='wk-count'>" + r.correct + "/" + r.total + "</span></div>" +
+    escapeHtml(r.name) + "</span>" +
+    (mastery ? "<span class='mastery " + mastery + "'>" + MASTERY_LABEL[mastery] + "</span>" : "") +
+    "<span class='wk-count'>" + r.correct + "/" + r.total + "</span></div>" +
   "<div class='wk-track'><div class='wk-fill " + accuracyClass(r.accuracy) + "' style='width:" + pct(r.accuracy) + "'></div></div>" +
   "<div class='wk-pct'>" + pct(r.accuracy) + "</div></div>";
 
@@ -2712,10 +2942,13 @@ let weakLevel = "family";   // "family" | "genus" | "species"
 function renderWeakOverview(summary) {
   const genusCount  = new Set([...game.stats.values()].map((s) => (s.scientificName || "").split(" ")[0])).size;
   const familyCount = summary.families.length;
+  const m = { mastered: 0, familiar: 0, learning: 0 };
+  weaknessesBySpecies().forEach((s) => { m[masteryOf(s)] += 1; });
   return "<div class='wk-overview'>" + accuracyDonut(summary.accuracy) +
     "<div class='wk-overview-stats'>" +
       "<div class='wk-overview-line'><b>" + summary.correct + "/" + summary.answers + "</b> correct overall</div>" +
       "<div class='wk-overview-line muted'>" + game.stats.size + " species · " + genusCount + " genera · " + familyCount + " families</div>" +
+      "<div class='wk-overview-line muted'>🌿 " + m.mastered + " mastered · " + m.familiar + " familiar · " + m.learning + " learning</div>" +
     "</div></div>";
 }
 
@@ -2738,8 +2971,9 @@ function renderWeakTab() {
   } else {
     const tough = toughestSpecies();
     const toughSection = tough.length === 0 ? "" :
-      "<h3>Needs the most work</h3>" + tough.map((r) => weakBar(r, true)).join("");
-    body = toughSection + "<h3>Every species</h3>" + weaknessesBySpecies().map((r) => weakBar(r, true)).join("");
+      "<h3>Needs the most work</h3>" + tough.map((r) => weakBar(r, true, masteryOf(r))).join("");
+    body = toughSection + "<h3>Every species</h3>" +
+      weaknessesBySpecies().map((r) => weakBar(r, true, masteryOf(r))).join("");
   }
 
   return "<p class='panel-sub'>" + summary.answers + " answers so far. " +
@@ -3020,6 +3254,11 @@ function wireControls() {
     mediaChoice = e.target.dataset.media;
     renderMediaChips();
   });
+  el("answerModeChips").addEventListener("click", (e) => {
+    if (e.target.dataset.answerMode === undefined) return;
+    answerModeChoice = e.target.dataset.answerMode;
+    renderAnswerModeChips();
+  });
 
   // start / progress
   el("startBtn").addEventListener("click", () => {
@@ -3033,7 +3272,7 @@ function wireControls() {
   el("progressBtnSetup").addEventListener("click", openProgress);
 
   // play controls
-  el("checkBtn").addEventListener("click", submitAnswer);
+  el("checkBtn").addEventListener("click", onPrimaryAction);
   el("skipBtn").addEventListener("click", skipForLater);
   el("revealBtn").addEventListener("click", revealAnswer);
   el("quitBtn").addEventListener("click", backToSetup);
