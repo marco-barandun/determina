@@ -207,6 +207,34 @@
 
   .setup .btn-big { margin-bottom: 10px; }
 
+  /* Setup status: daily streak + "due today" / look-alike prompts */
+  .setup-status { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .setup-status:empty { display: none; }
+  .streak-line { display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+    background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius); }
+  .streak-line .flame { font-size: 22px; }
+  .streak-line .streak-days { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--gold); }
+  .streak-line .streak-txt { font-weight: 700; font-size: 13px; color: var(--muted); line-height: 1.3; }
+  .streak-line .goal-ring { margin-left: auto; }
+  .prompt-banner { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 14px 16px; border-radius: var(--radius); border: none; cursor: pointer;
+    font-family: var(--font); font-weight: 800; box-shadow: 0 2px 6px rgba(58,53,46,.12); }
+  .prompt-banner:active { transform: scale(.99); }
+  .prompt-banner .pb-emoji { font-size: 22px; flex: none; }
+  .prompt-banner .pb-text { flex: 1; }
+  .prompt-banner .pb-text small { display: block; font-weight: 700; font-size: 12px; opacity: .8; margin-top: 1px; }
+  .prompt-banner .pb-go { flex: none; font-size: 18px; }
+  .prompt-banner.due { background: var(--green); color: #fff; }
+  .prompt-banner.drill { background: var(--blue); color: #fff; }
+
+  /* Practice heatmap (progress → Over time) */
+  .heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; margin: 4px 0 8px; }
+  .heatmap .hm-cell { width: 100%; aspect-ratio: 1; border-radius: 3px; background: var(--line); }
+  .heatmap .hm-cell.l1 { background: #cfe0c4; } .heatmap .hm-cell.l2 { background: #9cc088; }
+  .heatmap .hm-cell.l3 { background: #6fa15b; } .heatmap .hm-cell.l4 { background: var(--green-dark); }
+  .hm-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; font-size: 11px; color: var(--faint); font-weight: 700; }
+  .hm-legend .hm-cell { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
   /* ====================================================================== */
   /*  Play screen                                                           */
   /* ====================================================================== */
@@ -514,6 +542,10 @@
       <h1>Determinare</h1>
       <p class="tagline">Learn to name species from real photos and sounds.</p>
     </div>
+
+    <!-- Daily streak + spaced-repetition / look-alike prompts, filled by
+         renderSetupStatus() from the active player's saved history. -->
+    <div id="setupStatus" class="setup-status"></div>
 
     <div class="card">
       <div class="field">
@@ -1000,14 +1032,25 @@ const game = {
   missed: new Map(),        // taxonId -> { taxonId, scientificName, commonName, photos: [] }
   reviewQueue: [],
 
-  // Long-term scoring lives in named PROFILES (see section 5). game.stats always
-  // points at the active profile's tally, so other code needn't know about profiles.
+  // Long-term scoring lives in named PROFILES (see section 5). These four always
+  // point at the active profile's data, so other code needn't know about profiles.
   activeId: null,
-  profiles: new Map(),      // id -> { id, name, createdAt, stats: Map, snapshots: [] }
-  stats: new Map(),
+  profiles: new Map(),      // id -> { id, name, createdAt, stats, snapshots, srs, confusions, daily }
+  stats: new Map(),         // taxonId -> { taxonId, scientificName, commonName, correct, wrong }
+  srs: new Map(),           // taxonId -> spaced-repetition schedule { box, due, last, ... } (feature: due today)
+  confusions: new Map(),    // "idA_idB" -> { key, a, b, count } (feature: look-alike drills)
+  daily: {},                // "YYYY-MM-DD" -> species answered that day (feature: daily streak)
   familyCache: new Map(),   // taxonId -> { taxonId, familyName, isFamily } (shared)
   compares: [],             // other people's summaries, imported from share-codes
 };
+
+// -- spaced repetition (Leitner boxes) ------------------------------------
+const DAY_MS = 86400000;
+// Days until a species is due again, indexed by Leitner box (1..6). Get one
+// right and it moves up a box (longer gap); get it wrong and it drops to box 1.
+const SRS_INTERVALS = [0, 1, 3, 7, 16, 35, 90];
+const SRS_MAX_BOX = 6;
+const DAILY_GOAL = 15;     // species/day that counts as "goal met" (drives the daily streak)
 
 
 // == 5. Players & scoring, saved in the browser (no login) =================
@@ -1020,7 +1063,7 @@ const currentProfile = () => game.profiles.get(game.activeId);
 
 function createProfile(name) {
   const profile = { id: newProfileId(), name: name || "Player", createdAt: Date.now(),
-                    stats: new Map(), snapshots: [] };
+                    stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {} };
   game.profiles.set(profile.id, profile);
   activateProfile(profile.id);
   return profile;
@@ -1036,10 +1079,14 @@ function renameProfile(name) {
   populateProfileSelect();
 }
 
-// Make a profile active; game.stats always points at its tally.
+// Make a profile active; the four live pointers follow it.
 function activateProfile(id) {
   game.activeId = id;
-  game.stats = currentProfile().stats;
+  const p = currentProfile();
+  game.stats = p.stats;
+  game.srs = p.srs;
+  game.confusions = p.confusions;
+  game.daily = p.daily;
   saveStore();
 }
 
@@ -1048,6 +1095,7 @@ function saveStore() {
     const profiles = [...game.profiles.values()].map((p) => ({
       id: p.id, name: p.name, createdAt: p.createdAt,
       stats: [...p.stats.values()], snapshots: p.snapshots,
+      srs: [...p.srs.values()], confusions: [...p.confusions.values()], daily: p.daily,
     }));
     localStorage.setItem(STORE_KEY, JSON.stringify({
       activeId: game.activeId,
@@ -1067,21 +1115,25 @@ function loadStore() {
     game.compares = saved.compares || [];
     saved.profiles.forEach((p) => {
       const stats = new Map((p.stats || []).map((s) => [s.taxonId, s]));
+      const srs = new Map((p.srs || []).map((e) => [e.taxonId, e]));
+      const confusions = new Map((p.confusions || []).map((c) => [c.key, c]));
       game.profiles.set(p.id, { id: p.id, name: p.name, createdAt: p.createdAt,
-                                stats, snapshots: p.snapshots || [] });
+                                stats, snapshots: p.snapshots || [],
+                                srs, confusions, daily: p.daily || {} });
     });
     game.activeId = saved.activeId;
   } else {
     migrateOldStore();
   }
 
-  // Always end up with an active player whose tally game.stats points at.
+  // Always end up with an active player whose data the live pointers point at.
   if (!currentProfile()) {
     const first = [...game.profiles.values()][0];
     if (first) game.activeId = first.id;
     else createProfile("Player 1");
   }
-  game.stats = currentProfile().stats;
+  const p = currentProfile();
+  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily;
   saveStore();
 }
 
@@ -1107,6 +1159,83 @@ function recordResult(question, wasCorrect) {
   if (wasCorrect) stat.correct += 1; else stat.wrong += 1;
   game.stats.set(question.taxonId, stat);
   saveStore();
+}
+
+// -- spaced repetition: schedule when to re-ask each species --------------
+// Move a species up a Leitner box on a clean win (so it's asked again further
+// out), keep it where it is on a hinted win (still shaky), and drop it back to
+// box 1 (due tomorrow) on a miss. This runs on every tested answer — normal or
+// review — since both are genuine retrieval practice.
+function updateSrs(question, wasCorrect, weak) {
+  const now = Date.now();
+  const e = game.srs.get(question.taxonId) || {
+    taxonId: question.taxonId, scientificName: question.scientificName,
+    commonName: question.commonName, box: 1, due: now, last: 0,
+  };
+  if (!wasCorrect) e.box = 1;
+  else if (!weak) e.box = Math.min(e.box + 1, SRS_MAX_BOX);   // a hinted win leaves the box unchanged
+  e.last = now;
+  e.due = now + SRS_INTERVALS[e.box] * DAY_MS;
+  e.scientificName = question.scientificName;   // keep names fresh (locale can change)
+  e.commonName = question.commonName;
+  game.srs.set(question.taxonId, e);
+  saveStore();
+}
+// Species whose review is due now or overdue, most-overdue first.
+function dueSrsEntries() {
+  const now = Date.now();
+  return [...game.srs.values()].filter((e) => e.due <= now).sort((a, b) => a.due - b.due);
+}
+
+// -- daily practice streak ------------------------------------------------
+const todayStr = () => new Date().toISOString().slice(0, 10);   // "YYYY-MM-DD", local-ish
+const dayStr = (d) => new Date(d).toISOString().slice(0, 10);
+// Count one answered species toward today's tally (drives the streak + goal).
+function recordDailyActivity() {
+  const t = todayStr();
+  game.daily[t] = (game.daily[t] || 0) + 1;
+  saveStore();
+}
+// Consecutive days practised, counting back from today (or yesterday, so a
+// streak stays "alive" until the day is actually over).
+function currentDailyStreak() {
+  let streak = 0;
+  const cursor = new Date();
+  if (!game.daily[dayStr(cursor)]) cursor.setDate(cursor.getDate() - 1);   // today not done yet? start at yesterday
+  while (game.daily[dayStr(cursor)]) { streak += 1; cursor.setDate(cursor.getDate() - 1); }
+  return streak;
+}
+
+// -- confusion pairs: which look-alikes get mixed up ----------------------
+const confusionKey = (a, b) => [a, b].sort((x, y) => x - y).join("_");
+// Log that `target` was mistaken for `guess` (both real species). Symmetric —
+// one entry per unordered pair, with a running count.
+function recordConfusion(target, guess) {
+  if (!target || !guess || target.taxonId === guess.taxonId) return;
+  const key = confusionKey(target.taxonId, guess.taxonId);
+  const c = game.confusions.get(key) || { key, a: slimSpecies(target), b: slimSpecies(guess), count: 0 };
+  c.count += 1;
+  game.confusions.set(key, c);
+  saveStore();
+}
+const slimSpecies = (s) => ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName || "" });
+// The species this one is most often confused with (for smarter distractors).
+function confusionPartners(taxonId) {
+  const out = [];
+  game.confusions.forEach((c) => {
+    if (c.a.taxonId === taxonId) out.push({ sp: c.b, count: c.count });
+    else if (c.b.taxonId === taxonId) out.push({ sp: c.a, count: c.count });
+  });
+  return out.sort((x, y) => y.count - x.count).map((o) => o.sp);
+}
+// Every species involved in a confusion, worst pairs first — the drill queue.
+function confusionDrillSpecies() {
+  const pairs = [...game.confusions.values()].sort((a, b) => b.count - a.count);
+  const seen = new Set(), out = [];
+  pairs.forEach((c) => [c.a, c.b].forEach((s) => {
+    if (!seen.has(s.taxonId)) { seen.add(s.taxonId); out.push(s); }
+  }));
+  return out;
 }
 
 
@@ -1517,6 +1646,53 @@ function populateProfileSelect() {
   el("renameInput").classList.add("hidden");
 }
 
+// -- setup status: daily streak + "due today" / look-alike prompts --------
+// A small progress ring toward today's practice goal (checkmark when met).
+function goalRing(frac) {
+  frac = Math.max(0, Math.min(1, frac));
+  const size = 36, stroke = 5, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const done = frac >= 1;
+  return "<svg width='" + size + "' height='" + size + "' viewBox='0 0 " + size + " " + size + "'>" +
+    "<circle cx='" + size / 2 + "' cy='" + size / 2 + "' r='" + r + "' fill='none' stroke='var(--line)' stroke-width='" + stroke + "'/>" +
+    "<circle cx='" + size / 2 + "' cy='" + size / 2 + "' r='" + r + "' fill='none' stroke='" + (done ? "var(--green)" : "var(--gold)") +
+      "' stroke-width='" + stroke + "' stroke-linecap='round' stroke-dasharray='" + c + "' stroke-dashoffset='" + (c * (1 - frac)) +
+      "' transform='rotate(-90 " + size / 2 + " " + size / 2 + ")'/>" +
+    (done ? "<path d='M11 18l4 4 9-10' fill='none' stroke='var(--green)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/>" : "") +
+  "</svg>";
+}
+
+function renderSetupStatus() {
+  const box = el("setupStatus");
+  if (!box) return;
+  const streak = currentDailyStreak();
+  const today = game.daily[todayStr()] || 0;
+  const due = dueSrsEntries().length;
+  const pairs = game.confusions.size;
+  let html = "";
+
+  if (streak > 0 || today > 0 || game.stats.size > 0) {
+    html += "<div class='streak-line'>" +
+      "<span class='flame'>" + (streak > 0 ? "🔥" : "🌱") + "</span>" +
+      "<span><span class='streak-days'>" + streak + "</span> " +
+        "<span class='streak-txt'>day" + (streak === 1 ? "" : "s") + " in a row<br>" +
+        today + " / " + DAILY_GOAL + " species today</span></span>" +
+      "<span class='goal-ring'>" + goalRing(today / DAILY_GOAL) + "</span></div>";
+  }
+  if (due > 0) {
+    html += "<button type='button' class='prompt-banner due' data-action='due'>" +
+      "<span class='pb-emoji'>🔁</span><span class='pb-text'>Review " + due + " species due today" +
+      "<small>Spaced repetition — the ones you're about to forget</small></span>" +
+      "<span class='pb-go'>→</span></button>";
+  }
+  if (pairs > 0) {
+    html += "<button type='button' class='prompt-banner drill' data-action='drill'>" +
+      "<span class='pb-emoji'>👀</span><span class='pb-text'>Drill " + pairs + " look-alike " + (pairs === 1 ? "pair" : "pairs") +
+      "<small>Species you've mixed up, told apart</small></span>" +
+      "<span class='pb-go'>→</span></button>";
+  }
+  box.innerHTML = html;
+}
+
 // -- page translation (self-contained, via Google's translate endpoint) ----
 //  We translate the page ourselves instead of embedding Google's website
 //  widget, which was unreliable. Google's free translate_a/single endpoint
@@ -1777,6 +1953,56 @@ function startReview(useFreshPhotos) {
   showScreen("play");
   updateProgress();
   nextQuestion();
+}
+
+// A checklist built from every species this player has ever met (their SRS
+// schedule, stats, and confusions). It powers the typing suggestions and the
+// Choose-mode distractors in the review flows below, which start fresh with no
+// region session loaded.
+function historyChecklist() {
+  const m = new Map();
+  const add = (id, sci, common) => { if (id && !m.has(id)) m.set(id, { id, scientificName: sci, commonName: common || "", count: 0 }); };
+  game.srs.forEach((e) => add(e.taxonId, e.scientificName, e.commonName));
+  game.stats.forEach((s) => add(s.taxonId, s.scientificName, s.commonName));
+  game.confusions.forEach((c) => { add(c.a.taxonId, c.a.scientificName, c.a.commonName); add(c.b.taxonId, c.b.scientificName, c.b.commonName); });
+  return [...m.values()];
+}
+
+// Shared engine for the "review due" and "look-alike drill" sessions: a review
+// round over a specific set of species, each fetched fresh from iNaturalist by
+// taxon id. Session options (media, assist, ...) come from the setup toggles.
+function startHistoryReview(species, answerMode, label) {
+  if (!species.length) return;
+  game.media          = mediaChoice;
+  game.answerMode     = answerMode;
+  game.assist         = el("assistToggle").checked;
+  game.useCommonNames = el("commonNamesToggle").checked;
+  game.learnMore      = el("learnMoreToggle").checked;
+  game.allowRepeats   = true;
+  game.mode           = "review";
+  game.label          = label;
+  game.checklist = historyChecklist();
+  game.queue = []; game.seen = new Set(); game.missed = new Map();
+  game.streak = 0; game.askedTaxa = new Set(); game.roundLog = [];
+  game.round = { size: species.length, index: 0, correct: 0 };
+  game.reviewQueue = shuffle(species).map((s) =>
+    ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName, fresh: true }));
+  updateStreak();
+  showScreen("play");
+  updateProgress();
+  nextQuestion();
+}
+
+// "N species due today" — spaced-repetition review of everything that's due.
+function startDueReview() {
+  const due = dueSrsEntries().map((e) => ({ taxonId: e.taxonId, scientificName: e.scientificName, commonName: e.commonName }));
+  startHistoryReview(due, answerModeChoice === "study" ? "type" : answerModeChoice, "🔁 Due for review");
+}
+
+// "Drill your look-alikes" — Choose-mode round over the species you mix up,
+// where the distractors are your actual confusion partners (see pickDistractors).
+function startConfusionDrill() {
+  startHistoryReview(confusionDrillSpecies(), "choose", "👀 Look-alike drill");
 }
 
 // Rebuild a playable question from one saved review-pile media item. Shared
@@ -2130,16 +2356,23 @@ function presentChoose() {
   renderChoices();
 }
 
-// Three wrong names drawn from the region's checklist, plus the right one.
+// Wrong names to sit alongside the right one. Species this one is actually
+// confused with come first (so Choose mode quietly drills your real
+// look-alikes), then the rest are filled from the region's checklist.
 function pickDistractors(excludeId, n) {
-  const pool = shuffle(game.checklist.filter((s) => s.id !== excludeId && s.scientificName));
-  return pool.slice(0, n).map((s) => ({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName }));
+  const chosen = [], used = new Set([excludeId]);
+  const add = (s) => { if (s && s.taxonId && !used.has(s.taxonId)) { used.add(s.taxonId); chosen.push(s); } };
+  confusionPartners(excludeId).forEach(add);
+  shuffle(game.checklist.filter((s) => s.id !== excludeId && s.scientificName))
+    .forEach((s) => add({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName }));
+  return chosen.slice(0, n);
 }
 
+let currentChoices = [];   // the option objects on screen, for confusion logging
 function renderChoices() {
   const correct = { taxonId: game.current.taxonId, scientificName: game.current.scientificName, commonName: game.current.commonName };
-  const options = shuffle([correct].concat(pickDistractors(correct.taxonId, 3)));
-  el("choiceArea").innerHTML = options.map((o) =>
+  currentChoices = shuffle([correct].concat(pickDistractors(correct.taxonId, 3)));
+  el("choiceArea").innerHTML = currentChoices.map((o) =>
     "<button type='button' class='choice notranslate' data-taxon='" + o.taxonId + "'>" +
       escapeHtml(answerLabelFor(o)) + "</button>").join("");
   el("choiceArea").querySelectorAll(".choice").forEach((btn) => {
@@ -2158,6 +2391,11 @@ function chooseAnswer(chosenId, label) {
     else if (id === chosenId) b.classList.add("wrong");
     b.disabled = true;
   });
+  // A wrong pick is a real, unambiguous confusion between two known species.
+  if (!wasCorrect) {
+    const guess = currentChoices.find((o) => o.taxonId === chosenId);
+    if (guess) recordConfusion(game.current, guess);
+  }
   finishAnswer(wasCorrect, label);
 }
 
@@ -2210,7 +2448,25 @@ function submitAnswer() {
   }
   const typed = el("answerInput").value.trim();
   if (!typed) return;
-  finishAnswer(isCorrect(typed, game.current), typed);
+  const wasCorrect = isCorrect(typed, game.current);
+  // If a wrong answer names a *different real species* (one on the checklist),
+  // that's a genuine look-alike confusion worth drilling — not just a typo.
+  if (!wasCorrect) {
+    const guess = resolveTypedSpecies(typed);
+    if (guess) recordConfusion(game.current, guess);
+  }
+  finishAnswer(wasCorrect, typed);
+}
+
+// Match typed text to a known species on the checklist (by scientific binomial
+// or exact common name), or null if it doesn't clearly name a real one.
+function resolveTypedSpecies(typed) {
+  const q = normalize(typed);
+  const target = genusAndEpithet(typed);
+  const found = game.checklist.find((s) =>
+    genusAndEpithet(s.scientificName) === target || (s.commonName && normalize(s.commonName) === q));
+  return (found && found.id !== game.current.taxonId)
+    ? { taxonId: found.id, scientificName: found.scientificName, commonName: found.commonName } : null;
 }
 
 // "Skip" doesn't mark the question wrong or use up a round slot — it just
@@ -2315,6 +2571,11 @@ function finishAnswer(wasCorrect, typed) {
   // A win you needed a hint for isn't really learned yet — keep it in the
   // review pile so it comes back, even though it counted as correct.
   if (wasCorrect && hintsShown > 0) recordMiss(game.current);
+
+  // Cross-session spaced repetition + the daily streak apply to any genuine
+  // test (normal or review, type or choose) — study cards never reach here.
+  updateSrs(game.current, wasCorrect, hintsShown > 0);
+  recordDailyActivity();
 
   // In-session spaced repetition: a species you got wrong (or revealed) comes
   // back a few questions later, this same session, while it's still fresh —
@@ -2981,10 +3242,33 @@ function renderWeakTab() {
     renderWeakOverview(summary) + weakLevelSwitch() + body;
 }
 
+// A GitHub-style practice grid: the last 12 weeks, one cell per day, shaded by
+// how many species you answered that day.
+const heatLevel = (count) => count === 0 ? 0 : count < 3 ? 1 : count < 8 ? 2 : count < DAILY_GOAL ? 3 : 4;
+function renderHeatmap() {
+  const days = 84, cells = [];
+  const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const cnt = game.daily[dayStr(d)] || 0, lvl = heatLevel(cnt);
+    cells.push("<div class='hm-cell" + (lvl ? " l" + lvl : "") + "' title='" + dayStr(d) + ": " + cnt + "'></div>");
+  }
+  return "<div class='heatmap'>" + cells.join("") + "</div>" +
+    "<div class='hm-legend'>Less <span class='hm-cell'></span><span class='hm-cell l1'></span>" +
+    "<span class='hm-cell l2'></span><span class='hm-cell l3'></span><span class='hm-cell l4'></span> More</div>";
+}
+
 function renderTimeTab() {
   const p = currentProfile();
   const now = summarize(p.stats);
   if (now.answers === 0) return "<div class='empty'>Answer some species first, then track your progress here.</div>";
+  const streak = currentDailyStreak();
+  const todayCount = game.daily[todayStr()] || 0;
+  const due = dueSrsEntries().length;
+  const practice = "<h3>Your practice</h3>" +
+    "<div class='wk-overview-line'>🔥 <b>" + streak + "</b> day" + (streak === 1 ? "" : "s") + " in a row · " +
+      todayCount + "/" + DAILY_GOAL + " today" + (due ? " · <b>" + due + "</b> due for review" : "") + "</div>" +
+    renderHeatmap();
   const fmt = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const line = (label, answers, acc, now) =>
     "<div class='wk-row" + (now ? " now" : "") + "'><div class='wk-label'><span class='fam'>" + label + "</span>" +
@@ -3014,7 +3298,7 @@ function renderTimeTab() {
     }).join("");
   }
   return "<p class='panel-sub'>How " + escapeHtml(p.name) + " is doing over time. " +
-    "<button class='btn-link' data-panel='milestone'>Save milestone now</button></p>" + points + progress;
+    "<button class='btn-link' data-panel='milestone'>Save milestone now</button></p>" + practice + points + progress;
 }
 
 function renderVsTab() {
@@ -3044,8 +3328,9 @@ function renderVsTab() {
 // -- progress-panel actions -----------------------------------------------
 function resetHistory() {
   const p = currentProfile();
-  p.stats = new Map(); p.snapshots = [];
-  game.stats = p.stats; saveStore(); renderPanel();
+  p.stats = new Map(); p.snapshots = []; p.srs = new Map(); p.confusions = new Map(); p.daily = {};
+  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily;
+  saveStore(); renderPanel();
 }
 function copyShareCode(button) {
   const input = el("shareCode");
@@ -3063,6 +3348,7 @@ function doImport() {
 
 function backToSetup() {
   populateProfileSelect();
+  renderSetupStatus();
   showScreen("setup");
 }
 
@@ -3193,8 +3479,18 @@ function wirePhotoGallery() {
 function wireControls() {
   // setup: profiles
   el("profileSelect").addEventListener("change", () => {
-    el("newProfileName").classList.toggle("hidden", el("profileSelect").value !== "__new__");
+    const val = el("profileSelect").value;
+    el("newProfileName").classList.toggle("hidden", val !== "__new__");
     el("renameInput").classList.add("hidden");
+    // Switching to an existing player updates the streak/due prompts right away.
+    if (val && val !== "__new__") { activateProfile(val); renderSetupStatus(); }
+  });
+  // setup: the streak / due-review / look-alike prompt banners
+  el("setupStatus").addEventListener("click", (e) => {
+    const action = e.target.closest("[data-action]");
+    if (!action) return;
+    if (action.dataset.action === "due") startDueReview();
+    else if (action.dataset.action === "drill") startConfusionDrill();
   });
   // The pencil button opens a plain text box, pre-filled with your current
   // name; pressing Enter or clicking away commits it.
@@ -3363,6 +3659,7 @@ function wireLearnPopup() {
 loadStore();            // restore players + weak-spot history from this device
 buildChips();           // draws the taxon/region/round-size chips, including today's defaults
 populateProfileSelect();
+renderSetupStatus();    // daily streak + "due today" / look-alike prompts
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 </script>
