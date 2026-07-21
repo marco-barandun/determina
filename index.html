@@ -186,6 +186,7 @@
   }
   .field { margin-bottom: 18px; }
   .field:last-child { margin-bottom: 0; }
+  .field.dim { opacity: .4; }   /* the group picker, when a certificate overrides it */
   .field-label { font-size: 13px; font-weight: 800; color: var(--faint); text-transform: uppercase;
                  letter-spacing: .08em; margin-bottom: 8px; }
   .player-row { display: flex; gap: 8px; }
@@ -204,6 +205,17 @@
     border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
   .toggle input:checked + .switch { background: var(--green); }
   .toggle input:checked + .switch::after { transform: translateX(22px); }
+
+  /* Collapsible "Learning aids" — keeps optional toggles out of the way. */
+  .aids { border-top: 2px solid var(--line); margin-top: 6px; padding-top: 14px; }
+  .aids summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    font-weight: 800; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+  .aids summary::-webkit-details-marker { display: none; }
+  .aids-count { color: var(--green); }
+  .aids-chevron { width: 18px; height: 18px; color: var(--faint); transition: transform .2s; }
+  .aids[open] .aids-chevron { transform: rotate(180deg); }
+  .aids-body { display: flex; flex-direction: column; gap: 18px; margin-top: 16px; }
+  .aids-body .toggle { margin-bottom: 0; }
 
   .setup .btn-big { margin-bottom: 10px; }
 
@@ -366,6 +378,45 @@
   .study-answer .common { font-weight: 700; color: var(--muted); margin-top: 4px; display: block; }
   .study-answer .tag { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); display: block; margin-bottom: 8px; }
 
+  /* Reverse questions (aid C): name shown, pick the matching photo. */
+  .reverse-active .photo-card, .reverse-active #credit { display: none; }
+  .reverse-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .rev-photo { padding: 0; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer;
+    background: var(--bg-2); aspect-ratio: 1; }
+  .rev-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rev-photo:hover:not(:disabled) { border-color: var(--blue); }
+  .rev-photo.right { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .rev-photo.wrong { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+  .rev-photo:disabled { cursor: default; }
+
+  /* Compare-after-a-miss (aid A): the two look-alikes side by side. */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 12px; }
+  .compare-col { border: 2px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-2); }
+  .compare-col.right { border-color: var(--green); } .compare-col.wrong { border-color: var(--red); }
+  .compare-col .cmp-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--line); }
+  .compare-col .cmp-body { padding: 7px 9px; }
+  .compare-col .cmp-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+  .compare-col.right .cmp-tag { color: var(--green-text); } .compare-col.wrong .cmp-tag { color: var(--red-text); }
+  .compare-col .cmp-name { font-style: italic; font-weight: 800; font-size: 13px; }
+  .compare-col .cmp-common { font-weight: 700; font-size: 12px; color: var(--muted); }
+
+  /* Self-rating (aid D): Anki-style buttons in place of Continue. */
+  .rate-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+  .rate-btn { font-family: var(--font); font-weight: 800; font-size: 13px; border: 2px solid var(--line);
+    background: var(--bg); color: var(--ink); border-radius: 12px; padding: 12px 4px; cursor: pointer; }
+  .rate-btn small { display: block; font-weight: 700; font-size: 10px; color: var(--faint); margin-top: 2px; }
+  .rate-btn:hover { background: var(--bg-2); }
+  .rate-btn.again:hover { border-color: var(--red); } .rate-btn.easy:hover { border-color: var(--green); }
+
+  /* Memory notes (aid E) */
+  .fb-note { margin-top: 8px; }
+  .fb-note .note-saved { font-size: 13px; font-weight: 700; color: var(--ink); background: #fbf3e4;
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
+  .fb-note textarea { width: 100%; font-family: var(--font); font-weight: 700; font-size: 14px; color: var(--ink);
+    background: var(--bg-2); border: 2px solid var(--line); border-radius: 10px; padding: 9px 11px; resize: vertical; min-height: 40px; }
+  .fb-note textarea:focus { outline: none; border-color: var(--blue); background: var(--bg); }
+  .note-add { background: none; border: none; color: var(--blue); font-family: var(--font); font-weight: 800; font-size: 13px; cursor: pointer; padding: 4px 0; }
+
   /* bottom action bar + the slide-up feedback banner */
   .bottombar { position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
     padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); }
@@ -387,6 +438,8 @@
   .fb-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
   .fb-name { font-style: italic; font-weight: 800; }
   .fb-common { font-style: normal; font-weight: 700; color: inherit; opacity: .8; }
+  .fb-alt { display: block; font-style: italic; font-weight: 700; font-size: 13px; opacity: .7; margin-top: 1px; }
+  .fb-alt-src { font-style: normal; font-size: 11px; opacity: .8; }
   .fb-you { display: block; font-weight: 700; font-size: 13px; opacity: .8; margin-top: 2px; }
   .fb-learn {
     display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 800;
@@ -577,13 +630,20 @@
         <div class="hint" style="margin-top:6px;">Translation by Google. Latin species names stay unchanged; pick English to switch back instantly.</div>
       </div>
 
-      <div class="field">
+      <div class="field" id="taxonField">
         <div class="field-label">What do you want to learn?</div>
         <div class="search">
           <input id="taxonSearch" class="input" placeholder="Search a group — Plantae, Poaceae, Carex…" autocomplete="off" spellcheck="false">
           <div id="taxonSuggest" class="suggest hidden"></div>
         </div>
         <div id="taxonChips" class="chips"></div>
+      </div>
+
+      <div class="field" id="certField">
+        <div class="field-label">…or study for a certificate</div>
+        <div id="certChips" class="chips"></div>
+        <div id="certHint" class="hint" style="margin-top:8px;"></div>
+        <div id="taxonomyChips" class="chips hidden"></div>
       </div>
 
       <div class="field">
@@ -599,6 +659,15 @@
         <div class="field-label">How many species?</div>
         <div id="roundSizeChips" class="chips"></div>
       </div>
+
+      <label class="toggle field">
+        <span>
+          <b>Start with common species</b>
+          <span class="hint">New here? Quiz only the ~30 species you're most likely to actually see — build a foundation before the rare ones.</span>
+        </span>
+        <input id="commonToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
 
       <label class="toggle field">
         <span>
@@ -635,6 +704,49 @@
         <input id="commonNamesToggle" type="checkbox">
         <span class="switch"></span>
       </label>
+
+      <!-- Optional learning extras, tucked behind a collapsible so they never
+           clutter the main setup. Each is independently switchable. -->
+      <details class="aids">
+        <summary>
+          <span>Learning aids <span id="aidsCount" class="aids-count"></span></span>
+          <svg class="aids-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </summary>
+        <div class="aids-body">
+          <label class="toggle">
+            <span>
+              <b>Compare look-alikes after a mistake</b>
+              <span class="hint">Miss one for another real species? See the two side by side, so you learn what actually tells them apart.</span>
+            </span>
+            <input id="compareToggle" type="checkbox" checked>
+            <span class="switch"></span>
+          </label>
+          <label class="toggle">
+            <span>
+              <b>Also ask in reverse</b>
+              <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
+            </span>
+            <input id="reverseToggle" type="checkbox">
+            <span class="switch"></span>
+          </label>
+          <label class="toggle">
+            <span>
+              <b>Rate how well you knew it</b>
+              <span class="hint">After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).</span>
+            </span>
+            <input id="selfRateToggle" type="checkbox">
+            <span class="switch"></span>
+          </label>
+          <label class="toggle" style="margin-bottom:0;">
+            <span>
+              <b>Let me add memory notes</b>
+              <span class="hint">Jot a private cue on any species (“round leaves”). It reappears when that species comes back.</span>
+            </span>
+            <input id="mnemonicToggle" type="checkbox">
+            <span class="switch"></span>
+          </label>
+        </div>
+      </details>
     </div>
 
     <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
@@ -689,6 +801,7 @@
       <div id="hintArea" class="hint-area"></div>
       <div id="choiceArea" class="choice-area hidden"></div>
       <div id="studyAnswer" class="study-answer hidden"></div>
+      <div id="reverseArea" class="reverse-area hidden"></div>
     </main>
 
     <div class="bottombar">
@@ -1007,6 +1120,15 @@ const game = {
   regionsTouched: false,   // becomes true on your first deliberate pick — see addRegion()
   media: DEFAULT_MEDIA,    // "photo" or "sound" — which iNaturalist media type to quiz on
   answerMode: DEFAULT_ANSWER_MODE,   // "type" | "choose" | "study"
+  commonOnly: false,       // restrict the session to the group's most-observed species (on-ramp)
+  pool: null,              // when set, a fixed list of taxon ids to quiz (certificate mode)
+  taxonomy: "checklist",   // in certificate mode: which naming to show/accept ("checklist" | "inat")
+  certChecklist: "",       // label of the active certificate's own taxonomy (e.g. "InfoFlora", "BDM Z7")
+  // Optional "learning aids" (all off-by-default except compareMiss):
+  compareMiss: true,       // A: after a look-alike miss, show the two side by side
+  reverseQuiz: false,      // C: sometimes ask name -> pick the photo
+  selfRate: false,         // D: Anki-style Again/Hard/Good/Easy after each answer
+  mnemonics: false,        // E: personal memory notes per species
   assist: true,
   useCommonNames: false,   // type/match against the common name instead of the scientific one
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
@@ -1040,6 +1162,7 @@ const game = {
   srs: new Map(),           // taxonId -> spaced-repetition schedule { box, due, last, ... } (feature: due today)
   confusions: new Map(),    // "idA_idB" -> { key, a, b, count } (feature: look-alike drills)
   daily: {},                // "YYYY-MM-DD" -> species answered that day (feature: daily streak)
+  notes: {},                // taxonId -> personal memory note (aid E)
   familyCache: new Map(),   // taxonId -> { taxonId, familyName, isFamily } (shared)
   compares: [],             // other people's summaries, imported from share-codes
 };
@@ -1051,6 +1174,40 @@ const DAY_MS = 86400000;
 const SRS_INTERVALS = [0, 1, 3, 7, 16, 35, 90];
 const SRS_MAX_BOX = 6;
 const DAILY_GOAL = 15;     // species/day that counts as "goal met" (drives the daily streak)
+const COMMON_SPECIES_COUNT = 30;   // how many top species the "common species" on-ramp quizzes
+
+// -- certificates: fixed study lists mapped to iNaturalist -----------------
+//  The official Swiss field-botany certificate species lists (InfoFlora, 2021),
+//  each species' scientific name harmonised to an iNaturalist taxon id at build
+//  time. Levels are cumulative: 200 (Bellis) ⊂ 400 (Iris) ⊂ 600 (Dryas). Each
+//  entry is [iNatTaxonId, "Scientific name", minLevel(2|4|6)]. Picking a
+//  certificate quizzes exactly its species, drawing photos per taxon id.
+const CERT_SPECIES = [[136319,"Abies alba",2],[56193,"Acer campestre",2],[198881,"Acer opalus",6],[54763,"Acer platanoides",2],[1466281,"Acer pseudoplatanus",2],[472350,"Achillea atrata",6],[501375,"Achillea erba-rotta moschata",6,"Achillea erba-rotta subsp. moschata"],[501442,"Achillea macrophylla",6],[1105043,"Achillea millefolium",2],[1444413,"Aconitum lycoctonum",4],[131201,"Aconitum napellus",4],[320704,"Adenostyles alliariae",4],[333716,"Adenostyles alpina",4],[51741,"Aegopodium podagraria",2],[75312,"Agrostis capillaris",4],[69931,"Agrostis stolonifera",4],[133012,"Ajuga pyramidalis",6],[56099,"Ajuga reptans",2],[507512,"Alchemilla pentaphyllea",6],[56061,"Alliaria petiolata",2],[59254,"Allium schoenoprasum",6],[56152,"Allium ursinum",2],[868167,"Alnus alnobetula",6,"Alnus viridis"],[966205,"Alnus glutinosa",2],[75377,"Alnus incana",2],[71141,"Alopecurus pratensis",2],[198885,"Amelanchier ovalis",4],[501400,"Androsace alpina",6],[930840,"Androsace chamaejasme",6],[498918,"Androsace helvetica",6],[362550,"Androsace obtusifolia",6],[950603,"Anemonoides nemorosa",2,"Anemone nemorosa"],[51893,"Antennaria dioica",6],[202500,"Anthericum liliago",4],[75475,"Anthoxanthum odoratum",2],[124544,"Anthriscus sylvestris",2],[82685,"Anthyllis vulneraria",2],[1042772,"Aquilegia vulgaris",4],[55021,"Arabidopsis thaliana",2],[158472,"Arabis alpina",6],[75501,"Arctium lappa",6],[68049,"Arctostaphylos uva-ursi",6],[483118,"Arenaria biflora",6],[1460780,"Arenaria serpyllifolia",6],[158615,"Argentina anserina",2,"Potentilla anserina"],[900799,"Aria edulis",2,"Sorbus aria"],[56229,"Arnica montana",6],[75583,"Arrhenatherum elatius",2],[60350,"Artemisia absinthium",4],[1677722,"Artemisia campestris",4],[52856,"Artemisia vulgaris",2],[61318,"Arum maculatum",2],[128901,"Asarum europaeum",6],[84954,"Asplenium ruta-muraria",2],[129105,"Asplenium scolopendrium",6,"Phyllitis scolopendrium"],[75609,"Asplenium trichomanes",2],[75611,"Asplenium viride",6],[123449,"Aster alpinus",6],[958425,"Aster bellidiastrum",6],[130478,"Astragalus alpinus",6],[332369,"Astragalus frigidus",6],[131623,"Astrantia major",4],[485937,"Athamanta cretensis",6],[52669,"Athyrium filix-femina",2],[741480,"Atocion rupestre",6,"Silene rupestris"],[159098,"Atropa bella-donna",4],[288069,"Avenella flexuosa",4],[1318782,"Avenula pubescens",4,"Helictotrichon pubescens"],[131144,"Bartsia alpina",6],[55563,"Bellis perennis",2],[75758,"Berberis vulgaris",4],[83992,"Betula pendula",2],[119061,"Betula pubescens",6],[1446765,"Biscutella laevigata",6],[133487,"Bistorta officinalis",4,"Polygonum bistorta"],[130545,"Bistorta vivipara",6,"Polygonum viviparum"],[507134,"Blitum bonus-henricus",6,"Chenopodium bonus-henricus"],[1611685,"Botrychium lunaria",6],[75864,"Brachypodium pinnatum",4,"Brachypodium pinnatum aggr."],[75865,"Brachypodium sylvaticum",4],[159452,"Briza media",2],[159458,"Bromus erectus",2],[52703,"Bromus hordeaceus",2],[57163,"Bromus sterilis",2],[58369,"Bromus tectorum",4],[75916,"Buddleja davidii",4],[497170,"Calamagrostis varia",4],[119450,"Calluna vulgaris",2],[56224,"Caltha palustris",2],[57481,"Calystegia sepium",2],[56300,"Campanula barbata",6],[336223,"Campanula cochleariifolia",6],[336222,"Campanula rhomboidalis",4],[984576,"Campanula rotundifolia",2],[126421,"Campanula scheuchzeri",6],[48588,"Campanula trachelium",4],[56121,"Capsella bursa-pastoris",2],[346983,"Cardamine heptaphylla",4],[55829,"Cardamine hirsuta",2],[54531,"Cardamine pratensis",2],[490731,"Cardamine resedifolia",6],[448073,"Carduus defloratus",6],[488695,"Carduus personata",4],[159858,"Carex acutiformis",6],[290498,"Carex atrata",6],[159906,"Carex caryophyllea",2],[868747,"Carex curvula",6],[57456,"Carex davalliana",4],[437967,"Carex digitata",4],[76035,"Carex echinata",4],[82315,"Carex elata",4],[129287,"Carex ferruginea",6],[358458,"Carex firma",6],[159951,"Carex flacca",2],[1264456,"Carex flava",2],[159973,"Carex hirta",4],[160031,"Carex muricata",4,"Carex muricata aggr."],[924157,"Carex myosuroides",6,"Elyna myosuroides"],[160036,"Carex nigra",2],[160055,"Carex pallescens",4],[160056,"Carex panicea",4],[983490,"Carex parviflora",6],[49365,"Carex pendula",4],[154310,"Carex sempervirens",6],[69640,"Carex sylvatica",2],[56299,"Carlina acaulis",6],[55801,"Carpinus betulus",2],[160162,"Carum carvi",4],[121763,"Castanea sativa",4],[933404,"Centaurea cyanus",4],[1557115,"Centaurea jacea",2],[48984,"Centaurea montana",4],[84344,"Centaurea scabiosa",2],[50851,"Cerastium arvense",6],[1495761,"Cerastium fontanum",2],[472973,"Cerastium latifolium",6],[473679,"Cerastium uniflorum",6],[62396,"Chaenorhinum minus",4,"Chaenorrhinum minus"],[359456,"Chaerophyllum hirsutum",4],[564969,"Chamaenerion angustifolium",4,"Epilobium angustifolium"],[55757,"Chelidonium majus",2],[58127,"Chenopodium album",4],[836824,"Cherleria sedoides",6,"Minuartia sedoides"],[133031,"Chrysosplenium alternifolium",4],[336295,"Cicerbita alpina",6],[52913,"Cichorium intybus",2],[51843,"Circaea lutetiana",4],[60132,"Cirsium arvense",4],[133653,"Cirsium oleraceum",4],[131143,"Cirsium spinosissimum",6],[160697,"Clematis vitalba",2],[327227,"Clinopodium alpinum",6,"Acinos alpinus"],[1193207,"Colchicum autumnale",2],[48206,"Convallaria majalis",2],[53021,"Convolvulus arvensis",2],[55858,"Cornus mas",6],[155124,"Cornus sanguinea",2],[54491,"Corylus avellana",2],[461835,"Cotoneaster integerrimus",6],[1437599,"Crataegus laevigata",4],[1437600,"Crataegus monogyna",2],[130543,"Crepis aurea",6],[161116,"Crepis biennis",2],[54050,"Crepis capillaris",4],[55769,"Crocus vernus",6,"Crocus albiflorus"],[132627,"Cruciata laevipes",4],[56933,"Cuscuta epithymum",6],[55727,"Cymbalaria muralis",2],[1471481,"Cynanchica pyrenaica",6,"Asperula cynanchica"],[76581,"Cynosurus cristatus",4],[54638,"Cypripedium calceolus",2],[1619609,"Cystopteris fragilis",6],[52720,"Dactylis glomerata",2],[1394247,"Dactylorhiza maculata",2],[128599,"Dactylorhiza viridis",6,"Coeloglossum viride"],[133034,"Daphne mezereum",4],[130485,"Daphne striata",6],[76610,"Daucus carota",2],[1445438,"Delphinium consolida",6,"Consolida regalis"],[76639,"Deschampsia cespitosa",4],[84960,"Dianthus carthusianorum",2],[447244,"Dianthus superbus",4],[60006,"Dianthus sylvestris",2],[123625,"Digitalis grandiflora",4],[56002,"Dipsacus fullonum",6],[1096116,"Doronicum clusii",6],[133030,"Doronicum grandiflorum",6],[334311,"Draba aizoides",6],[52658,"Drosera rotundifolia",4],[83541,"Dryas octopetala",6],[76721,"Dryopteris filix-mas",2],[56174,"Echium vulgare",4],[60284,"Elymus repens",4],[235792,"Empetrum nigrum hermaphroditum",6,"Empetrum nigrum subsp. hermaphroditum"],[162364,"Epilobium montanum",4],[52724,"Equisetum arvense",2],[52673,"Equisetum hyemale",2],[118537,"Equisetum sylvaticum",6],[57030,"Equisetum telmateia",2],[56306,"Erica carnea",4],[416199,"Erigeron alpinus",6],[76897,"Erigeron annuus",2],[162543,"Erigeron uniflorus",6],[127215,"Eriophorum angustifolium",2],[334263,"Eriophorum latifolium",2],[162680,"Eriophorum scheuchzeri",6],[128735,"Eriophorum vaginatum",6],[1438094,"Erodium cicutarium",4],[55847,"Euonymus europaeus",2],[55976,"Eupatorium cannabinum",2],[57662,"Euphorbia amygdaloides",4],[55766,"Euphorbia cyparissias",2],[56292,"Euphorbia helioscopia",6],[517633,"Euphrasia minima",6],[866675,"Euphrasia officinalis",6,"Euphrasia rostkoviana"],[54227,"Fagus sylvatica",2],[61061,"Festuca rubra",2],[452273,"Festuca valesiaca",4],[204321,"Ficaria verna",2,"Ranunculus ficaria"],[63134,"Filipendula ulmaria",4],[50298,"Fragaria vesca",2],[55972,"Frangula alnus",4],[125440,"Fraxinus excelsior",2],[319281,"Fraxinus ornus",6],[565693,"Gagea serotina",6,"Lloydia serotina"],[51606,"Galanthus nivalis",4],[55979,"Galeopsis tetrahit",4],[472368,"Galium anisophyllon",6],[1403902,"Galium aparine",2],[1445878,"Galium mollugo",2,"Galium mollugo aggr."],[56065,"Galium odoratum",2],[84328,"Galium verum",4],[130558,"Gentiana acaulis",2],[131140,"Gentiana clusii",4],[142299,"Gentiana lutea",6],[131138,"Gentiana punctata",6],[349697,"Gentiana purpurea",6],[132603,"Gentiana verna",6],[245736,"Gentianella campestris",6,"Gentiana campestris"],[60378,"Gentianella germanica",6,"Gentiana germanica"],[77259,"Geranium pyrenaicum",2],[55925,"Geranium robertianum",2],[77261,"Geranium rotundifolium",6],[129853,"Geranium sanguineum",4],[85429,"Geranium sylvaticum",2],[130537,"Geum montanum",6],[55750,"Geum rivale",2],[55891,"Geum urbanum",2],[55830,"Glechoma hederacea",2],[209637,"Globularia cordifolia",4],[130714,"Globularia nudicaulis",6],[131610,"Gymnadenia conopsea",4],[199181,"Gymnadenia rhellicani",6,"Nigritella rhellicani aggr."],[163478,"Gypsophila repens",4],[55882,"Hedera helix",2],[471629,"Hedysarum hedysaroides",6],[130487,"Helianthemum alpestre",6],[84278,"Helianthemum nummularium",4],[55827,"Helleborus foetidus",4],[163682,"Heracleum sphondylium",2],[163692,"Herniaria glabra",6],[163793,"Hieracium murorum",2,"Hieracium murorum aggr."],[334191,"Hieracium villosum",6],[133488,"Hippocrepis comosa",2],[163812,"Hippophae rhamnoides",4,"Hippophaë rhamnoides"],[52793,"Holcus lanatus",2],[130479,"Homogyne alpina",6],[52796,"Hordeum murinum",4],[132612,"Hornungia alpina",6,"Pritzelago alpina"],[1603987,"Humulus lupulus",4],[119147,"Huperzia selago",6],[56077,"Hypericum perforatum",2],[53856,"Ilex aquifolium",4],[47892,"Impatiens glandulifera",4],[85492,"Impatiens noli-tangere",4],[51736,"Impatiens parviflora",4],[47779,"Iris pseudacorus",4],[59943,"Iris sibirica",4],[332892,"Jacobaea alpina",6,"Senecio alpinus"],[487762,"Jacobaea incana",6,"Senecio incanus"],[63935,"Juglans regia",4],[164252,"Juncus alpinoarticulatus",4],[1536756,"Juncus effusus",2],[164269,"Juncus inflexus",2],[58725,"Juniperus communis",6,"Juniperus communis subsp. alpina"],[62743,"Juniperus communis communis",2,"Juniperus communis subsp. communis"],[47572,"Juniperus sabina",4],[204337,"Kalmia procumbens",6,"Loiseleuria procumbens"],[133490,"Kernera saxatilis",6],[129115,"Knautia arvensis",2],[371554,"Knautia dipsacifolia",6],[51810,"Laburnum anagyroides",4],[55876,"Lamium album",4],[204339,"Lamium galeobdolon",2],[55828,"Lamium maculatum",2],[55851,"Lamium purpureum",2],[55981,"Lapsana communis",2],[59747,"Larix decidua",2],[447833,"Laserpitium latifolium",4],[125787,"Lathyrus pratensis",2],[126756,"Lathyrus vernus",4],[54518,"Lemna minor",6],[164501,"Leontodon hispidus",2],[332306,"Leontopodium nivale alpinum",6,"Leontopodium alpinum"],[208915,"Leucanthemopsis alpina",6],[513572,"Leucanthemum adustum",6],[1404861,"Leucanthemum vulgare",2],[57510,"Leucojum vernum",4],[119805,"Ligustrum vulgare",2],[85027,"Lilium martagon",2],[132608,"Linaria alpina",6],[50790,"Linaria vulgaris",2],[84280,"Linum catharticum",4],[164708,"Lolium arundinaceum",6,"Festuca arundinacea"],[68479,"Lolium multiflorum",2],[52801,"Lolium perenne",2],[866252,"Lolium pratense",4,"Festuca pratensis"],[448130,"Lonicera alpigena",4],[164761,"Lonicera caerulea",4],[487752,"Lonicera nigra",4],[124548,"Lonicera xylosteum",2],[1453363,"Lotus corniculatus",2],[55886,"Lunaria annua",4],[55795,"Luzula campestris",4],[483431,"Luzula lutea",6],[69613,"Luzula pilosa",4],[338102,"Luzula sylvatica",2],[791928,"Lysimachia arvensis",4,"Anagallis arvensis"],[154224,"Lysimachia nemorum",4],[50247,"Maianthemum bifolium",4],[61223,"Malus sylvestris",6],[77952,"Malva neglecta",4],[56162,"Malva sylvestris",6],[77965,"Matricaria chamomilla",4],[52992,"Matricaria discoidea",4],[204355,"Medicago falcata",6],[57056,"Medicago lupulina",2],[1093263,"Medicago sativa",2],[60076,"Melampyrum pratense",4],[131612,"Melampyrum sylvaticum",4],[448134,"Melica nutans",2],[58907,"Melilotus albus",4],[57066,"Melilotus officinalis",4],[318952,"Melittis melissophyllum",4],[68838,"Mercurialis annua",6],[126757,"Mercurialis perennis",2],[357948,"Micranthes stellaris",6,"Saxifraga stellaris"],[165390,"Milium effusum",4],[1569250,"Molinia caerulea",4],[1562069,"Mutarda arvensis",4,"Sinapis arvensis"],[896922,"Mutellina purpurea",6,"Ligusticum mutellina"],[83081,"Myosotis alpestris",6],[51726,"Myosotis arvensis",4],[61334,"Narcissus poeticus",6,"Narcissus poëticus aggr."],[55848,"Narcissus pseudonarcissus",6],[165653,"Nardus stricta",4],[60837,"Neotinea ustulata",6,"Orchis ustulata"],[81895,"Neottia nidus-avis",4],[341154,"Neottia ovata",2,"Listera ovata"],[362346,"Noccaea rotundifolia",6,"Thlaspi rotundifolium"],[57850,"Nuphar lutea",2],[62009,"Nymphaea alba",4],[62207,"Oenothera biennis",4,"Oenothera biennis aggr."],[165837,"Omalotheca supina",6,"Gnaphalium supinum"],[165838,"Omalotheca sylvatica",6,"Gnaphalium sylvaticum"],[476116,"Onobrychis montana",6],[55441,"Onobrychis viciifolia",2],[57468,"Ophrys insectifera",4],[132621,"Orchis mascula",4],[1402722,"Oreojuncus trifidus",6,"Juncus trifidus"],[61396,"Origanum vulgare",2],[60031,"Orobanche alba",4],[334194,"Ostrya carpinifolia",6],[69624,"Oxalis acetosella",2],[67591,"Oxyria digyna",6],[154238,"Oxytropis campestris",6],[868858,"Oxytropis montana",6,"Oxytropis jacquinii"],[54404,"Papaver rhoeas",2],[123666,"Paris quadrifolia",2],[78352,"Parnassia palustris",4],[130486,"Pedicularis foliosa",6],[511933,"Pedicularis tuberosa",6],[166253,"Pedicularis verticillata",4],[56166,"Persicaria maculosa",4,"Polygonum persicaria"],[55763,"Petasites albus",4],[55850,"Petasites hybridus",4],[166549,"Peucedanum ostruthium",4],[78540,"Phleum alpinum",6,"Phleum alpinum aggr."],[57190,"Phleum pratense",2,"Phleum pratense aggr."],[64237,"Phragmites australis",2],[84953,"Phyteuma betonicifolium",4],[117393,"Phyteuma hemisphaericum",6],[245754,"Phyteuma orbiculare",6],[133517,"Phyteuma spicatum",2],[63567,"Picea abies",2],[402509,"Pilosella officinarum",2,"Hieracium pilosella"],[143416,"Pinguicula alpina",6],[121266,"Pinguicula vulgaris",4],[363921,"Pinus cembra",6],[135727,"Pinus mugo",6,"Pinus mugo subsp. uncinata"],[58722,"Pinus sylvestris",2],[133075,"Plantago alpina",6],[487739,"Plantago atrata",6],[53178,"Plantago lanceolata",2],[58961,"Plantago major",2],[59779,"Plantago media",2],[167076,"Poa alpina",6],[52808,"Poa annua",2],[58382,"Poa bulbosa",4],[60307,"Poa pratensis",2],[78657,"Poa trivialis",2],[167210,"Polygala vulgaris",4],[869898,"Polygaloides chamaebuxus",4,"Polygala chamaebuxus"],[57418,"Polygonatum multiflorum",2],[61454,"Polygonatum odoratum",2],[244049,"Polygonatum verticillatum",6],[1290817,"Polygonum aviculare",4,"Polygonum aviculare aggr."],[127079,"Polypodium vulgare",6],[47570,"Populus alba",4],[47565,"Populus nigra",6],[47571,"Populus tremula",2],[56935,"Potentilla aurea",6],[167346,"Potentilla crantzii",6],[132622,"Potentilla erecta",2],[167373,"Potentilla reptans",2],[68853,"Potentilla sterilis",4],[130694,"Prenanthes purpurea",2],[132605,"Primula auricula",6],[55840,"Primula elatior",2],[50831,"Primula farinosa",4],[207827,"Primula hirsuta",6],[55819,"Primula veris",2],[52764,"Prunella vulgaris",2],[61964,"Prunus avium",2],[126808,"Prunus mahaleb",4],[143793,"Prunus padus",4],[55811,"Prunus spinosa",2],[52681,"Pteridium aquilinum",2],[245677,"Pulmonaria obscura",4],[85427,"Pulsatilla alpina alpina",6,"Pulsatilla alpina subsp. alpina"],[85426,"Pulsatilla alpina apiifolia",6,"Pulsatilla alpina subsp. apiifolia"],[60905,"Pulsatilla vernalis",6],[1330161,"Pyrus communis pyraster",6,"Pyrus pyraster"],[1682258,"Quercus petraea",2],[1682260,"Quercus pubescens",4],[1520309,"Quercus robur",2],[85431,"Ranunculus aconitifolius",4],[56064,"Ranunculus acris",2],[130712,"Ranunculus alpestris",6],[78820,"Ranunculus bulbosus",2],[167723,"Ranunculus glacialis",6],[210266,"Ranunculus kuepferi",6],[1225201,"Ranunculus montanus",6,"Ranunculus montanus aggr."],[130713,"Ranunculus platanifolius",4],[48229,"Ranunculus repens",2],[914922,"Reynoutria japonica",4],[54811,"Rhamnus cathartica",4],[130718,"Rhinanthus alectorolophus",2],[61470,"Rhinanthus minor",4],[130539,"Rhododendron ferrugineum",2],[143417,"Rhododendron hirsutum",4],[56088,"Robinia pseudoacacia",4],[55884,"Rosa canina",4,"Rosa canina aggr."],[198887,"Rosa pendulina",6],[64546,"Rubus caesius",2],[54436,"Rubus idaeus",2],[55821,"Rumex acetosa",2],[168227,"Rumex alpinus",6],[63371,"Rumex obtusifolius",2],[333937,"Rumex scutatus",4],[748403,"Sabulina verna",6,"Minuartia verna"],[54841,"Salix alba",2],[487626,"Salix appendiculata",6],[55846,"Salix caprea",2],[338098,"Salix eleagnos",4,"Salix elaeagnos"],[486257,"Salix helvetica",6],[168337,"Salix herbacea",6],[54849,"Salix purpurea",4],[168355,"Salix reticulata",6],[479420,"Salix retusa",6],[143418,"Salvia glutinosa",4],[85338,"Salvia pratensis",2],[1665961,"Sambucus nigra",2],[57824,"Sambucus racemosa",4],[55736,"Sanguisorba minor",4],[168412,"Sanicula europaea",4],[61480,"Saponaria ocymoides",4],[56154,"Saponaria officinalis",4],[144152,"Saxifraga aizoides",6],[486045,"Saxifraga androsacea",6],[486033,"Saxifraga bryoides",6],[480739,"Saxifraga caesia",6],[128880,"Saxifraga oppositifolia",6],[132437,"Saxifraga paniculata",6],[85444,"Saxifraga rotundifolia",4],[85047,"Scabiosa columbaria",2],[79000,"Schoenus nigricans",4],[84512,"Scirpus sylvaticus",4],[500687,"Scorzoneroides helvetica",6,"Leontodon helveticus"],[127186,"Securigera varia",4],[55734,"Sedum acre",6],[1435254,"Sedum album",2],[334587,"Sedum atratum",6],[168750,"Sedum sexangulare",4],[136989,"Selaginella selaginoides",6],[334591,"Sempervivum arachnoideum",4],[145650,"Sempervivum montanum",6],[322724,"Senecio doronicum",6],[53211,"Senecio vulgaris",2],[363774,"Sesleria caerulea",4],[79076,"Sibbaldia procumbens",6],[68886,"Silene acaulis",6],[55759,"Silene dioica",2],[740984,"Silene flos-cuculi",4],[79109,"Silene latifolia",4,"Silene pratensis"],[124138,"Silene nutans",2],[55721,"Silene vulgaris",2],[775855,"Siler montanum",4,"Laserpitium siler"],[55620,"Solanum dulcamara",4],[132616,"Soldanella alpina",6],[136463,"Soldanella pusilla",6],[67808,"Solidago canadensis",4],[83073,"Solidago gigantea",4],[118850,"Solidago virgaurea",4],[53294,"Sonchus oleraceus",4],[56063,"Sorbus aucuparia",2],[55730,"Spergularia rubra",6],[204168,"Spinulum annotinum",4,"Lycopodium annotinum"],[360160,"Stachys recta",4],[129850,"Stachys sylvatica",4],[1087592,"Stellaria media",2],[208852,"Stellaria nemorum",4],[355674,"Stipa pennata",4,"Stipa pennata aggr."],[774894,"Struthiopteris spicant",6,"Blechnum spicant"],[1247945,"Symphytum officinale",4],[47602,"Taraxacum officinale",2,"Taraxacum officinale aggr."],[47553,"Taxus baccata",2],[55717,"Teucrium chamaedrys",6],[363392,"Teucrium montanum",6],[406483,"Thalictrum aquilegiifolium",4],[485810,"Thesium alpinum",6],[79358,"Thlaspi arvense",4],[322051,"Thymus serpyllum",2,"Thymus serpyllum aggr."],[132600,"Tilia cordata",2],[169761,"Tilia platyphyllos",2],[130710,"Tofieldia calyculata",2],[1277891,"Torminalis glaberrima",4,"Sorbus torminalis"],[79385,"Tragopogon pratensis",2],[132623,"Traunsteinera globosa",6],[204169,"Trichophorum cespitosum",4],[85423,"Trifolium alpinum",6],[209350,"Trifolium badium",6],[53313,"Trifolium dubium",4],[85065,"Trifolium medium",4],[334750,"Trifolium montanum",2],[51875,"Trifolium pratense",2],[55745,"Trifolium repens",2],[170025,"Trisetum flavescens",2],[59552,"Trollius europaeus",2],[1206014,"Tulipa sylvestris",6],[56222,"Tussilago farfara",2],[48685,"Typha latifolia",4],[170056,"Ulmus glabra",2],[1567959,"Ulmus minor",6],[1631210,"Urtica dioica",2],[127029,"Vaccinium myrtillus",2],[64714,"Vaccinium uliginosum",4,"Vaccinium uliginosum aggr."],[56312,"Vaccinium vitis-idaea",6],[130717,"Valeriana montana",6],[1105640,"Valeriana officinalis",2],[451051,"Valeriana tripteris",6],[55752,"Valerianella locusta",4],[85424,"Veratrum album",6],[133231,"Verbascum lychnitis",4],[59029,"Verbascum thapsus",2],[56163,"Verbena officinalis",4],[55748,"Veronica arvensis",4],[54333,"Veronica beccabunga",4],[325580,"Veronica bellidioides",6],[51610,"Veronica chamaedrys",2],[55825,"Veronica filiformis",4],[208923,"Veronica fruticans",6],[1459132,"Veronica hederifolia",2],[55666,"Veronica persica",2],[131617,"Veronica urticifolia",4],[124741,"Viburnum lantana",2],[1622164,"Viburnum opulus",2],[52471,"Vicia cracca",2],[53324,"Vicia sativa",4],[127345,"Vicia sepium",2],[55844,"Vinca minor",4],[498350,"Vincetoxicum hirundinaria",4],[55760,"Viola arvensis",6],[130720,"Viola biflora",4],[354400,"Viola calcarata",6],[286612,"Viola hirta",4],[147293,"Viola reichenbachiana",2],[55739,"Viola tricolor",2],[57512,"Viscum album",4]];
+// Butterflies & burnet moths — the Swiss Biodiversity Monitoring "Z7"
+// admissible-species list. Each entry is [iNatTaxonId, "iNat name", "Z7 name"
+// (only stored when it differs from iNat's)].
+const BTFLY_SPECIES = [[852474,"Adscita alpina"],[362047,"Cupido osiris"],[1321661,"Adscita dujardini"],[326454,"Erebia aethiops"],[354779,"Adscita geryon"],[62438,"Erebia albergana","Erebia alberganus"],[1134171,"Adscita mannii"],[100279,"Erebia cassioides"],[333243,"Adscita statices"],[100280,"Erebia christi"],[100282,"Erebia epiphron"],[54468,"Aglais urticae"],[100284,"Erebia eriphyle"],[497307,"Aglaope infausta"],[354352,"Erebia euryale"],[51495,"Anthocharis cardamines"],[100285,"Erebia flavofasciata"],[94212,"Anthocharis euphenoides"],[100286,"Erebia gorge"],[322024,"Apatura ilia"],[62381,"Erebia ligea"],[343324,"Apatura iris"],[100290,"Erebia manto"],[62426,"Aphantopus hyperantus"],[333774,"Erebia medusa"],[61295,"Aporia crataegi"],[100291,"Erebia melampus"],[55643,"Araschnia levana"],[100293,"Erebia meolans"],[337856,"Arethusana arethusa"],[100294,"Erebia mnestra"],[70105,"Argynnis adippe"],[510205,"Erebia montana"],[1456607,"Argynnis aglaja"],[100297,"Erebia nivalis"],[335001,"Argynnis niobe"],[100298,"Erebia oeme"],[147328,"Argynnis pandora"],[334019,"Erebia pandrose"],[123628,"Argynnis paphia"],[100301,"Erebia pharte"],[125494,"Aricia agestis","Aricia agestis-Komplex"],[100302,"Erebia pluto"],[548481,"Eumedonia eumedon","Aricia eumedon"],[100303,"Erebia pronoe"],[484074,"Aricia nicias"],[100309,"Erebia styx"],[447520,"Boloria aquilonaris"],[100310,"Erebia sudetica"],[357982,"Boloria dia"],[1146393,"Erebia triaria triaria","Erebia triaria"],[132997,"Boloria euphrosyne"],[100312,"Erebia tyndarus"],[357188,"Boloria napaea"],[133434,"Erynnis tages"],[100672,"Euchloe simplonia"],[448065,"Boloria pales"],[207956,"Euphydryas aurinia"],[54068,"Boloria selene"],[100742,"Euphydryas cynthia"],[484084,"Boloria thore"],[470111,"Euphydryas intermedia"],[484083,"Boloria titania"],[60834,"Glaucopsyche alexis"],[334347,"Brenthis daphne"],[52771,"Gonepteryx rhamni"],[334985,"Brenthis ino"],[133154,"Hamearis lucina"],[334385,"Brintesia circe"],[58468,"Hesperia comma"],[119664,"Cacyreus marshalli"],[362062,"Heteropterus morpheus"],[60896,"Callophrys rubi"],[362064,"Hipparchia alcyone"],[325871,"Carcharodus alceae"],[484114,"Hipparchia genava"],[1321827,"Muschampia baeticus","Carcharodus baeticus"],[102792,"Hipparchia fagi"],[1321828,"Muschampia floccifera","Carcharodus floccifera"],[102800,"Hipparchia semele"],[1321829,"Muschampia lavatherae","Carcharodus lavatherae"],[141751,"Hipparchia statilinus"],[122375,"Carterocephalus palaemon"],[354746,"Hyponephele lycaon"],[55640,"Celastrina argiolus"],[207977,"Aglais io","Inachis io"],[85460,"Chazara briseis"],[479983,"Iolana iolas"],[125815,"Coenonympha arcania"],[62749,"Iphiclides podalirius"],[98286,"Coenonympha gardetta","Coenonympha gardetta-Komplex"],[62766,"Issoria lathonia"],[349275,"Coenonympha glycerion"],[337914,"Jordanita chloros"],[349377,"Coenonympha hero"],[362859,"Jordanita globulariae"],[98287,"Coenonympha oedippus"],[52589,"Coenonympha pamphilus"],[747577,"Jordanita notata"],[59185,"Coenonympha tullia"],[566639,"Jordanita subsolana"],[143294,"Colias crocea","Colias croceus"],[121993,"Lampides boeticus"],[1670361,"Colias hyale","Colias hyale-Komplex"],[123629,"Lasiommata maera"],[217396,"Colias palaeno"],[147298,"Lasiommata megera"],[98294,"Colias phicomone"],[466041,"Lasiommata petropolitana"],[464280,"Cupido alcetas"],[709444,"Leptidea juvernica"],[963490,"Cupido argiades"],[967568,"Leptidea sinapis","Leptidea sinapis-Komplex"],[129126,"Cupido minimus"],[1068886,"Leptotes pirithous"],[321526,"Libythea celtis"],[343594,"Polyommatus daphnis"],[153105,"Limenitis camilla"],[207669,"Polyommatus dorylas"],[52413,"Limenitis populi"],[479968,"Polyommatus eros"],[155030,"Limenitis reducta"],[362084,"Polyommatus escheri"],[347299,"Lopinga achine"],[1468172,"Polyommatus icarus"],[343429,"Lycaena alciphron"],[62439,"Cyaniris semiargus","Polyommatus semiargus"],[104875,"Lycaena dispar"],[334393,"Polyommatus thersites"],[1606825,"Helleia helle","Lycaena helle"],[472560,"Pontia callidice"],[62380,"Lycaena hippothoe"],[127103,"Pontia edusa"],[55655,"Lycaena phlaeas"],[111074,"Pseudophilotes baton"],[154654,"Lycaena tityrus"],[479761,"Pyrgus accretus","Pyrgus accreta"],[147078,"Lycaena virgaureae"],[207678,"Pyrgus alveus"],[426193,"Phengaris alcon","Maculinea alcon"],[111442,"Pyrgus andromedae"],[109281,"Phengaris arion","Maculinea arion"],[332693,"Pyrgus armoricanus"],[109283,"Phengaris nausithous","Maculinea nausithous"],[111444,"Pyrgus cacaliae"],[111445,"Pyrgus carlinae"],[109284,"Phengaris teleius","Maculinea teleius"],[333714,"Pyrgus carthami"],[55653,"Maniola jurtina"],[111446,"Pyrgus cirsii"],[130398,"Melanargia galathea"],[1096580,"Pyrgus malvae"],[105558,"Melitaea asteria"],[111447,"Pyrgus malvoides"],[132875,"Melitaea athalia"],[465237,"Melitaea aurelia"],[362089,"Pyrgus onopordi"],[484086,"Melitaea britomartis"],[357291,"Pyrgus serratulae"],[57495,"Melitaea cinxia"],[111448,"Pyrgus warrenensis"],[362066,"Melitaea deione"],[62452,"Pyronia cecilia"],[207704,"Melitaea diamina"],[62429,"Pyronia tithonus"],[133295,"Melitaea didyma"],[468428,"Rhagades pruni"],[105559,"Melitaea parthenoides"],[179672,"Satyrium acaciae"],[68354,"Melitaea phoebe"],[208979,"Satyrium ilicis"],[105560,"Melitaea varia"],[128545,"Satyrium pruni"],[326382,"Minois dryas"],[208988,"Satyrium spini"],[480251,"Favonius quercus","Neozephyrus quercus"],[318441,"Satyrium w-album"],[338595,"Neptis rivularis"],[347298,"Satyrus ferula"],[56832,"Nymphalis antiopa"],[358780,"Scolitantides orion"],[324088,"Nymphalis polychloros"],[362090,"Spialia sertorius"],[55723,"Ochlodes venatus","Ochlodes venata"],[362091,"Thecla betulae"],[107389,"Oeneis glacialis"],[362093,"Thymelicus acteon"],[56529,"Papilio machaon"],[58484,"Thymelicus lineola"],[52592,"Pararge aegeria"],[128544,"Thymelicus sylvestris"],[108799,"Parnassius apollo"],[49133,"Vanessa atalanta"],[57485,"Parnassius mnemosyne"],[48548,"Vanessa cardui"],[227264,"Parnassius phoebus"],[333217,"Zerynthia polyxena"],[55401,"Pieris brassicae"],[473925,"Zygaena angelicae"],[62437,"Pieris bryoniae"],[62094,"Zygaena carniolica"],[336700,"Pieris mannii"],[470977,"Zygaena ephialtes"],[54087,"Pieris napi","Pieris napi-Komplex"],[358546,"Zygaena erythrus"],[55626,"Pieris rapae","Pieris rapae-Komplex"],[362862,"Zygaena exulans"],[57484,"Plebejus argus","Plebeius argus"],[62189,"Zygaena fausta"],[346129,"Plebejus argyrognomon","Plebeius argyrognomon"],[62083,"Zygaena filipendulae"],[367948,"Agriades glandon","Plebeius glandon"],[732785,"Zygaena hilaris"],[130785,"Plebejus idas","Plebeius idas"],[82108,"Zygaena lonicerae"],[483726,"Agriades optilete","Plebeius optilete"],[362863,"Zygaena loti"],[780120,"Agriades orbitulus","Plebeius orbitulus"],[551321,"Zygaena minos"],[856413,"Kretania pylaon","Plebeius pylaon"],[465771,"Zygaena osterodensis"],[56225,"Polygonia c-album","Polygonia calbum"],[1142484,"Zygaena purpuralis"],[362078,"Polyommatus amandus","Polyommatus amanda"],[546836,"Zygaena romeo"],[154576,"Polyommatus bellargus"],[367155,"Zygaena transalpina"],[109983,"Polyommatus coridon"],[130403,"Zygaena trifolii"],[344363,"Polyommatus damon"],[147043,"Zygaena viciae"]];
+
+// Selectable certificates. Each resolves to a NORMALISED species list of
+// [iNatId, iNatName, checklistName] triples (checklistName == iNatName when the
+// two agree), and names its own "checklist" taxonomy — the exam/monitoring
+// names, as opposed to iNaturalist's current accepted names.
+const plantCert = (level) => CERT_SPECIES.filter((s) => s[2] <= level && s[0]).map((s) => [s[0], s[1], s[3] || s[1]]);
+const CERTIFICATES = [
+  { id: "fb200", label: "🌿 Botany 200", checklist: "InfoFlora", species: () => plantCert(2) },
+  { id: "fb400", label: "🌿 Botany 400", checklist: "InfoFlora", species: () => plantCert(4) },
+  { id: "fb600", label: "🌿 Botany 600", checklist: "InfoFlora", species: () => plantCert(6) },
+  { id: "btfly", label: "🦋 Butterflies", checklist: "BDM Z7", species: () => BTFLY_SPECIES.filter((s) => s[0]).map((s) => [s[0], s[1], s[2] || s[1]]) },
+];
+const CERT_CHUNK = 60;   // how many of a certificate's species to query per fetch (keeps the URL short)
+const certById = (id) => CERTIFICATES.find((c) => c.id === id);
+const anyCertData = () => CERT_SPECIES.length > 0 || BTFLY_SPECIES.length > 0;
+
+// iNat taxon id -> both names (iNat's accepted name + the checklist's name), so
+// a learner can study either taxonomy and see the synonym. Built from every
+// certificate (plant and butterfly ids are disjoint).
+const certNameMap = new Map();
+CERTIFICATES.forEach((c) => c.species().forEach((e) => certNameMap.set(e[0], { inat: e[1], alt: e[2] })));
 
 
 // == 5. Players & scoring, saved in the browser (no login) =================
@@ -1063,7 +1220,7 @@ const currentProfile = () => game.profiles.get(game.activeId);
 
 function createProfile(name) {
   const profile = { id: newProfileId(), name: name || "Player", createdAt: Date.now(),
-                    stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {} };
+                    stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {}, notes: {} };
   game.profiles.set(profile.id, profile);
   activateProfile(profile.id);
   return profile;
@@ -1087,6 +1244,7 @@ function activateProfile(id) {
   game.srs = p.srs;
   game.confusions = p.confusions;
   game.daily = p.daily;
+  game.notes = p.notes;
   saveStore();
 }
 
@@ -1095,7 +1253,7 @@ function saveStore() {
     const profiles = [...game.profiles.values()].map((p) => ({
       id: p.id, name: p.name, createdAt: p.createdAt,
       stats: [...p.stats.values()], snapshots: p.snapshots,
-      srs: [...p.srs.values()], confusions: [...p.confusions.values()], daily: p.daily,
+      srs: [...p.srs.values()], confusions: [...p.confusions.values()], daily: p.daily, notes: p.notes,
     }));
     localStorage.setItem(STORE_KEY, JSON.stringify({
       activeId: game.activeId,
@@ -1119,7 +1277,7 @@ function loadStore() {
       const confusions = new Map((p.confusions || []).map((c) => [c.key, c]));
       game.profiles.set(p.id, { id: p.id, name: p.name, createdAt: p.createdAt,
                                 stats, snapshots: p.snapshots || [],
-                                srs, confusions, daily: p.daily || {} });
+                                srs, confusions, daily: p.daily || {}, notes: p.notes || {} });
     });
     game.activeId = saved.activeId;
   } else {
@@ -1133,7 +1291,7 @@ function loadStore() {
     else createProfile("Player 1");
   }
   const p = currentProfile();
-  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily;
+  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily; game.notes = p.notes;
   saveStore();
 }
 
@@ -1185,6 +1343,31 @@ function updateSrs(question, wasCorrect, weak) {
 function dueSrsEntries() {
   const now = Date.now();
   return [...game.srs.values()].filter((e) => e.due <= now).sort((a, b) => a.due - b.due);
+}
+// Self-rating (aid D): the player sets the box directly. Again → box 1 (see it
+// tomorrow); Hard holds it; Good bumps one box; Easy jumps two.
+function rateSrs(question, rating) {
+  const now = Date.now();
+  const e = game.srs.get(question.taxonId) || {
+    taxonId: question.taxonId, scientificName: question.scientificName,
+    commonName: question.commonName, box: 1, due: now, last: 0 };
+  if (rating === "again") e.box = 1;
+  else if (rating === "hard") e.box = Math.max(1, e.box);
+  else if (rating === "good") e.box = Math.min(e.box + 1, SRS_MAX_BOX);
+  else if (rating === "easy") e.box = Math.min(e.box + 2, SRS_MAX_BOX);
+  e.last = now;
+  e.due = now + SRS_INTERVALS[e.box] * DAY_MS;
+  e.scientificName = question.scientificName; e.commonName = question.commonName;
+  game.srs.set(question.taxonId, e);
+  saveStore();
+}
+
+// -- memory notes (aid E): a private cue per species ----------------------
+const noteFor = (taxonId) => (game.notes && game.notes[taxonId]) || "";
+function saveNote(taxonId, text) {
+  text = (text || "").trim();
+  if (text) game.notes[taxonId] = text; else delete game.notes[taxonId];
+  saveStore();
 }
 
 // -- daily practice streak ------------------------------------------------
@@ -1448,8 +1631,10 @@ const closeEnough = (a, b) => a === b || levenshtein(a, b) <= (b.length > 8 ? 2 
 
 function isCorrect(answer, question) {
   const given = genusAndEpithet(answer);
-  const target = genusAndEpithet(question.scientificName);
-  if (given && closeEnough(given, target)) return true;
+  if (given && closeEnough(given, genusAndEpithet(question.scientificName))) return true;
+  // In certificate mode, accept the other taxonomy's name too (e.g. either
+  // "Anemone nemorosa" or "Anemonoides nemorosa"), whichever is being shown.
+  if (given && question.altName && closeEnough(given, genusAndEpithet(question.altName))) return true;
   if (question.commonName && closeEnough(normalize(answer), normalize(question.commonName))) return true;
   return false;
 }
@@ -1608,6 +1793,8 @@ async function toggleRegionPreset(query) {
 let roundSizeChoice = DEFAULT_ROUND_SIZE;   // which "How many species?" chip is picked
 let mediaChoice = DEFAULT_MEDIA;            // which "How do you want to identify?" chip is picked
 let answerModeChoice = DEFAULT_ANSWER_MODE; // which "How do you want to answer?" chip is picked
+let certChoice = "none";                    // which certificate is selected ("none" | "200" | "400" | "600")
+let taxonomyChoice = "checklist";           // certificate naming: "checklist" (exam/monitoring names) | "inat"
 
 function renderRoundSizeChips() {
   el("roundSizeChips").innerHTML = ROUND_SIZE_OPTIONS.map((opt) =>
@@ -1628,12 +1815,56 @@ function renderAnswerModeChips() {
   el("answerModeHint").textContent = ANSWER_MODE_HINTS[answerModeChoice];
 }
 
+// How many of a certificate's species the active player has already seen /
+// mastered — shown as a progress line so the certificate feels like a goal.
+function certProgress(cert) {
+  const list = cert.species();
+  let seen = 0, mastered = 0;
+  list.forEach(([id]) => {
+    const st = game.stats.get(id);
+    if (!st) return;
+    seen += 1;
+    const total = st.correct + st.wrong;
+    if (masteryOf({ correct: st.correct, accuracy: total ? st.correct / total : 0 }) === "mastered") mastered += 1;
+  });
+  return { total: list.length, seen, mastered };
+}
+
+function renderCertChips() {
+  // Hidden until the harmonised species data is present (build-time step).
+  if (!anyCertData()) { el("certField").classList.add("hidden"); return; }
+  el("certField").classList.remove("hidden");
+  const opts = [{ id: "none", label: "None" }].concat(CERTIFICATES.filter((c) => c.species().length));
+  el("certChips").innerHTML = opts.map((o) =>
+    "<button class='chip" + (o.id === certChoice ? " active" : "") + "' data-cert='" + o.id + "'>" +
+      escapeHtml(o.label) + "</button>").join("");
+  const hint = el("certHint"), taxo = el("taxonomyChips");
+  const c = certChoice !== "none" ? certById(certChoice) : null;
+  if (!c) {
+    hint.textContent = "";
+    taxo.classList.add("hidden");
+    el("taxonField").classList.remove("dim");
+  } else {
+    const p = certProgress(c);
+    hint.innerHTML = "Quizzes exactly these species (overrides the group above). " +
+      "<b>" + p.mastered + "</b> mastered · " + p.seen + " seen of <b>" + p.total + "</b>.";
+    el("taxonField").classList.add("dim");
+    // Which naming to learn — the certificate's own names, or iNaturalist's.
+    taxo.classList.remove("hidden");
+    const tx = [{ id: "checklist", label: c.checklist + " names" }, { id: "inat", label: "iNaturalist names" }];
+    taxo.innerHTML = tx.map((t) =>
+      "<button class='chip" + (t.id === taxonomyChoice ? " active" : "") + "' data-taxonomy='" + t.id + "'>" +
+        escapeHtml(t.label) + "</button>").join("");
+  }
+}
+
 function buildChips() {
   renderTaxonChips();
   renderRegionChips();
   renderRoundSizeChips();
   renderMediaChips();
   renderAnswerModeChips();
+  renderCertChips();
 }
 
 function populateProfileSelect() {
@@ -1691,6 +1922,13 @@ function renderSetupStatus() {
       "<span class='pb-go'>→</span></button>";
   }
   box.innerHTML = html;
+}
+
+// The "· N on" badge on the collapsed Learning-aids summary.
+const AID_TOGGLE_IDS = ["compareToggle", "reverseToggle", "selfRateToggle", "mnemonicToggle"];
+function renderAidsCount() {
+  const n = AID_TOGGLE_IDS.filter((id) => el(id) && el(id).checked).length;
+  if (el("aidsCount")) el("aidsCount").textContent = n ? "· " + n + " on" : "";
 }
 
 // -- page translation (self-contained, via Google's translate endpoint) ----
@@ -1858,23 +2096,71 @@ async function startSession() {
   game.roundSize      = roundSizeChoice;
   game.media          = mediaChoice;
   game.answerMode     = answerModeChoice;
+  game.commonOnly     = el("commonToggle").checked;
+  game.compareMiss    = el("compareToggle").checked;
+  game.reverseQuiz    = el("reverseToggle").checked;
+  game.selfRate       = el("selfRateToggle").checked;
+  game.mnemonics      = el("mnemonicToggle").checked;
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
 
+  // Certificate mode: quiz a fixed, taxonomy-harmonised species list instead of
+  // a group. It overrides the group / common-species choice; region still
+  // applies (World gives the widest photo pool). Photos come one taxon at a
+  // time via CERT_CHUNK-sized fetches (see currentFetchIds), which also seeds
+  // the checklist with exactly the certificate's species.
+  game.pool = null;
+  game.taxonomy = taxonomyChoice;
+  game.certChecklist = "";
+  const cert = certChoice !== "none" ? certById(certChoice) : null;
+  if (cert) {
+    const sp = cert.species();   // [ [id, iNatName, checklistName], ... ]
+    game.pool = sp.map((s) => s[0]);
+    game.certChecklist = cert.checklist;
+    // Seed the checklist (suggestions + distractors) with the chosen naming.
+    game.checklist = sp.map((s) => ({ id: s[0],
+      scientificName: game.taxonomy === "checklist" ? s[2] : s[1], commonName: "", count: 0 }));
+    game.label = "Certificate · " + cert.label;
+    game.commonOnly = false;
+  }
+
   showScreen("play");
-  setBusy("Loading " + mediaWord(true) + "…");
+  setBusy(game.pool ? "Loading certificate species…"
+    : game.commonOnly ? "Finding the most common species…" : "Loading " + mediaWord(true) + "…");
 
   try {
-    // First request tells us how many observations exist (so we know the page range).
-    const first = await fetchObservations(game.taxonIds, game.placeId, 1);
+    // "Common species" on-ramp: narrow the whole session to the most-observed
+    // species of the chosen group + region (iNaturalist's species_counts is
+    // already sorted commonest-first), so a beginner drills the handful they'll
+    // actually meet before the long tail of rarities. We just swap taxonIds for
+    // the top species' own ids — everything downstream (queue, scoring, SRS,
+    // review, all answer modes) then works unchanged.
+    if (game.commonOnly) {
+      const top = await fetchTopSpecies(game.taxonIds, game.placeId);
+      const focus = top
+        .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
+        .slice(0, COMMON_SPECIES_COUNT);
+      if (focus.length) {
+        game.taxonIds = focus.map((s) => s.id).join(",");
+        game.checklist = focus.map((s) => ({ id: s.id, scientificName: s.scientificName, commonName: s.commonName, count: s.count }));
+        game.label += " · " + focus.length + " commonest";
+      } else {
+        game.commonOnly = false;   // nothing to narrow to — fall back to the whole group
+      }
+    }
+
+    // First request tells us how many observations exist (so we know the page
+    // range). In certificate mode each fetch pulls a fresh random chunk of the
+    // list, so we keep the page range small rather than measuring one chunk.
+    const first = await fetchObservations(currentFetchIds(), game.placeId, 1);
     const total = first.total_results || 0;
-    game.maxPage = Math.min(Math.max(1, Math.ceil(total / PER_PAGE)), MAX_PAGE);
+    game.maxPage = game.pool ? 4 : Math.min(Math.max(1, Math.ceil(total / PER_PAGE)), MAX_PAGE);
 
     // For variety, play from a random page rather than the newest uploads.
     let batch = first.results || [];
     if (game.maxPage > 1) {
-      const data = await fetchObservations(game.taxonIds, game.placeId, randomInt(1, game.maxPage));
+      const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage));
       batch = data.results || batch;
     }
     const candidates = shuffle(toQuestions(batch));
@@ -1884,7 +2170,9 @@ async function startSession() {
 
     if (game.queue.length === 0) { showEmpty(); return; }
 
-    loadTopSpeciesInBackground();   // enrich name suggestions without blocking
+    // In common / certificate mode the checklist is already the focus set;
+    // otherwise enrich name suggestions with the region's top species.
+    if (!game.commonOnly && !game.pool) loadTopSpeciesInBackground();
     startRound("normal");
   } catch (err) {
     showError(err);
@@ -1978,6 +2266,10 @@ function startHistoryReview(species, answerMode, label) {
   game.assist         = el("assistToggle").checked;
   game.useCommonNames = el("commonNamesToggle").checked;
   game.learnMore      = el("learnMoreToggle").checked;
+  game.compareMiss    = el("compareToggle").checked;
+  game.selfRate       = el("selfRateToggle").checked;
+  game.mnemonics      = el("mnemonicToggle").checked;
+  game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
   game.allowRepeats   = true;
   game.mode           = "review";
   game.label          = label;
@@ -2017,11 +2309,16 @@ function questionFromSavedMedia(base, media) {
 }
 
 // -- keeping the question queue topped up ---------------------------------
+// The taxon ids to fetch this round: a fresh random chunk of the certificate's
+// species in certificate mode, otherwise the fixed group/region selection.
+function poolChunk() { return shuffle(game.pool).slice(0, CERT_CHUNK).join(","); }
+function currentFetchIds() { return game.pool ? poolChunk() : game.taxonIds; }
+
 async function topUpQueue() {
   if (game.fetching) return;
   game.fetching = true;
   try {
-    const data = await fetchObservations(game.taxonIds, game.placeId, randomInt(1, game.maxPage || 1));
+    const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage || 1));
     const candidates = shuffle(toQuestions(data.results)).filter((q) => !game.seen.has(q.observationId));
     candidates.forEach((q) => game.seen.add(q.observationId));
     const fresh = filterUnique(candidates);
@@ -2049,6 +2346,15 @@ async function fetchFreshPhoto(item) {
 function fallbackPhoto(item) {
   const entry = game.missed.get(item.taxonId);
   return questionFromSavedMedia(item, entry && entry.media[0]);
+}
+// One representative photo URL for a species — used by the compare-after-a-miss
+// aid to show the look-alike you guessed next to the right answer.
+async function fetchSpeciesPhoto(taxonId) {
+  try {
+    const data = await apiGet("/observations", { taxon_id: taxonId, quality_grade: "research", rank: "species", photos: "true", per_page: 1, page: 1 });
+    const obs = (data.results || [])[0];
+    return obs && obs.photos && obs.photos[0] ? biggerPhoto(obs.photos[0].url) : null;
+  } catch (err) { return null; }
 }
 
 // -- the review pile ------------------------------------------------------
@@ -2304,16 +2610,48 @@ function onLightboxWheel(e) {
   applyZoom();
 }
 
+// Enough other photographed species queued up to build a 4-photo reverse quiz?
+function reverseDistractorPool() {
+  return game.queue.filter((q) => q.taxonId !== game.current.taxonId &&
+    q.photos && q.photos.length && q.photos[0].url);
+}
+function shouldReverse() {
+  return game.reverseQuiz && game.media === "photo" && game.answerMode !== "study" &&
+    !game.current.reinforced && reverseDistractorPool().length >= 3 && Math.random() < 0.4;
+}
+
+// In certificate mode, re-label the species with the chosen taxonomy (the
+// observation always carries iNaturalist's name; the InfoFlora name is the one
+// the exam uses). altName keeps the other name so a learner who types either is
+// accepted and both are shown in the feedback.
+function applyTaxonomy(q) {
+  q.altName = null;
+  if (!game.pool || !certNameMap.has(q.taxonId)) return;
+  const nm = certNameMap.get(q.taxonId);
+  const primary = game.taxonomy === "checklist" ? nm.alt : nm.inat;
+  const other = game.taxonomy === "checklist" ? nm.inat : nm.alt;
+  q.scientificName = primary;
+  q.altName = other !== primary ? other : null;
+}
+
 function presentQuestion() {
   clearBusy();
   game.answered = false;
+  game.lastGuess = null;            // (aid A) the wrong species just picked, if any
+  applyTaxonomy(game.current);      // certificate naming (InfoFlora vs iNat)
+  game.reverseThis = shouldReverse();
   game.askedTaxa.add(game.current.taxonId);
-
-  if (game.media === "sound") showSoundGallery(questionSounds(game.current));
-  else showPhotoGallery(questionPhotos(game.current));
 
   el("learnLabel").textContent = game.current.reinforced ? "🔁 Seen it — try again"
     : game.mode === "review" ? "Reviewing your misses" : game.label;
+
+  // Reverse (aid C) hides the photo card entirely and shows a grid of photos to
+  // pick from, so it gets its own branch before the normal media gallery.
+  el("playMain").classList.toggle("reverse-active", game.reverseThis);
+  if (game.reverseThis) { presentReverse(); return; }
+
+  if (game.media === "sound") showSoundGallery(questionSounds(game.current));
+  else showPhotoGallery(questionPhotos(game.current));
 
   const mode = game.answerMode;
   // Show only the answer region for the current mode.
@@ -2321,6 +2659,7 @@ function presentQuestion() {
   el("hintArea").classList.toggle("hidden", mode !== "type");
   el("choiceArea").classList.toggle("hidden", mode !== "choose");
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
+  el("reverseArea").classList.add("hidden");
 
   if (mode === "study") presentStudy();
   else if (mode === "choose") presentChoose();
@@ -2328,6 +2667,40 @@ function presentQuestion() {
 
   showActionRow();
   configureActionRow(mode);
+}
+
+// -- "Reverse" question (aid C): show the name, pick the matching photo -----
+function presentReverse() {
+  const target = game.current;
+  const distractors = shuffle(reverseDistractorPool()).slice(0, 3);
+  const options = shuffle([target].concat(distractors));
+  el("promptText").innerHTML = "Which one is <i class='notranslate'>" + escapeHtml(answerLabelFor(target)) + "</i>?";
+  ["hintArea", "choiceArea", "studyAnswer"].forEach((id) => el(id).classList.add("hidden"));
+  el("answerInput").closest(".search.answer").classList.add("hidden");
+  const area = el("reverseArea");
+  area.classList.remove("hidden");
+  area.innerHTML = options.map((o) =>
+    "<button type='button' class='rev-photo' data-taxon='" + o.taxonId + "'>" +
+      "<img src='" + escapeHtml(questionPhotos(o)[0].url) + "' alt='Species option'></button>").join("");
+  area.querySelectorAll(".rev-photo").forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      if (game.answered) return;
+      const chosenId = Number(btn.dataset.taxon);
+      area.querySelectorAll(".rev-photo").forEach((b) => {
+        const id = Number(b.dataset.taxon);
+        if (id === target.taxonId) b.classList.add("right");
+        else if (id === chosenId) b.classList.add("wrong");
+        b.disabled = true;
+      });
+      if (chosenId !== target.taxonId) {
+        const g = options.find((o) => o.taxonId === chosenId);
+        if (g) { game.lastGuess = { taxonId: g.taxonId, scientificName: g.scientificName, commonName: g.commonName }; recordConfusion(target, game.lastGuess); }
+      }
+      finishAnswer(chosenId === target.taxonId, "");   // picked a photo, didn't type a name
+    });
+  });
+  showActionRow();
+  configureActionRow("reverse");
 }
 
 // -- "Type" mode: free-recall typing (the classic flow) -------------------
@@ -2394,7 +2767,7 @@ function chooseAnswer(chosenId, label) {
   // A wrong pick is a real, unambiguous confusion between two known species.
   if (!wasCorrect) {
     const guess = currentChoices.find((o) => o.taxonId === chosenId);
-    if (guess) recordConfusion(game.current, guess);
+    if (guess) { game.lastGuess = guess; recordConfusion(game.current, guess); }
   }
   finishAnswer(wasCorrect, label);
 }
@@ -2403,9 +2776,11 @@ function chooseAnswer(chosenId, label) {
 function presentStudy() {
   el("promptText").textContent = game.media === "sound" ? "Listen and learn" : "Look and learn";
   const q = game.current;
+  const note = game.mnemonics ? noteFor(q.taxonId) : "";
   el("studyAnswer").innerHTML = "<span class='tag'>This is</span>" +
     "<span class='sci notranslate'>" + escapeHtml(q.scientificName) + "</span>" +
-    (q.commonName ? "<span class='common'>" + escapeHtml(q.commonName) + "</span>" : "");
+    (q.commonName ? "<span class='common'>" + escapeHtml(q.commonName) + "</span>" : "") +
+    (note ? "<div class='note-saved notranslate' style='margin-top:10px;text-align:left;'>📝 " + escapeHtml(note) + "</div>" : "");
 }
 
 // Study cards aren't scored — just advance, counting toward the round total so
@@ -2416,11 +2791,13 @@ function studyNext() {
   nextQuestion();
 }
 
-// Show the right controls for the current answer mode.
+// Show the right controls for the current answer mode ("reverse" is a
+// per-question override of whatever answer mode is active).
 function configureActionRow(mode) {
+  const tapToAnswer = mode === "choose" || mode === "reverse";   // no Check button; tapping submits
   el("skipBtn").classList.toggle("hidden", mode === "study");
   el("revealBtn").classList.toggle("hidden", mode !== "type");   // Reveal only makes sense when typing
-  el("checkBtn").classList.toggle("hidden", mode === "choose");  // in Choose, tapping an option submits
+  el("checkBtn").classList.toggle("hidden", tapToAnswer);
   if (mode === "study") { el("checkBtn").textContent = "Next"; el("checkBtn").disabled = false; }
   else el("checkBtn").textContent = "Check";
 }
@@ -2453,7 +2830,7 @@ function submitAnswer() {
   // that's a genuine look-alike confusion worth drilling — not just a typo.
   if (!wasCorrect) {
     const guess = resolveTypedSpecies(typed);
-    if (guess) recordConfusion(game.current, guess);
+    if (guess) { game.lastGuess = guess; recordConfusion(game.current, guess); }
   }
   finishAnswer(wasCorrect, typed);
 }
@@ -2574,7 +2951,9 @@ function finishAnswer(wasCorrect, typed) {
 
   // Cross-session spaced repetition + the daily streak apply to any genuine
   // test (normal or review, type or choose) — study cards never reach here.
-  updateSrs(game.current, wasCorrect, hintsShown > 0);
+  // With self-rating on (aid D), the player sets the schedule themselves, so
+  // we defer the automatic SRS update to their Again/Hard/Good/Easy tap.
+  if (!game.selfRate) updateSrs(game.current, wasCorrect, hintsShown > 0);
   recordDailyActivity();
 
   // In-session spaced repetition: a species you got wrong (or revealed) comes
@@ -2637,7 +3016,8 @@ function clearBusy() {
       "<div id='answerSuggest' class='suggest hidden'></div></div>" +
     "<div id='hintArea' class='hint-area'></div>" +
     "<div id='choiceArea' class='choice-area hidden'></div>" +
-    "<div id='studyAnswer' class='study-answer hidden'></div>";
+    "<div id='studyAnswer' class='study-answer hidden'></div>" +
+    "<div id='reverseArea' class='reverse-area hidden'></div>";
   wireAnswerInput();   // re-attach listeners to the fresh input
   wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
 }
@@ -3038,9 +3418,14 @@ function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
   const you = (!wasCorrect && typed) ? "<span class='fb-you'>You wrote “" + escapeHtml(typed) + "”</span>" : "";
   const combo = (mood === "combo" || mood === "ecstatic" || mood === "legendary")
     ? "<div class='fb-combo'>🔥 " + game.streak + " in a row!</div>" : "";
+  // In certificate mode, show the synonym too — it's worth knowing both names.
+  const alt = question.altName
+    ? "<span class='fb-alt notranslate'>≡ " + escapeHtml(question.altName) +
+      " <span class='fb-alt-src'>(" + (game.taxonomy === "checklist" ? "iNaturalist" : (game.certChecklist || "checklist")) + ")</span></span>"
+    : "";
   return "<div class='fb-head'><div class='fb-icon pop " + mood + "'>" + cowMascot(mood) + "</div>" +
     "<div><div class='fb-title'>" + title + "</div>" + combo +
-    "<div><span class='fb-name'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + you +
+    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + alt + you +
     (extraHtml ? "<div>" + extraHtml + "</div>" : "") + "</div></div>";
 }
 
@@ -3082,17 +3467,91 @@ function showFeedback(wasCorrect, typed) {
   const q = game.current;
   const learnMore = "<a class='fb-learn' href='" + learnMoreUrl(q) + "' target='_blank' rel='noopener'>" +
     "🔍 Do you want to learn more about this " + subjectNoun() + "?</a>";
+  // Aid A — side-by-side compare after a real look-alike miss.
+  const compare = (game.compareMiss && !wasCorrect && game.lastGuess && game.media === "photo")
+    ? compareBlockHtml(q, game.lastGuess) : "";
+  // Aid E — a slot for the personal memory note.
+  const note = game.mnemonics ? "<div id='fbNote' class='fb-note'></div>" : "";
+  // Aid D — rate-to-advance replaces the plain Continue button.
+  const footer = game.selfRate ? ratingRowHtml(q) : "<button class='btn' id='continueBtn'>Continue</button>";
 
   el("feedback").className = "feedback show " + (wasCorrect ? "correct" : "wrong");
-  el("feedback").innerHTML =
-    resultHeaderHtml(q, wasCorrect, typed, learnMore) +
-    "<button class='btn' id='continueBtn'>Continue</button>";
+  el("feedback").innerHTML = resultHeaderHtml(q, wasCorrect, typed, learnMore) + compare + note + footer;
   el("actionRow").classList.add("hidden");
-  el("continueBtn").addEventListener("click", nextQuestion);
-  // The distribution map + facts show as a pop-up over this banner, rather
-  // than being appended to the bottom of it — so it gets its own copy of the
-  // same verdict header rather than leaving it hidden underneath.
-  if (game.learnMore) openLearnPopup(q, wasCorrect, typed);
+  wireFeedback(q);
+
+  // The distribution map + facts pop-up. Suppressed when self-rating is on, so
+  // the rating row (not the pop-up's Continue) stays the one way to advance —
+  // the facts are still one tap away via the "learn more" link in the header.
+  if (game.learnMore && !game.selfRate) openLearnPopup(q, wasCorrect, typed);
+}
+
+// Wire whichever feedback controls are present (continue / rating / note), and
+// lazily load the "you said" photo for the compare block.
+function wireFeedback(q) {
+  const cont = el("continueBtn");
+  if (cont) cont.addEventListener("click", nextQuestion);
+  el("feedback").querySelectorAll(".rate-btn").forEach((b) =>
+    b.addEventListener("click", () => { rateSrs(q, b.dataset.rate); nextQuestion(); }));
+  if (game.mnemonics) renderNoteBlock(q.taxonId, false);
+  if (el("cmpGuessImg") && game.lastGuess) {
+    fetchSpeciesPhoto(game.lastGuess.taxonId).then((url) => {
+      const img = el("cmpGuessImg");
+      if (img && url) img.src = url;
+    });
+  }
+}
+
+// The two look-alikes side by side (aid A): the one you guessed, then the right
+// answer. The correct photo is the one already on screen; the guess photo is
+// fetched in wireFeedback().
+function compareBlockHtml(correct, guess) {
+  const col = (cls, tag, sp, imgId, imgUrl) =>
+    "<div class='compare-col " + cls + "'>" +
+      "<img class='cmp-img' id='" + imgId + "' src='" + escapeHtml(imgUrl || "") + "' alt=''>" +
+      "<div class='cmp-body'><div class='cmp-tag'>" + tag + "</div>" +
+        "<div class='cmp-name notranslate'>" + escapeHtml(sp.scientificName) + "</div>" +
+        (sp.commonName ? "<div class='cmp-common notranslate'>" + escapeHtml(sp.commonName) + "</div>" : "") +
+      "</div></div>";
+  return "<div class='compare'>" +
+    col("wrong", "You said", guess, "cmpGuessImg", "") +
+    col("right", "Correct", correct, "cmpRightImg", questionPhotos(correct)[0].url) + "</div>";
+}
+
+// The Again/Hard/Good/Easy row (aid D), each showing when it'll bring the
+// species back so the choice is informed.
+function ratingRowHtml(q) {
+  const cur = game.srs.get(q.taxonId);
+  const box = cur ? cur.box : 1;
+  const days = { again: SRS_INTERVALS[1], hard: SRS_INTERVALS[Math.max(1, box)],
+    good: SRS_INTERVALS[Math.min(box + 1, SRS_MAX_BOX)], easy: SRS_INTERVALS[Math.min(box + 2, SRS_MAX_BOX)] };
+  const lab = (d) => d === 1 ? "1 day" : d + " days";
+  const b = (r, label, cls) => "<button type='button' class='rate-btn " + (cls || "") + "' data-rate='" + r + "'>" +
+    label + "<small>" + lab(days[r]) + "</small></button>";
+  return "<div class='rate-row'>" + b("again", "Again", "again") + b("hard", "Hard", "") +
+    b("good", "Good", "") + b("easy", "Easy", "easy") + "</div>";
+}
+
+// The memory-note slot (aid E): shows a saved note, an edit affordance, or an
+// "add" prompt — re-rendering just itself as it toggles between view and edit.
+function renderNoteBlock(taxonId, editing) {
+  const box = el("fbNote");
+  if (!box) return;
+  const note = noteFor(taxonId);
+  if (editing) {
+    box.innerHTML = "<textarea id='noteTextarea' class='notranslate' placeholder='A cue to remember this one…'>" + escapeHtml(note) + "</textarea>";
+    const ta = el("noteTextarea");
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.addEventListener("blur", () => { saveNote(taxonId, ta.value); renderNoteBlock(taxonId, false); });
+    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ta.blur(); } });
+  } else if (note) {
+    box.innerHTML = "<div class='note-saved notranslate'>📝 " + escapeHtml(note) + "</div>" +
+      "<button type='button' class='note-add' id='noteEditBtn'>Edit note</button>";
+    el("noteEditBtn").addEventListener("click", () => renderNoteBlock(taxonId, true));
+  } else {
+    box.innerHTML = "<button type='button' class='note-add' id='noteAddBtn'>＋ Add a memory note</button>";
+    el("noteAddBtn").addEventListener("click", () => renderNoteBlock(taxonId, true));
+  }
 }
 const PRAISE = ["Nice!", "Correct!", "Well done!", "Exactly!", "You got it!", "Spot on!"];
 const pickPraise = () => PRAISE[randomInt(0, PRAISE.length - 1)];
@@ -3328,8 +3787,8 @@ function renderVsTab() {
 // -- progress-panel actions -----------------------------------------------
 function resetHistory() {
   const p = currentProfile();
-  p.stats = new Map(); p.snapshots = []; p.srs = new Map(); p.confusions = new Map(); p.daily = {};
-  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily;
+  p.stats = new Map(); p.snapshots = []; p.srs = new Map(); p.confusions = new Map(); p.daily = {}; p.notes = {};
+  game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily; game.notes = p.notes;
   saveStore(); renderPanel();
 }
 function copyShareCode(button) {
@@ -3349,6 +3808,7 @@ function doImport() {
 function backToSetup() {
   populateProfileSelect();
   renderSetupStatus();
+  renderCertChips();      // refresh certificate progress after a session
   showScreen("setup");
 }
 
@@ -3388,6 +3848,7 @@ const runRegionSearch = debounce(async (query) => {
 // for a feature that's really just "the obvious choice is already at the top").
 function pickTaxonSuggestion(item) {
   if (!item) return;
+  if (certChoice !== "none") { certChoice = "none"; renderCertChips(); }   // searching a group leaves certificate mode
   addTaxon({ id: Number(item.dataset.taxonId), name: item.dataset.taxonName });
   el("taxonSearch").value = "";
   hideSuggest("taxonSuggest");
@@ -3519,8 +3980,10 @@ function wireControls() {
     if (item) { e.preventDefault(); pickTaxonSuggestion(item); }
   });
   el("taxonChips").addEventListener("click", (e) => {
+    if (e.target.dataset.taxonPreset === undefined && e.target.dataset.taxonExtra === undefined) return;
+    if (certChoice !== "none") { certChoice = "none"; renderCertChips(); }   // picking a group leaves certificate mode
     if (e.target.dataset.taxonPreset !== undefined) toggleTaxonPreset(e.target.dataset.taxonPreset);
-    else if (e.target.dataset.taxonExtra !== undefined) removeTaxon(e.target.dataset.taxonExtra);
+    else removeTaxon(e.target.dataset.taxonExtra);
   });
 
   // setup: region
@@ -3555,6 +4018,18 @@ function wireControls() {
     answerModeChoice = e.target.dataset.answerMode;
     renderAnswerModeChips();
   });
+  el("certChips").addEventListener("click", (e) => {
+    if (e.target.dataset.cert === undefined) return;
+    certChoice = e.target.dataset.cert;
+    renderCertChips();
+  });
+  el("taxonomyChips").addEventListener("click", (e) => {
+    if (e.target.dataset.taxonomy === undefined) return;
+    taxonomyChoice = e.target.dataset.taxonomy;
+    renderCertChips();
+  });
+  // learning-aid toggles: keep the "· N on" summary badge in sync
+  AID_TOGGLE_IDS.forEach((id) => el(id).addEventListener("change", renderAidsCount));
 
   // start / progress
   el("startBtn").addEventListener("click", () => {
@@ -3660,6 +4135,7 @@ loadStore();            // restore players + weak-spot history from this device
 buildChips();           // draws the taxon/region/round-size chips, including today's defaults
 populateProfileSelect();
 renderSetupStatus();    // daily streak + "due today" / look-alike prompts
+renderAidsCount();      // "· N on" badge on the Learning-aids summary
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 </script>
