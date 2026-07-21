@@ -182,8 +182,13 @@
   .brand .tagline { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
   .card {
     background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius);
-    padding: 18px; margin-bottom: 16px;
+    padding: 18px; margin-bottom: 14px;
   }
+  /* Grouped-section heading inside a card — a warm serif title that gives the
+     setup a clear "what to learn / how to practise / options" hierarchy. */
+  .card-title { font-family: var(--font-display); font-size: 19px; font-weight: 600; font-style: italic;
+    color: var(--green-dark); margin: -2px 0 4px; }
+  .card-title + .card-sub { color: var(--muted); font-size: 12.5px; font-weight: 700; margin: 0 0 16px; }
   .field { margin-bottom: 18px; }
   .field:last-child { margin-bottom: 0; }
   .field.dim { opacity: .4; }   /* the group picker, when a certificate overrides it */
@@ -215,6 +220,33 @@
   .aids-chevron { width: 18px; height: 18px; color: var(--faint); transition: transform .2s; }
   .aids[open] .aids-chevron { transform: rotate(180deg); }
   .aids-body { display: flex; flex-direction: column; gap: 18px; margin-top: 16px; }
+
+  /* Certificate species-list viewer — a deliberately quiet text link that opens
+     a scrollable modal. Kept low-key so it never competes for attention. */
+  .cert-list-link { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700;
+    color: var(--faint); background: none; border: 0; padding: 0; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  .cert-list-link:hover { color: var(--green-dark); }
+  .cert-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center;
+    justify-content: center; padding: 20px; background: rgba(40, 34, 24, .45); }
+  .cert-modal.hidden { display: none; }
+  .cert-modal-panel { background: var(--bg); width: min(560px, 100%); max-height: 82vh;
+    border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(40, 34, 24, .35); }
+  .cert-modal-head { display: flex; align-items: baseline; gap: 10px; padding: 15px 18px;
+    border-bottom: 1px solid var(--line); }
+  .cert-modal-head h3 { font-size: 15px; font-weight: 800; margin: 0; }
+  .cert-modal-head .cm-sub { font-size: 12px; color: var(--muted); font-weight: 700; }
+  .cert-modal-head .cm-close { margin-left: auto; background: none; border: 0; cursor: pointer;
+    color: var(--muted); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
+  .cert-modal-note { padding: 9px 18px; font-size: 11.5px; color: var(--muted); font-weight: 700;
+    background: var(--bg-2); border-bottom: 1px solid var(--line); }
+  .cert-list { overflow-y: auto; padding: 4px 0; }
+  .cert-list-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 18px; }
+  .cert-list-row:nth-child(even) { background: var(--bg-2); }
+  .cert-list-num { color: var(--faint); font-size: 11px; min-width: 26px; text-align: right; }
+  .cert-list-name { font-style: italic; font-weight: 800; font-size: 13.5px; }
+  .cert-list-alt { font-size: 11.5px; color: var(--muted); font-weight: 700; }
   .aids-body .toggle { margin-bottom: 0; }
 
   .setup .btn-big { margin-bottom: 10px; }
@@ -250,8 +282,12 @@
   /* ====================================================================== */
   /*  Play screen                                                           */
   /* ====================================================================== */
-  .play { padding: 0; }
-  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 16px 10px; }
+  /* The play screen is pinned to exactly the viewport height and never scrolls
+     the page — the photo flexes to fill whatever space is left, so the whole
+     question (photo, prompt, answer, buttons) is always visible on any phone. */
+  .play { padding: 0; min-height: 0; height: 100vh; height: 100dvh; overflow: hidden; }
+  @media (min-width: 620px) { .play { height: calc(100dvh - 64px); } }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 12px 16px 8px; flex: none; }
   .progress { flex: 1; height: 16px; background: var(--line); border-radius: 999px; overflow: hidden; }
   .progress-fill { height: 100%; width: 0%; background: var(--green); border-radius: 999px;
     transition: width .35s ease; position: relative; }
@@ -262,11 +298,15 @@
   .streak-chip svg { width: 20px; height: 20px; }
   .streak-chip.cold { color: var(--faint); }
 
-  .play-main { flex: 1; padding: 6px 18px 16px; display: flex; flex-direction: column; }
+  .play-main { flex: 1 1 auto; min-height: 0; padding: 4px 18px 12px; display: flex; flex-direction: column;
+    overflow-y: auto; }
   .learn-label { align-self: flex-start; background: var(--bg-2); border: 2px solid var(--line);
-    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; flex: none; }
+  /* Flexes to fill the space left between the prompt/answer and the top bar,
+     shrinking on short phones instead of forcing the page to scroll. The image
+     inside is object-fit:contain, so it's never cropped at any size. */
   .photo-card {
-    position: relative; width: 100%; aspect-ratio: 4/3; background: #f1eee3;
+    position: relative; width: 100%; flex: 1 1 0; min-height: 120px; background: #f1eee3;
     border: 2px solid var(--line); border-radius: var(--radius); overflow: hidden;
     box-shadow: 0 6px 16px rgba(58,53,46,.08);
   }
@@ -334,10 +374,12 @@
     background: rgba(255,255,255,.15); color: #fff; font-size: 13px; font-weight: 800;
     padding: 5px 14px; border-radius: 999px;
   }
-  .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 8px 2px 0; }
+  .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 6px 2px 0; flex: none; }
   .credit a { color: var(--faint); }
-  .prompt { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 18px 2px 12px; }
-  .answer-input { font-size: 20px; font-style: italic; padding: 15px; }
+  .prompt { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin: 10px 2px 8px; flex: none; }
+  /* The answer controls keep their natural height — only the photo flexes. */
+  .search.answer, .hint-area, .choice-area, .study-answer { flex: none; }
+  .answer-input { font-size: 20px; font-style: italic; padding: 14px; }
 
   /* Progressive hints — a graded scaffold so a learner can work toward the
      answer instead of just failing (and then has it reinforced in review). */
@@ -418,8 +460,9 @@
   .note-add { background: none; border: none; color: var(--blue); font-family: var(--font); font-weight: 800; font-size: 13px; cursor: pointer; padding: 4px 0; }
 
   /* bottom action bar + the slide-up feedback banner */
-  .bottombar { position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
-    padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); }
+  .bottombar { flex: none; background: var(--bg); border-top: 2px solid var(--line);
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+    max-height: 72vh; overflow-y: auto; }
   .action-row { display: flex; gap: 12px; align-items: center; }
   .action-row .btn-ghost { flex: none; }
   .action-row .btn-primary { flex: 1; }
@@ -600,8 +643,9 @@
          renderSetupStatus() from the active player's saved history. -->
     <div id="setupStatus" class="setup-status"></div>
 
+    <!-- Player identity. -->
     <div class="card">
-      <div class="field">
+      <div class="field" style="margin-bottom:0;">
         <div class="field-label">Playing as</div>
         <div class="player-row">
           <select id="profileSelect" class="select"></select>
@@ -612,26 +656,15 @@
         <input id="renameInput" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
         <input id="newProfileName" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
       </div>
+    </div>
 
-      <div class="field">
-        <div class="field-label">How do you want to identify?</div>
-        <div id="mediaChips" class="chips"></div>
-      </div>
-
-      <div class="field">
-        <div class="field-label">How do you want to answer?</div>
-        <div id="answerModeChips" class="chips"></div>
-        <div id="answerModeHint" class="hint" style="margin-top:8px;"></div>
-      </div>
-
-      <div class="field">
-        <div class="field-label">Translate this page</div>
-        <select id="langSelect" class="select notranslate"></select>
-        <div class="hint" style="margin-top:6px;">Translation by Google. Latin species names stay unchanged; pick English to switch back instantly.</div>
-      </div>
+    <!-- WHAT to learn: the subject — a group, or a certificate, plus where. -->
+    <div class="card">
+      <div class="card-title">What to learn</div>
+      <p class="card-sub">Pick a group of species, or study for a certificate.</p>
 
       <div class="field" id="taxonField">
-        <div class="field-label">What do you want to learn?</div>
+        <div class="field-label">Group of species</div>
         <div class="search">
           <input id="taxonSearch" class="input" placeholder="Search a group — Plantae, Poaceae, Carex…" autocomplete="off" spellcheck="false">
           <div id="taxonSuggest" class="suggest hidden"></div>
@@ -655,12 +688,7 @@
         <div id="regionChips" class="chips"></div>
       </div>
 
-      <div class="field">
-        <div class="field-label">How many species?</div>
-        <div id="roundSizeChips" class="chips"></div>
-      </div>
-
-      <label class="toggle field">
+      <label class="toggle field" style="margin-bottom:0;">
         <span>
           <b>Start with common species</b>
           <span class="hint">New here? Quiz only the ~30 species you're most likely to actually see — build a foundation before the rare ones.</span>
@@ -668,6 +696,38 @@
         <input id="commonToggle" type="checkbox">
         <span class="switch"></span>
       </label>
+    </div>
+
+    <!-- HOW to practise: media, answer style, and round length. -->
+    <div class="card">
+      <div class="card-title">How to practise</div>
+      <p class="card-sub">How you're shown each species, and how you answer.</p>
+
+      <div class="field">
+        <div class="field-label">Identify by</div>
+        <div id="mediaChips" class="chips"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Answer by</div>
+        <div id="answerModeChips" class="chips"></div>
+        <div id="answerModeHint" class="hint" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="field hidden" id="choiceCountField">
+        <div class="field-label">How many choices?</div>
+        <div id="choiceCountChips" class="chips"></div>
+      </div>
+
+      <div class="field" style="margin-bottom:0;">
+        <div class="field-label">How many species per round?</div>
+        <div id="roundSizeChips" class="chips"></div>
+      </div>
+    </div>
+
+    <!-- OPTIONS: everything else, least prominent. -->
+    <div class="card">
+      <div class="card-title">Options</div>
 
       <label class="toggle field">
         <span>
@@ -675,15 +735,6 @@
           <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
         </span>
         <input id="repeatToggle" type="checkbox" checked>
-        <span class="switch"></span>
-      </label>
-
-      <label class="toggle field">
-        <span>
-          <b>Show distribution &amp; facts after each answer</b>
-          <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
-        </span>
-        <input id="learnMoreToggle" type="checkbox">
         <span class="switch"></span>
       </label>
 
@@ -705,6 +756,21 @@
         <span class="switch"></span>
       </label>
 
+      <label class="toggle field">
+        <span>
+          <b>Show distribution &amp; facts after each answer</b>
+          <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
+        </span>
+        <input id="learnMoreToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+
+      <div class="field">
+        <div class="field-label">Translate this page</div>
+        <select id="langSelect" class="select notranslate"></select>
+        <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
+      </div>
+
       <!-- Optional learning extras, tucked behind a collapsible so they never
            clutter the main setup. Each is independently switchable. -->
       <details class="aids">
@@ -713,14 +779,6 @@
           <svg class="aids-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </summary>
         <div class="aids-body">
-          <label class="toggle">
-            <span>
-              <b>Compare look-alikes after a mistake</b>
-              <span class="hint">Miss one for another real species? See the two side by side, so you learn what actually tells them apart.</span>
-            </span>
-            <input id="compareToggle" type="checkbox" checked>
-            <span class="switch"></span>
-          </label>
           <label class="toggle">
             <span>
               <b>Also ask in reverse</b>
@@ -823,6 +881,24 @@
   <section id="progressPanel" class="screen panel hidden"></section>
 
   <div id="toast"></div>
+</div>
+
+<!-- ===================== CERTIFICATE SPECIES LIST ======================
+     A scrollable list of exactly the species in the selected certificate, so a
+     learner can check the list and how each name is harmonised to iNaturalist.
+     Opened from a quiet text link under the certificate chips. -->
+<div id="certListModal" class="cert-modal hidden">
+  <div class="cert-modal-panel">
+    <div class="cert-modal-head">
+      <h3 id="certListTitle" class="notranslate"></h3>
+      <span id="certListSub" class="cm-sub"></span>
+      <button id="certListClose" class="cm-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="certListNote" class="cert-modal-note"></div>
+    <div id="certList" class="cert-list notranslate"></div>
+  </div>
 </div>
 
 <!-- ============================ PHOTO LIGHTBOX ============================
@@ -942,10 +1018,14 @@ const ANSWER_MODES = [
 ];
 const ANSWER_MODE_HINTS = {
   type:   "Type the name from memory. Stuck? Use a hint, or Reveal to see it.",
-  choose: "Pick from four names — recognition is an easier way in for a new group.",
+  choose: "Pick from a set of names — recognition is an easier way in for a new group. Choose how many options below.",
   study:  "Just look and learn: each species is shown with its name, no quiz. Switch to Type or Choose when you're ready to test yourself.",
 };
 const DEFAULT_ANSWER_MODE = "type";
+// How many options to show in Choose mode (and the reverse photo-pick). Fewer
+// is a gentler on-ramp; more is a harder test.
+const CHOICE_COUNT_OPTIONS = [2, 3, 4, 6];
+const DEFAULT_CHOICE_COUNT = 4;
 const TOP_UP_AT  = 5;     // refill the question queue when it drops this low
 const MAX_MEDIA_PER_QUESTION = 6;   // cap the photo/sound gallery per species shown
 const PLANTAE_ID = 47126; // the Plantae kingdom id (stable) — the default group
@@ -1124,11 +1204,13 @@ const game = {
   pool: null,              // when set, a fixed list of taxon ids to quiz (certificate mode)
   taxonomy: "checklist",   // in certificate mode: which naming to show/accept ("checklist" | "inat")
   certChecklist: "",       // label of the active certificate's own taxonomy (e.g. "InfoFlora", "BDM Z7")
-  // Optional "learning aids" (all off-by-default except compareMiss):
-  compareMiss: true,       // A: after a look-alike miss, show the two side by side
+  // Look-alike compare (A) is always on — after any real look-alike miss the
+  // wrong species you picked is shown beside the right answer. The rest are
+  // optional aids, all off by default:
   reverseQuiz: false,      // C: sometimes ask name -> pick the photo
   selfRate: false,         // D: Anki-style Again/Hard/Good/Easy after each answer
   mnemonics: false,        // E: personal memory notes per species
+  choiceCount: DEFAULT_CHOICE_COUNT,   // how many options in Choose / reverse modes
   assist: true,
   useCommonNames: false,   // type/match against the common name instead of the scientific one
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
@@ -1816,6 +1898,7 @@ async function toggleRegionPreset(query) {
 let roundSizeChoice = DEFAULT_ROUND_SIZE;   // which "How many species?" chip is picked
 let mediaChoice = DEFAULT_MEDIA;            // which "How do you want to identify?" chip is picked
 let answerModeChoice = DEFAULT_ANSWER_MODE; // which "How do you want to answer?" chip is picked
+let choiceCountChoice = DEFAULT_CHOICE_COUNT; // how many options in Choose / reverse modes
 let certChoice = "none";                    // which certificate is selected ("none" | "200" | "400" | "600")
 let taxonomyChoice = "checklist";           // certificate naming: "checklist" (exam/monitoring names) | "inat"
 
@@ -1836,6 +1919,14 @@ function renderAnswerModeChips() {
     "<button class='chip" + (opt.value === answerModeChoice ? " active" : "") + "' data-answer-mode='" + opt.value + "'>" +
       opt.icon + escapeHtml(opt.label) + "</button>").join("");
   el("answerModeHint").textContent = ANSWER_MODE_HINTS[answerModeChoice];
+  // "How many choices?" only applies to Choose mode.
+  el("choiceCountField").classList.toggle("hidden", answerModeChoice !== "choose");
+}
+
+function renderChoiceCountChips() {
+  el("choiceCountChips").innerHTML = CHOICE_COUNT_OPTIONS.map((n) =>
+    "<button class='chip" + (n === choiceCountChoice ? " active" : "") + "' data-choice-count='" + n + "'>" +
+      n + "</button>").join("");
 }
 
 // How many of a certificate's species the active player has already seen /
@@ -1870,7 +1961,9 @@ function renderCertChips() {
   } else {
     const p = certProgress(c);
     hint.innerHTML = "Quizzes exactly these species (overrides the group above). " +
-      "<b>" + p.mastered + "</b> mastered · " + p.seen + " seen of <b>" + p.total + "</b>.";
+      "<b>" + p.mastered + "</b> mastered · " + p.seen + " seen of <b>" + p.total + "</b>." +
+      "<br><button type='button' class='cert-list-link' data-cert-list='" + c.id + "'>" +
+      "View the " + p.total + " species &amp; how their names map to iNaturalist</button>";
     el("taxonField").classList.add("dim");
     // Which naming to learn — the certificate's own names, or iNaturalist's.
     taxo.classList.remove("hidden");
@@ -1881,12 +1974,45 @@ function renderCertChips() {
   }
 }
 
+// The certificate species-list viewer. Lists every species with the exam
+// (checklist) name and, where it differs, iNaturalist's accepted name — so a
+// learner can verify the list and see exactly what got harmonised. Sorted by
+// the name shown for the currently-selected taxonomy.
+function openCertList(certId) {
+  const c = certById(certId);
+  if (!c) return;
+  const sp = c.species();   // [ [id, iNatName, checklistName], ... ]
+  const checklistFirst = taxonomyChoice === "checklist";
+  const rows = sp.map((s) => {
+    const inat = s[1], chk = s[2];
+    const primary = checklistFirst ? chk : inat;
+    const other = checklistFirst ? inat : chk;
+    return { primary, other: other !== primary ? other : null };
+  }).sort((a, b) => a.primary.localeCompare(b.primary));
+  const otherLabel = checklistFirst ? "iNaturalist" : (c.checklist);
+  el("certListTitle").textContent = c.label;
+  el("certListSub").textContent = sp.length + " species";
+  el("certListNote").textContent = checklistFirst
+    ? "Showing " + c.checklist + " names. Where iNaturalist uses a different accepted name, it's shown in grey — either is accepted as your answer."
+    : "Showing iNaturalist's accepted names. The " + c.checklist + " (exam) name is shown in grey where it differs — either is accepted as your answer.";
+  el("certList").innerHTML = rows.map((r, i) =>
+    "<div class='cert-list-row'>" +
+      "<span class='cert-list-num'>" + (i + 1) + "</span>" +
+      "<span class='cert-list-name'>" + escapeHtml(r.primary) + "</span>" +
+      (r.other ? "<span class='cert-list-alt'>≡ " + escapeHtml(r.other) + " (" + escapeHtml(otherLabel) + ")</span>" : "") +
+    "</div>").join("");
+  el("certList").scrollTop = 0;
+  el("certListModal").classList.remove("hidden");
+}
+function closeCertList() { el("certListModal").classList.add("hidden"); }
+
 function buildChips() {
   renderTaxonChips();
   renderRegionChips();
   renderRoundSizeChips();
   renderMediaChips();
   renderAnswerModeChips();
+  renderChoiceCountChips();
   renderCertChips();
 }
 
@@ -1948,7 +2074,7 @@ function renderSetupStatus() {
 }
 
 // The "· N on" badge on the collapsed Learning-aids summary.
-const AID_TOGGLE_IDS = ["compareToggle", "reverseToggle", "selfRateToggle", "mnemonicToggle"];
+const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle"];
 function renderAidsCount() {
   const n = AID_TOGGLE_IDS.filter((id) => el(id) && el(id).checked).length;
   if (el("aidsCount")) el("aidsCount").textContent = n ? "· " + n + " on" : "";
@@ -1984,7 +2110,10 @@ const LANG_STORE_KEY = "determinare.lang";
 
 // Never translate: our own language picker, anything explicitly opted out, and
 // scientific names / credits (Latin binomials and usernames must stay verbatim).
-const I18N_SKIP_SEL = ".notranslate,[translate='no'],#langSelect,.sci,.fb-name,.credit";
+// Species names — scientific AND real iNaturalist common names — must never be
+// machine-translated (a translated common name is an invented name, not a real
+// one). Every element that shows a name carries one of these classes.
+const I18N_SKIP_SEL = ".notranslate,[translate='no'],#langSelect,.sci,.fb-name,.fb-common,.common,.suggest-item,.cmp-name,.cmp-common,.credit";
 const i18nCache = new Map();     // (lang + "␟" + english) -> translated
 let uiLang = "en";
 let i18nObserver = null;
@@ -2119,8 +2248,8 @@ async function startSession() {
   game.roundSize      = roundSizeChoice;
   game.media          = mediaChoice;
   game.answerMode     = answerModeChoice;
+  game.choiceCount    = choiceCountChoice;
   game.commonOnly     = el("commonToggle").checked;
-  game.compareMiss    = el("compareToggle").checked;
   game.reverseQuiz    = el("reverseToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
@@ -2286,10 +2415,10 @@ function startHistoryReview(species, answerMode, label) {
   if (!species.length) return;
   game.media          = mediaChoice;
   game.answerMode     = answerMode;
+  game.choiceCount    = choiceCountChoice;
   game.assist         = el("assistToggle").checked;
   game.useCommonNames = el("commonNamesToggle").checked;
   game.learnMore      = el("learnMoreToggle").checked;
-  game.compareMiss    = el("compareToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
@@ -2640,7 +2769,8 @@ function reverseDistractorPool() {
 }
 function shouldReverse() {
   return game.reverseQuiz && game.media === "photo" && game.answerMode !== "study" &&
-    !game.current.reinforced && reverseDistractorPool().length >= 3 && Math.random() < 0.4;
+    !game.current.reinforced && reverseDistractorPool().length >= (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1 &&
+    Math.random() < 0.4;
 }
 
 // In certificate mode, re-label the species with the chosen taxonomy (the
@@ -2695,7 +2825,7 @@ function presentQuestion() {
 // -- "Reverse" question (aid C): show the name, pick the matching photo -----
 function presentReverse() {
   const target = game.current;
-  const distractors = shuffle(reverseDistractorPool()).slice(0, 3);
+  const distractors = shuffle(reverseDistractorPool()).slice(0, (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1);
   const options = shuffle([target].concat(distractors));
   el("promptText").innerHTML = "Which one is <i class='notranslate'>" + escapeHtml(answerLabelFor(target)) + "</i>?";
   ["hintArea", "choiceArea", "studyAnswer"].forEach((id) => el(id).classList.add("hidden"));
@@ -2767,7 +2897,7 @@ function pickDistractors(excludeId, n) {
 let currentChoices = [];   // the option objects on screen, for confusion logging
 function renderChoices() {
   const correct = { taxonId: game.current.taxonId, scientificName: game.current.scientificName, commonName: game.current.commonName };
-  currentChoices = shuffle([correct].concat(pickDistractors(correct.taxonId, 3)));
+  currentChoices = shuffle([correct].concat(pickDistractors(correct.taxonId, (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1)));
   el("choiceArea").innerHTML = currentChoices.map((o) =>
     "<button type='button' class='choice notranslate' data-taxon='" + o.taxonId + "'>" +
       escapeHtml(answerLabelFor(o)) + "</button>").join("");
@@ -3490,8 +3620,10 @@ function showFeedback(wasCorrect, typed) {
   const q = game.current;
   const learnMore = "<a class='fb-learn' href='" + learnMoreUrl(q) + "' target='_blank' rel='noopener'>" +
     "🔍 Do you want to learn more about this " + subjectNoun() + "?</a>";
-  // Aid A — side-by-side compare after a real look-alike miss.
-  const compare = (game.compareMiss && !wasCorrect && game.lastGuess && game.media === "photo")
+  // Always show the two side by side after a real look-alike miss — whenever we
+  // have the wrong species you actually picked and a photo to show for it, the
+  // right answer sits next to your wrong one so you learn what tells them apart.
+  const compare = (!wasCorrect && game.lastGuess && game.media === "photo")
     ? compareBlockHtml(q, game.lastGuess) : "";
   // Aid E — a slot for the personal memory note.
   const note = game.mnemonics ? "<div id='fbNote' class='fb-note'></div>" : "";
@@ -4041,6 +4173,11 @@ function wireControls() {
     answerModeChoice = e.target.dataset.answerMode;
     renderAnswerModeChips();
   });
+  el("choiceCountChips").addEventListener("click", (e) => {
+    if (e.target.dataset.choiceCount === undefined) return;
+    choiceCountChoice = Number(e.target.dataset.choiceCount);
+    renderChoiceCountChips();
+  });
   el("certChips").addEventListener("click", (e) => {
     if (e.target.dataset.cert === undefined) return;
     certChoice = e.target.dataset.cert;
@@ -4051,6 +4188,14 @@ function wireControls() {
     taxonomyChoice = e.target.dataset.taxonomy;
     renderCertChips();
   });
+  // The quiet "view species" link lives inside the certificate hint text.
+  el("certHint").addEventListener("click", (e) => {
+    const link = e.target.closest("[data-cert-list]");
+    if (link) openCertList(link.dataset.certList);
+  });
+  el("certListClose").addEventListener("click", closeCertList);
+  el("certListModal").addEventListener("click", (e) => { if (e.target.id === "certListModal") closeCertList(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !el("certListModal").classList.contains("hidden")) closeCertList(); });
   // learning-aid toggles: keep the "· N on" summary badge in sync
   AID_TOGGLE_IDS.forEach((id) => el(id).addEventListener("change", renderAidsCount));
 
