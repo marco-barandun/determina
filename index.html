@@ -51,18 +51,23 @@
   /*  colours and toy-block buttons.                                        */
   /* ====================================================================== */
   :root {
+    /* Correct vs wrong is signalled by hue AND shape AND lightness, so it reads
+       for red-green colour-blindness too: correct = green + ✓, wrong = a warm
+       ORANGE (not red) + ✗. Green and orange stay distinct under deuteranopia/
+       protanopia (orange keeps its yellow), where green and red would collapse
+       into the same khaki. The ✓/✗ marks make it unambiguous regardless. */
     --green:       #4a7c59;   /* primary action / correct — a muted forest green */
     --green-hover: #588f68;
     --green-dark:  #34573f;   /* the "pressed" shade under buttons               */
-    --green-soft:  #e7efe3;   /* correct banner background                       */
-    --green-text:  #3f6b4c;
+    --green-soft:  #e3efdd;   /* correct banner background                       */
+    --green-text:  #326043;
     --blue:        #4d7c8c;   /* info / secondary — a dusty teal                 */
     --blue-dark:   #3a616e;
     --gold:        #b8873c;   /* streak / xp — a warm antique gold               */
-    --red:         #b5563f;   /* wrong — a muted terracotta                      */
-    --red-dark:    #90432f;
-    --red-soft:    #f3e4de;   /* wrong banner background                         */
-    --red-text:    #9c4a34;
+    --red:         #d1662e;   /* wrong — a warm burnt orange (CVD-distinct from green) */
+    --red-dark:    #ac4f1e;
+    --red-soft:    #fbe6d6;   /* wrong banner background                         */
+    --red-text:    #b0521f;
 
     --ink:    #3a352e;        /* main text — warm near-black  */
     --muted:  #7c7367;        /* secondary                    */
@@ -174,12 +179,12 @@
   /* ====================================================================== */
   /*  Setup screen                                                          */
   /* ====================================================================== */
-  .setup { padding: 26px 18px 30px; gap: 4px; }
-  .brand { text-align: center; margin-bottom: 18px; }
-  .mascot { width: 84px; height: 84px; margin: 0 auto 8px; }
-  .brand h1 { font-family: var(--font-display); font-size: 32px; font-weight: 600; font-style: italic;
+  .setup { padding: 22px 18px 30px; gap: 4px; }
+  .brand { text-align: center; margin-bottom: 16px; }
+  .mascot { width: 62px; height: 62px; margin: 0 auto 6px; }
+  .brand h1 { font-family: var(--font-display); font-size: 27px; font-weight: 600; font-style: italic;
               color: var(--green-dark); margin: 0; }
-  .brand .tagline { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
+  .brand .tagline { color: var(--muted); margin: 3px 0 0; font-size: 13.5px; }
   .card {
     background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius);
     padding: 18px; margin-bottom: 14px;
@@ -189,6 +194,37 @@
   .card-title { font-family: var(--font-display); font-size: 19px; font-weight: 600; font-style: italic;
     color: var(--green-dark); margin: -2px 0 4px; }
   .card-title + .card-sub { color: var(--muted); font-size: 12.5px; font-weight: 700; margin: 0 0 16px; }
+
+  /* Collapsible section — same visual weight as a card, but closed by default
+     with a summary of its current settings, so the setup screen opens calm and
+     you only unfold what you actually want to change. */
+  .fold { background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+  .fold > summary { list-style: none; cursor: pointer; padding: 16px 18px; display: flex; align-items: center; gap: 10px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary:hover .fold-title { color: var(--green); }
+  .fold-title { font-family: var(--font-display); font-size: 19px; font-weight: 600; font-style: italic;
+    color: var(--green-dark); flex: none; }
+  .fold-sum { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: right; }
+  .fold-chev { width: 18px; height: 18px; color: var(--faint); transition: transform .2s; flex: none; }
+  .fold[open] > summary .fold-chev { transform: rotate(180deg); }
+  .fold-body { padding: 2px 18px 18px; }
+  /* A quieter fold nested inside a card (e.g. certificates within "What to learn"). */
+  .subfold { border-top: 2px solid var(--line); margin-top: 18px; padding-top: 14px; }
+  .subfold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 800; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+  .subfold > summary::-webkit-details-marker { display: none; }
+  .subfold > summary:hover { color: var(--muted); }
+  .subfold > summary .fold-chev { margin-left: auto; }
+  .subfold-body { margin-top: 16px; }
+  .subfold-sum { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--muted); }
+  .subfold-sum + .fold-chev { margin-left: 8px; }
+  /* Slim "playing as" row — an identity line, not a whole card. */
+  .player-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .player-bar .pb-label { font-size: 12px; font-weight: 800; color: var(--faint);
+    text-transform: uppercase; letter-spacing: .07em; flex: none; }
+  .player-bar .select { flex: 1; padding: 9px 12px; font-size: 14px; }
+  .player-bar .icon-btn { padding: 4px; }
+  .player-bar .icon-btn svg { width: 18px; height: 18px; }
   .field { margin-bottom: 18px; }
   .field:last-child { margin-bottom: 0; }
   .field.dim { opacity: .4; }   /* the group picker, when a certificate overrides it */
@@ -247,7 +283,27 @@
   .cert-list-num { color: var(--faint); font-size: 11px; min-width: 26px; text-align: right; }
   .cert-list-name { font-style: italic; font-weight: 800; font-size: 13.5px; }
   .cert-list-alt { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+  /* Custom-list editor */
+  .list-editor-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .list-names { width: 100%; min-height: 150px; resize: vertical; font-family: var(--font); font-weight: 700;
+    font-size: 14px; color: var(--ink); background: var(--bg-2); border: 2px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; line-height: 1.5; }
+  .list-names:focus { outline: none; border-color: var(--blue); background: var(--bg); }
+  .list-editor-row { display: flex; gap: 10px; }
+  .list-editor-row .btn { flex: 1; padding: 11px; }
+  .list-upload-btn { text-align: center; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .list-resolve-status { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .list-resolve-status .ok { color: var(--green-text); } .list-resolve-status .bad { color: var(--red-text); }
+  #listPreview { max-height: 34vh; }
+  .cert-list-row.bad .cert-list-name { font-style: normal; color: var(--red-text); text-decoration: line-through; }
+  .cert-list-row .cl-badge { margin-left: auto; font-size: 11px; font-weight: 800; }
+  .cert-list-row.bad .cl-badge { color: var(--red-text); } .cert-list-row.ok .cl-badge { color: var(--green-text); }
+  .list-editor-foot { display: flex; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--line); }
+  .list-editor-foot .btn { flex: 1; }
   .aids-body .toggle { margin-bottom: 0; }
+  /* A quiet label grouping the optional learning aids inside Options. */
+  .aids-divider { border-top: 2px solid var(--line); margin: 4px 0 16px; padding-top: 14px;
+    font-size: 13px; font-weight: 800; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
 
   .setup .btn-big { margin-bottom: 10px; }
 
@@ -270,6 +326,7 @@
   .prompt-banner .pb-go { flex: none; font-size: 18px; }
   .prompt-banner.due { background: var(--green); color: #fff; }
   .prompt-banner.drill { background: var(--blue); color: #fff; }
+  .prompt-banner.focus { background: var(--red); color: #fff; }
 
   /* Practice heatmap (progress → Over time) */
   .heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; margin: 4px 0 8px; }
@@ -407,8 +464,14 @@
   }
   .choice:hover:not(:disabled) { border-color: var(--blue); background: var(--bg); }
   .choice:disabled { cursor: default; }
+  .choice.right, .choice.wrong { position: relative; }
   .choice.right { background: var(--green-soft); border-color: var(--green); color: var(--green-text); }
   .choice.wrong { background: var(--red-soft); border-color: var(--red); color: var(--red-text); }
+  /* ✓/✗ so the marked answer reads without relying on the green/orange fill. */
+  .choice.right::after, .choice.wrong::after {
+    position: absolute; top: 5px; right: 8px; font-size: 14px; font-weight: 900; font-style: normal; line-height: 1; }
+  .choice.right::after { content: "✓"; color: var(--green); }
+  .choice.wrong::after { content: "✕"; color: var(--red); }
   @media (max-width: 360px) { .choice-area { grid-template-columns: 1fr; } }
 
   /* Study ("flashcard") mode — the answer shown with the photo, no test. */
@@ -427,8 +490,16 @@
     background: var(--bg-2); aspect-ratio: 1; }
   .rev-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .rev-photo:hover:not(:disabled) { border-color: var(--blue); }
+  .rev-photo { position: relative; }
   .rev-photo.right { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
   .rev-photo.wrong { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+  /* Corner ✓/✗ badge so the picked/correct tile is clear without colour. */
+  .rev-photo.right::after, .rev-photo.wrong::after {
+    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 900; line-height: 1;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .rev-photo.right::after { content: "✓"; background: var(--green); }
+  .rev-photo.wrong::after { content: "✕"; background: var(--red); }
   .rev-photo:disabled { cursor: default; }
 
   /* Compare-after-a-miss (aid A): the two look-alikes side by side. */
@@ -467,17 +538,46 @@
   .action-row .btn-ghost { flex: none; }
   .action-row .btn-primary { flex: 1; }
   .feedback { display: none; }
-  .feedback.show { display: block; animation: slideUp .2s ease; }
+  .feedback.show { display: block; }
+  /* A strong, unmistakable banner: tinted background + a coloured accent bar +
+     an animation that differs by outcome (a satisfying pop for right, a shake
+     for wrong) — a redundant, non-colour cue on top of the ✓/✗ badge. */
+  .feedback.show.correct, .feedback.show.wrong {
+    padding: 14px; border-radius: 14px; border: 2px solid; border-left-width: 7px;
+  }
+  .feedback.show.correct { background: var(--green-soft); border-color: var(--green); animation: fbPopIn .34s cubic-bezier(.2,1.25,.4,1); }
+  .feedback.show.wrong   { background: var(--red-soft);   border-color: var(--red);   animation: fbShake .42s ease both; }
   /* fb-* is shared between the feedback banner and the learn-more pop-up's
      result header (see .learn-result below) — kept unscoped so both can use it. */
   .fb-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .fb-icon {
+    position: relative;
     width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; flex: none;
     background: #fbf3e4; border: 2px solid var(--line);
   }
   .fb-icon svg { width: 52px; height: 52px; }
-  .fb-icon.legendary { animation: wiggle .5s ease-in-out infinite; }
+  /* The decisive right/wrong mark — a shape, so it never depends on colour. */
+  .fb-icon.ok, .fb-icon.bad { border-color: transparent; }
+  .fb-icon.ok  { background: var(--green-soft); }
+  .fb-icon.bad { background: var(--red-soft); }
+  .fb-icon.ok::after, .fb-icon.bad::after {
+    position: absolute; right: -4px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 15px; font-weight: 900; color: #fff;
+    border: 2.5px solid var(--bg); line-height: 1;
+  }
+  .fb-icon.ok::after  { content: "✓"; background: var(--green); }
+  .fb-icon.bad::after { content: "✕"; background: var(--red); }
+  /* Per-mood entrance so the cow's reaction lands emotionally, not just visually. */
+  .fb-icon.happy     { animation: cowBounce .5s ease both; }
+  .fb-icon.combo     { animation: cowBounce .55s ease both; }
+  .fb-icon.ecstatic  { animation: cowPop .6s cubic-bezier(.2,1.3,.4,1) both; }
+  .fb-icon.legendary { animation: cowPop .6s cubic-bezier(.2,1.3,.4,1) both, wiggle .55s ease-in-out .6s infinite; }
+  .fb-icon.genus     { animation: cowTilt .5s ease both; }
+  .fb-icon.miss      { animation: cowShake .5s ease both; }
   .fb-combo { font-size: 13px; font-weight: 800; color: var(--gold); margin: 1px 0 2px; }
+  .fb-quip { font-size: 13px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+  .feedback.correct .fb-quip { color: var(--green-text); }
+  .feedback.wrong .fb-quip { color: var(--red-text); }
   .fb-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
   .fb-name { font-style: italic; font-weight: 800; }
   .fb-common { font-style: normal; font-weight: 700; color: inherit; opacity: .8; }
@@ -617,6 +717,17 @@
     25% { transform: rotate(-9deg) scale(1.07); }
     75% { transform: rotate(9deg) scale(1.07); }
   }
+  /* Answer-feedback banner entrances: a springy pop for right, a shake for wrong. */
+  @keyframes fbPopIn { 0%{transform:scale(.95);opacity:0;} 55%{transform:scale(1.015);} 100%{transform:scale(1);opacity:1;} }
+  @keyframes fbShake {
+    0%{transform:translateX(0);} 15%{transform:translateX(-8px);} 30%{transform:translateX(7px);}
+    45%{transform:translateX(-5px);} 60%{transform:translateX(4px);} 75%{transform:translateX(-2px);} 100%{transform:translateX(0);}
+  }
+  /* The cow's reaction — a distinct little performance per mood. */
+  @keyframes cowBounce { 0%{transform:translateY(0) scale(.7);opacity:0;} 55%{transform:translateY(-9px) scale(1.08);} 80%{transform:translateY(0) scale(.97);} 100%{transform:translateY(0) scale(1);opacity:1;} }
+  @keyframes cowPop { 0%{transform:scale(.4) rotate(-10deg);opacity:0;} 55%{transform:scale(1.22) rotate(5deg);} 78%{transform:scale(.94);} 100%{transform:scale(1) rotate(0);opacity:1;} }
+  @keyframes cowTilt { 0%{transform:rotate(0) scale(.85);opacity:0;} 45%{transform:rotate(-7deg) scale(1.05);} 75%{transform:rotate(4deg);} 100%{transform:rotate(0) scale(1);opacity:1;} }
+  @keyframes cowShake { 0%{transform:translateX(0) scale(.9);opacity:0;} 25%{transform:translateX(-6px);opacity:1;} 45%{transform:translateX(6px);} 65%{transform:translateX(-4px);} 85%{transform:translateX(2px);} 100%{transform:translateX(0) scale(1);} }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -643,25 +754,22 @@
          renderSetupStatus() from the active player's saved history. -->
     <div id="setupStatus" class="setup-status"></div>
 
-    <!-- Player identity. -->
-    <div class="card">
-      <div class="field" style="margin-bottom:0;">
-        <div class="field-label">Playing as</div>
-        <div class="player-row">
-          <select id="profileSelect" class="select"></select>
-          <button id="renameProfileBtn" class="icon-btn" type="button" aria-label="Rename this player">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
-        </div>
-        <input id="renameInput" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
-        <input id="newProfileName" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
-      </div>
+    <!-- Player identity — a slim line, not a card. -->
+    <div class="player-bar">
+      <span class="pb-label">Playing as</span>
+      <select id="profileSelect" class="select"></select>
+      <button id="renameProfileBtn" class="icon-btn" type="button" aria-label="Rename this player">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
     </div>
+    <input id="renameInput" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-bottom:14px;">
+    <input id="newProfileName" class="input hidden" placeholder="Your name" autocomplete="off" style="margin-bottom:14px;">
 
-    <!-- WHAT to learn: the subject — a group, or a certificate, plus where. -->
+    <!-- The only decision you actually have to make, so it's the only card
+         that starts open. Everything else folds away below. -->
     <div class="card">
       <div class="card-title">What to learn</div>
-      <p class="card-sub">Pick a group of species, or study for a certificate.</p>
+      <p class="card-sub">Pick a group and a place — that's enough to start.</p>
 
       <div class="field" id="taxonField">
         <div class="field-label">Group of species</div>
@@ -672,14 +780,7 @@
         <div id="taxonChips" class="chips"></div>
       </div>
 
-      <div class="field" id="certField">
-        <div class="field-label">…or study for a certificate</div>
-        <div id="certChips" class="chips"></div>
-        <div id="certHint" class="hint" style="margin-top:8px;"></div>
-        <div id="taxonomyChips" class="chips hidden"></div>
-      </div>
-
-      <div class="field">
+      <div class="field" style="margin-bottom:0;">
         <div class="field-label">Where?</div>
         <div class="search">
           <input id="regionSearch" class="input" placeholder="Search a place — pick more than one if you like" autocomplete="off" spellcheck="false">
@@ -688,124 +789,171 @@
         <div id="regionChips" class="chips"></div>
       </div>
 
-      <label class="toggle field" style="margin-bottom:0;">
-        <span>
-          <b>Start with common species</b>
-          <span class="hint">New here? Quiz only the ~30 species you're most likely to actually see — build a foundation before the rare ones.</span>
-        </span>
-        <input id="commonToggle" type="checkbox">
-        <span class="switch"></span>
-      </label>
-    </div>
-
-    <!-- HOW to practise: media, answer style, and round length. -->
-    <div class="card">
-      <div class="card-title">How to practise</div>
-      <p class="card-sub">How you're shown each species, and how you answer.</p>
-
-      <div class="field">
-        <div class="field-label">Identify by</div>
-        <div id="mediaChips" class="chips"></div>
-      </div>
-
-      <div class="field">
-        <div class="field-label">Answer by</div>
-        <div id="answerModeChips" class="chips"></div>
-        <div id="answerModeHint" class="hint" style="margin-top:8px;"></div>
-      </div>
-
-      <div class="field hidden" id="choiceCountField">
-        <div class="field-label">How many choices?</div>
-        <div id="choiceCountChips" class="chips"></div>
-      </div>
-
-      <div class="field" style="margin-bottom:0;">
-        <div class="field-label">How many species per round?</div>
-        <div id="roundSizeChips" class="chips"></div>
-      </div>
-    </div>
-
-    <!-- OPTIONS: everything else, least prominent. -->
-    <div class="card">
-      <div class="card-title">Options</div>
-
-      <label class="toggle field">
-        <span>
-          <b>Repeat species</b>
-          <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
-        </span>
-        <input id="repeatToggle" type="checkbox" checked>
-        <span class="switch"></span>
-      </label>
-
-      <label class="toggle field">
-        <span>
-          <b>Suggest names as I type</b>
-          <span class="hint">Type <i>dro rot</i> → pick <i>Drosera rotundifolia</i>. Turn off to type every name in full.</span>
-        </span>
-        <input id="assistToggle" type="checkbox" checked>
-        <span class="switch"></span>
-      </label>
-
-      <label class="toggle field">
-        <span>
-          <b>Answer with common names</b>
-          <span class="hint">Type <i>dandelion</i> instead of <i>Taraxacum officinale</i>. Species without a common name still fall back to the scientific one.</span>
-        </span>
-        <input id="commonNamesToggle" type="checkbox">
-        <span class="switch"></span>
-      </label>
-
-      <label class="toggle field">
-        <span>
-          <b>Show distribution &amp; facts after each answer</b>
-          <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
-        </span>
-        <input id="learnMoreToggle" type="checkbox">
-        <span class="switch"></span>
-      </label>
-
-      <div class="field">
-        <div class="field-label">Translate this page</div>
-        <select id="langSelect" class="select notranslate"></select>
-        <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
-      </div>
-
-      <!-- Optional learning extras, tucked behind a collapsible so they never
-           clutter the main setup. Each is independently switchable. -->
-      <details class="aids">
+      <!-- Certificates + your own lists: a specialist path, folded away until
+           wanted. Opens automatically when one is already selected. -->
+      <details class="subfold" id="fixedListFold">
         <summary>
-          <span>Learning aids <span id="aidsCount" class="aids-count"></span></span>
-          <svg class="aids-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <span>Certificates &amp; my lists</span>
+          <span class="subfold-sum" id="fixedListSummary"></span>
+          <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </summary>
-        <div class="aids-body">
-          <label class="toggle">
-            <span>
-              <b>Also ask in reverse</b>
-              <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
-            </span>
-            <input id="reverseToggle" type="checkbox">
-            <span class="switch"></span>
-          </label>
-          <label class="toggle">
-            <span>
-              <b>Rate how well you knew it</b>
-              <span class="hint">After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).</span>
-            </span>
-            <input id="selfRateToggle" type="checkbox">
-            <span class="switch"></span>
-          </label>
-          <label class="toggle" style="margin-bottom:0;">
-            <span>
-              <b>Let me add memory notes</b>
-              <span class="hint">Jot a private cue on any species (“round leaves”). It reappears when that species comes back.</span>
-            </span>
-            <input id="mnemonicToggle" type="checkbox">
-            <span class="switch"></span>
-          </label>
+        <div class="subfold-body">
+          <div class="field" id="certField">
+            <div class="field-label">Study for a certificate</div>
+            <div id="certChips" class="chips"></div>
+            <div id="certHint" class="hint" style="margin-top:8px;"></div>
+            <div id="taxonomyChips" class="chips hidden"></div>
+          </div>
+          <div class="field" id="listField" style="margin-bottom:0;">
+            <div class="field-label">…or your own list</div>
+            <div id="listChips" class="chips"></div>
+            <div id="listHint" class="hint" style="margin-top:8px;"></div>
+          </div>
         </div>
       </details>
     </div>
+
+    <!-- HOW to practise — folded, with the current choices in the summary. -->
+    <details class="fold" id="practiseFold">
+      <summary>
+        <span class="fold-title">How to practise</span>
+        <span class="fold-sum" id="practiseSummary"></span>
+        <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="fold-body">
+        <div class="field">
+          <div class="field-label">Identify by</div>
+          <div id="mediaChips" class="chips"></div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Answer by</div>
+          <div id="answerModeChips" class="chips"></div>
+          <div id="answerModeHint" class="hint" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="field hidden" id="choiceCountField">
+          <div class="field-label">How many choices?</div>
+          <div id="choiceCountChips" class="chips"></div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">How many species per round?</div>
+          <div id="roundSizeChips" class="chips"></div>
+        </div>
+
+        <label class="toggle field" style="margin-bottom:0;">
+          <span>
+            <b>Start with common species</b>
+            <span class="hint">Quiz only the ~30 species you're most likely to actually see.</span>
+          </span>
+          <input id="commonToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+      </div>
+    </details>
+
+    <!-- OPTIONS — folded, and says whether anything's been changed. -->
+    <details class="fold" id="optionsFold">
+      <summary>
+        <span class="fold-title">Options</span>
+        <span class="fold-sum" id="optionsSummary"></span>
+        <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="fold-body">
+        <label class="toggle field">
+          <span>
+            <b>Repeat species</b>
+            <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
+          </span>
+          <input id="repeatToggle" type="checkbox" checked>
+          <span class="switch"></span>
+        </label>
+
+        <label class="toggle field">
+          <span>
+            <b>Suggest names as I type</b>
+            <span class="hint">Type <i>dro rot</i> → pick <i>Drosera rotundifolia</i>. Turn off to type every name in full.</span>
+          </span>
+          <input id="assistToggle" type="checkbox" checked>
+          <span class="switch"></span>
+        </label>
+
+        <label class="toggle field">
+          <span>
+            <b>Answer with common names</b>
+            <span class="hint">Type <i>dandelion</i> instead of <i>Taraxacum officinale</i>. Species without a common name still fall back to the scientific one.</span>
+          </span>
+          <input id="commonNamesToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+
+        <label class="toggle field">
+          <span>
+            <b>Show distribution &amp; facts after each answer</b>
+            <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
+          </span>
+          <input id="learnMoreToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+
+        <label class="toggle field">
+          <span>
+            <b>Reveal the iNaturalist observation link after answering</b>
+            <span class="hint">The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.</span>
+          </span>
+          <input id="revealObsToggle" type="checkbox" checked>
+          <span class="switch"></span>
+        </label>
+
+        <div class="field">
+          <div class="field-label">Clear a difficult species after…</div>
+          <div id="difficultThresholdChips" class="chips"></div>
+          <div class="hint" style="margin-top:8px;">Correct answers in a row before a species drops off your difficult list.</div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Translate this page</div>
+          <select id="langSelect" class="select notranslate"></select>
+          <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
+        </div>
+
+        <div class="aids-divider">Learning aids</div>
+
+        <label class="toggle field">
+          <span>
+            <b>Also ask in reverse</b>
+            <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
+          </span>
+          <input id="reverseToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+        <label class="toggle field">
+          <span>
+            <b>Rate how well you knew it</b>
+            <span class="hint">After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).</span>
+          </span>
+          <input id="selfRateToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+        <label class="toggle field">
+          <span>
+            <b>Let me add memory notes</b>
+            <span class="hint">Jot a private cue on any species (“round leaves”). It reappears when that species comes back.</span>
+          </span>
+          <input id="mnemonicToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+        <label class="toggle field" style="margin-bottom:0;">
+          <span>
+            <b>Offer the observation's location as a hint</b>
+            <span class="hint">Adds “where it was seen” to the hint ladder in Type mode — a geographic nudge toward the answer.</span>
+          </span>
+          <input id="locationHintToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+      </div>
+    </details>
 
     <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
     <button id="progressBtnSetup" class="btn btn-ghost btn-big">My progress</button>
@@ -898,6 +1046,36 @@
     </div>
     <div id="certListNote" class="cert-modal-note"></div>
     <div id="certList" class="cert-list notranslate"></div>
+  </div>
+</div>
+
+<!-- ===================== CUSTOM LIST EDITOR ============================
+     Create or edit your own list of taxa: name it, paste (or upload) species
+     names one per line, resolve them to iNaturalist, then save. -->
+<div id="listEditor" class="cert-modal hidden">
+  <div class="cert-modal-panel">
+    <div class="cert-modal-head">
+      <h3 id="listEditorTitle">New list</h3>
+      <button id="listEditorClose" class="cm-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="list-editor-body">
+      <input id="listNameInput" class="input" placeholder="List name — e.g. “Exam revision”" autocomplete="off">
+      <textarea id="listNamesInput" class="list-names notranslate" placeholder="One species per line — scientific or common names&#10;Trifolium pratense&#10;Bellis perennis&#10;dandelion"></textarea>
+      <div class="list-editor-row">
+        <label class="btn btn-ghost list-upload-btn">Upload a file
+          <input id="listFileInput" type="file" accept=".txt,.csv,text/plain,text/csv" hidden>
+        </label>
+        <button id="listResolveBtn" class="btn btn-blue">Resolve names</button>
+      </div>
+      <div id="listResolveStatus" class="list-resolve-status"></div>
+      <div id="listPreview" class="cert-list notranslate"></div>
+    </div>
+    <div class="list-editor-foot">
+      <button id="listDeleteBtn" class="btn btn-ghost hidden">Delete list</button>
+      <button id="listSaveBtn" class="btn btn-primary" disabled>Save list</button>
+    </div>
   </div>
 </div>
 
@@ -1026,6 +1204,10 @@ const DEFAULT_ANSWER_MODE = "type";
 // is a gentler on-ramp; more is a harder test.
 const CHOICE_COUNT_OPTIONS = [2, 3, 4, 6];
 const DEFAULT_CHOICE_COUNT = 4;
+// The difficult-species list: a species graduates out after this many correct
+// answers in a row (configurable in Options).
+const DEFAULT_DIFFICULT_THRESHOLD = 3;
+const DIFFICULT_THRESHOLD_OPTIONS = [2, 3, 5];
 const TOP_UP_AT  = 5;     // refill the question queue when it drops this low
 const MAX_MEDIA_PER_QUESTION = 6;   // cap the photo/sound gallery per species shown
 const PLANTAE_ID = 47126; // the Plantae kingdom id (stable) — the default group
@@ -1170,6 +1352,7 @@ function toQuestions(observations) {
         taxonId: obs.taxon.id,
         scientificName: obs.taxon.name,
         commonName: obs.taxon.preferred_common_name || "",
+        location: obs.place_guess || "",   // human-readable place, for the optional location hint
       };
       if (wantSound) {
         // Keep every clip of the observation (capped, same idea as photos
@@ -1214,6 +1397,9 @@ const game = {
   assist: true,
   useCommonNames: false,   // type/match against the common name instead of the scientific one
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
+  revealObs: true,    // reveal the iNaturalist observation link AFTER answering (never before — no cheating)
+  locationHint: false,   // offer the observation's place as a progressive hint
+  difficultThreshold: DEFAULT_DIFFICULT_THRESHOLD,   // consecutive correct answers to graduate a species out of the difficult list
   roundSize: DEFAULT_ROUND_SIZE,   // how many species per round — Infinity means "no limit"
   allowRepeats: true,              // false = every species appears at most once per round
   taxonIds: String(PLANTAE_ID),
@@ -1245,8 +1431,10 @@ const game = {
   confusions: new Map(),    // "idA_idB" -> { key, a, b, count } (feature: look-alike drills)
   daily: {},                // "YYYY-MM-DD" -> species answered that day (feature: daily streak)
   notes: {},                // taxonId -> personal memory note (aid E)
+  difficult: new Map(),     // taxonId -> { taxonId, scientificName, commonName, streak, wrong, addedAt } (feature: difficult list)
   familyCache: new Map(),   // taxonId -> { taxonId, familyName, isFamily } (shared)
   compares: [],             // other people's summaries, imported from share-codes
+  customLists: [],          // user-made taxa lists [{ id, name, taxa:[{id,scientificName,commonName}] }] (feature: my lists)
 };
 
 // -- spaced repetition (Leitner boxes) ------------------------------------
@@ -1325,7 +1513,8 @@ const currentProfile = () => game.profiles.get(game.activeId);
 
 function createProfile(name) {
   const profile = { id: newProfileId(), name: name || "Player", createdAt: Date.now(),
-                    stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {}, notes: {} };
+                    stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {}, notes: {},
+                    difficult: new Map() };
   game.profiles.set(profile.id, profile);
   activateProfile(profile.id);
   return profile;
@@ -1350,6 +1539,7 @@ function activateProfile(id) {
   game.confusions = p.confusions;
   game.daily = p.daily;
   game.notes = p.notes;
+  game.difficult = p.difficult;
   saveStore();
 }
 
@@ -1359,11 +1549,13 @@ function saveStore() {
       id: p.id, name: p.name, createdAt: p.createdAt,
       stats: [...p.stats.values()], snapshots: p.snapshots,
       srs: [...p.srs.values()], confusions: [...p.confusions.values()], daily: p.daily, notes: p.notes,
+      difficult: [...(p.difficult ? p.difficult.values() : [])],
     }));
     localStorage.setItem(STORE_KEY, JSON.stringify({
       activeId: game.activeId,
       families: [...game.familyCache.values()],
       compares: game.compares,
+      customLists: game.customLists,
       profiles,
     }));
   } catch (err) { /* storage blocked (e.g. preview sandbox) — memory only */ }
@@ -1376,13 +1568,15 @@ function loadStore() {
   if (saved && saved.profiles) {
     (saved.families || []).forEach((f) => game.familyCache.set(f.taxonId, f));
     game.compares = saved.compares || [];
+    game.customLists = saved.customLists || [];
     saved.profiles.forEach((p) => {
       const stats = new Map((p.stats || []).map((s) => [s.taxonId, s]));
       const srs = new Map((p.srs || []).map((e) => [e.taxonId, e]));
       const confusions = new Map((p.confusions || []).map((c) => [c.key, c]));
+      const difficult = new Map((p.difficult || []).map((d) => [d.taxonId, d]));
       game.profiles.set(p.id, { id: p.id, name: p.name, createdAt: p.createdAt,
                                 stats, snapshots: p.snapshots || [],
-                                srs, confusions, daily: p.daily || {}, notes: p.notes || {} });
+                                srs, confusions, daily: p.daily || {}, notes: p.notes || {}, difficult });
     });
     game.activeId = saved.activeId;
   } else {
@@ -1397,6 +1591,7 @@ function loadStore() {
   }
   const p = currentProfile();
   game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily; game.notes = p.notes;
+  game.difficult = p.difficult;
   saveStore();
 }
 
@@ -1422,6 +1617,40 @@ function recordResult(question, wasCorrect) {
   if (wasCorrect) stat.correct += 1; else stat.wrong += 1;
   game.stats.set(question.taxonId, stat);
   saveStore();
+}
+
+// -- difficult species: a persistent "these trip me up" list --------------
+// A miss (or a hinted win — you didn't really know it) puts a species on the
+// list and resets its run. Clean wins build a streak; hit the threshold and it
+// graduates off the list. Runs on every tested answer so a focus session can
+// clear species out as you master them.
+function recordDifficult(question, wasCorrect, weak) {
+  const id = question.taxonId;
+  const existing = game.difficult.get(id);
+  if (wasCorrect && !weak) {
+    if (!existing) return;                 // not on the list — nothing to do
+    existing.streak = (existing.streak || 0) + 1;
+    existing.scientificName = question.scientificName;
+    existing.commonName = question.commonName;
+    if (existing.streak >= (game.difficultThreshold || DEFAULT_DIFFICULT_THRESHOLD)) {
+      game.difficult.delete(id);           // graduated
+    } else {
+      game.difficult.set(id, existing);
+    }
+  } else {
+    const e = existing || { taxonId: id, scientificName: question.scientificName,
+      commonName: question.commonName, streak: 0, wrong: 0, addedAt: Date.now() };
+    e.streak = 0;
+    e.wrong = (e.wrong || 0) + 1;
+    e.scientificName = question.scientificName;
+    e.commonName = question.commonName;
+    game.difficult.set(id, e);
+  }
+  saveStore();
+}
+// The difficult list as playable species, hardest (most misses) first.
+function difficultList() {
+  return [...game.difficult.values()].sort((a, b) => (b.wrong || 0) - (a.wrong || 0));
 }
 
 // -- spaced repetition: schedule when to re-ask each species --------------
@@ -1899,19 +2128,23 @@ let roundSizeChoice = DEFAULT_ROUND_SIZE;   // which "How many species?" chip is
 let mediaChoice = DEFAULT_MEDIA;            // which "How do you want to identify?" chip is picked
 let answerModeChoice = DEFAULT_ANSWER_MODE; // which "How do you want to answer?" chip is picked
 let choiceCountChoice = DEFAULT_CHOICE_COUNT; // how many options in Choose / reverse modes
+let difficultThresholdChoice = DEFAULT_DIFFICULT_THRESHOLD; // consecutive correct to clear a difficult species
 let certChoice = "none";                    // which certificate is selected ("none" | "200" | "400" | "600")
 let taxonomyChoice = "checklist";           // certificate naming: "checklist" (exam/monitoring names) | "inat"
+let listChoice = "none";                    // which custom list is selected ("none" | list id)
 
 function renderRoundSizeChips() {
   el("roundSizeChips").innerHTML = ROUND_SIZE_OPTIONS.map((opt) =>
     "<button class='chip" + (opt.value === roundSizeChoice ? " active" : "") + "' data-round-size='" + opt.value + "'>" +
       escapeHtml(opt.label) + "</button>").join("");
+  renderFoldSummaries();
 }
 
 function renderMediaChips() {
   el("mediaChips").innerHTML = MEDIA_OPTIONS.map((opt) =>
     "<button class='chip" + (opt.value === mediaChoice ? " active" : "") + "' data-media='" + opt.value + "'>" +
       opt.icon + escapeHtml(opt.label) + "</button>").join("");
+  renderFoldSummaries();
 }
 
 function renderAnswerModeChips() {
@@ -1921,12 +2154,21 @@ function renderAnswerModeChips() {
   el("answerModeHint").textContent = ANSWER_MODE_HINTS[answerModeChoice];
   // "How many choices?" only applies to Choose mode.
   el("choiceCountField").classList.toggle("hidden", answerModeChoice !== "choose");
+  renderFoldSummaries();
 }
 
 function renderChoiceCountChips() {
   el("choiceCountChips").innerHTML = CHOICE_COUNT_OPTIONS.map((n) =>
     "<button class='chip" + (n === choiceCountChoice ? " active" : "") + "' data-choice-count='" + n + "'>" +
       n + "</button>").join("");
+  renderFoldSummaries();
+}
+
+function renderDifficultThresholdChips() {
+  el("difficultThresholdChips").innerHTML = DIFFICULT_THRESHOLD_OPTIONS.map((n) =>
+    "<button class='chip" + (n === difficultThresholdChoice ? " active" : "") + "' data-difficult-threshold='" + n + "'>" +
+      n + " in a row</button>").join("");
+  renderFoldSummaries();
 }
 
 // How many of a certificate's species the active player has already seen /
@@ -1957,14 +2199,12 @@ function renderCertChips() {
   if (!c) {
     hint.textContent = "";
     taxo.classList.add("hidden");
-    el("taxonField").classList.remove("dim");
   } else {
     const p = certProgress(c);
     hint.innerHTML = "Quizzes exactly these species (overrides the group above). " +
       "<b>" + p.mastered + "</b> mastered · " + p.seen + " seen of <b>" + p.total + "</b>." +
       "<br><button type='button' class='cert-list-link' data-cert-list='" + c.id + "'>" +
       "View the " + p.total + " species &amp; how their names map to iNaturalist</button>";
-    el("taxonField").classList.add("dim");
     // Which naming to learn — the certificate's own names, or iNaturalist's.
     taxo.classList.remove("hidden");
     const tx = [{ id: "checklist", label: c.checklist + " names" }, { id: "inat", label: "iNaturalist names" }];
@@ -1972,6 +2212,13 @@ function renderCertChips() {
       "<button class='chip" + (t.id === taxonomyChoice ? " active" : "") + "' data-taxonomy='" + t.id + "'>" +
         escapeHtml(t.label) + "</button>").join("");
   }
+  updateSubjectDim();
+  renderFoldSummaries();
+}
+
+// The group picker is dimmed while a certificate or a custom list overrides it.
+function updateSubjectDim() {
+  el("taxonField").classList.toggle("dim", certChoice !== "none" || listChoice !== "none");
 }
 
 // The certificate species-list viewer. Lists every species with the exam
@@ -2006,6 +2253,131 @@ function openCertList(certId) {
 }
 function closeCertList() { el("certListModal").classList.add("hidden"); }
 
+// -- custom taxa lists: quiz your own set of species ----------------------
+const customListById = (id) => game.customLists.find((l) => l.id === id);
+
+// Chips for each saved list plus a "＋ New list" button. Selecting a list makes
+// it the pool (mutually exclusive with certificates / a group above).
+function renderCustomListChips() {
+  const chips = game.customLists.map((l) =>
+    "<button class='chip" + (l.id === listChoice ? " active" : "") + "' data-list='" + l.id + "'>" +
+      escapeHtml(l.name) + " · " + l.taxa.length + "</button>").join("");
+  el("listChips").innerHTML = chips +
+    "<button class='chip' data-list-new='1'>＋ New list</button>";
+  const active = listChoice !== "none" ? customListById(listChoice) : null;
+  const hint = el("listHint");
+  if (active) {
+    hint.innerHTML = "Quizzes exactly your <b>" + escapeHtml(active.name) + "</b> list (" + active.taxa.length + " species). " +
+      "<button type='button' class='cert-list-link' data-list-edit='" + active.id + "'>Edit this list</button>";
+  } else {
+    hint.textContent = "";
+  }
+  updateSubjectDim();
+  renderFoldSummaries();
+}
+
+let editingListId = null;      // list being edited, or null for a new one
+let listResolved = [];         // [{ input, matched:{id,scientificName,commonName}|null }]
+
+function openListEditor(listId) {
+  editingListId = listId || null;
+  const list = listId ? customListById(listId) : null;
+  el("listEditorTitle").textContent = list ? "Edit list" : "New list";
+  el("listNameInput").value = list ? list.name : "";
+  el("listNamesInput").value = list ? list.taxa.map((t) => t.scientificName).join("\n") : "";
+  el("listDeleteBtn").classList.toggle("hidden", !list);
+  el("listResolveStatus").textContent = "";
+  el("listPreview").innerHTML = "";
+  // If editing, treat the saved taxa as already-resolved so a rename-only save works.
+  listResolved = list ? list.taxa.map((t) => ({ input: t.scientificName, matched: t })) : [];
+  el("listSaveBtn").disabled = listResolved.filter((r) => r.matched).length === 0;
+  el("listEditor").classList.remove("hidden");
+}
+function closeListEditor() { el("listEditor").classList.add("hidden"); }
+
+// Resolve each pasted line to an iNaturalist taxon via autocomplete, preferring
+// an exact name match, then a species/genus/complex hit.
+async function resolveListNames() {
+  const lines = [...new Set(el("listNamesInput").value.split("\n").map((s) => s.trim()).filter(Boolean))];
+  if (!lines.length) { el("listResolveStatus").textContent = "Type or upload some names first."; return; }
+  el("listResolveBtn").disabled = true;
+  el("listResolveStatus").textContent = "Resolving " + lines.length + " names via iNaturalist…";
+  const results = [];
+  for (let i = 0; i < lines.length; i++) {
+    const input = lines[i];
+    let matched = null;
+    try {
+      const hits = await searchTaxa(input, 6);
+      const exact = hits.find((h) => normalize(h.name) === normalize(input) ||
+        (h.commonName && normalize(h.commonName) === normalize(input)));
+      const ranked = exact || hits.find((h) => ["species", "subspecies", "genus", "complex"].includes(h.rank)) || hits[0];
+      if (ranked) matched = { id: ranked.id, scientificName: ranked.name, commonName: ranked.commonName || "" };
+    } catch (err) { /* leave unmatched */ }
+    results.push({ input, matched });
+    el("listResolveStatus").innerHTML = "Resolving… " + (i + 1) + " / " + lines.length;
+    renderListPreview(results);
+  }
+  listResolved = results;
+  el("listResolveBtn").disabled = false;
+  const ok = results.filter((r) => r.matched).length;
+  el("listResolveStatus").innerHTML = "<span class='ok'>" + ok + " matched</span>" +
+    (ok < results.length ? " · <span class='bad'>" + (results.length - ok) + " not found</span>" : "");
+  el("listSaveBtn").disabled = ok === 0;
+}
+
+function renderListPreview(results) {
+  el("listPreview").innerHTML = results.map((r, i) =>
+    "<div class='cert-list-row " + (r.matched ? "ok" : "bad") + "'>" +
+      "<span class='cert-list-num'>" + (i + 1) + "</span>" +
+      "<span class='cert-list-name'>" + escapeHtml(r.matched ? r.matched.scientificName : r.input) + "</span>" +
+      (r.matched && r.matched.commonName ? "<span class='cert-list-alt'>" + escapeHtml(r.matched.commonName) + "</span>" : "") +
+      "<span class='cl-badge'>" + (r.matched ? "✓" : "not found") + "</span>" +
+    "</div>").join("");
+}
+
+function saveCustomList() {
+  const taxa = [];
+  const seen = new Set();
+  listResolved.forEach((r) => { if (r.matched && !seen.has(r.matched.id)) { seen.add(r.matched.id); taxa.push(r.matched); } });
+  if (!taxa.length) { toast("No species resolved yet — tap “Resolve names”."); return; }
+  const name = el("listNameInput").value.trim() || ("My list " + (game.customLists.length + 1));
+  if (editingListId) {
+    const list = customListById(editingListId);
+    if (list) { list.name = name; list.taxa = taxa; }
+  } else {
+    const id = "list_" + Math.random().toString(36).slice(2, 8);
+    game.customLists.push({ id, name, taxa });
+    listChoice = id;
+    certChoice = "none";
+  }
+  saveStore();
+  closeListEditor();
+  renderCertChips();
+  renderCustomListChips();
+}
+
+function deleteCustomList() {
+  if (!editingListId) return;
+  game.customLists = game.customLists.filter((l) => l.id !== editingListId);
+  if (listChoice === editingListId) listChoice = "none";
+  saveStore();
+  closeListEditor();
+  renderCustomListChips();
+}
+
+// Read a plain-text/CSV upload into the names textarea (first column per line).
+function loadListFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const lines = String(reader.result || "").split(/\r?\n/)
+      .map((l) => l.split(/[,;\t]/)[0].trim()).filter(Boolean);
+    const existing = el("listNamesInput").value.trim();
+    el("listNamesInput").value = (existing ? existing + "\n" : "") + lines.join("\n");
+    el("listResolveStatus").textContent = lines.length + " names loaded — tap “Resolve names”.";
+  };
+  reader.readAsText(file);
+}
+
 function buildChips() {
   renderTaxonChips();
   renderRegionChips();
@@ -2013,7 +2385,9 @@ function buildChips() {
   renderMediaChips();
   renderAnswerModeChips();
   renderChoiceCountChips();
+  renderDifficultThresholdChips();
   renderCertChips();
+  renderCustomListChips();
 }
 
 function populateProfileSelect() {
@@ -2070,14 +2444,50 @@ function renderSetupStatus() {
       "<small>Species you've mixed up, told apart</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
+  const hard = game.difficult.size;
+  if (hard > 0) {
+    html += "<button type='button' class='prompt-banner focus' data-action='focus'>" +
+      "<span class='pb-emoji'>🎯</span><span class='pb-text'>Focus on " + hard + " difficult " + (hard === 1 ? "species" : "species") +
+      "<small>The ones that trip you up — " + game.difficultThreshold + " in a row to clear each</small></span>" +
+      "<span class='pb-go'>→</span></button>";
+  }
   box.innerHTML = html;
 }
 
-// The "· N on" badge on the collapsed Learning-aids summary.
-const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle"];
-function renderAidsCount() {
-  const n = AID_TOGGLE_IDS.filter((id) => el(id) && el(id).checked).length;
-  if (el("aidsCount")) el("aidsCount").textContent = n ? "· " + n + " on" : "";
+const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle", "locationHintToggle"];
+
+// Each collapsed section states what it currently holds, so folding things away
+// hides the controls without hiding the information. Every option's default is
+// listed here; anything differing is what "customised" counts.
+const OPTION_DEFAULTS = {
+  repeatToggle: true, assistToggle: true, revealObsToggle: true,
+  commonNamesToggle: false, learnMoreToggle: false,
+  reverseToggle: false, selfRateToggle: false, mnemonicToggle: false, locationHintToggle: false,
+};
+function renderFoldSummaries() {
+  // "How to practise" — the choices themselves, in the order you'd read them.
+  const media = (MEDIA_OPTIONS.find((o) => o.value === mediaChoice) || {}).label || "";
+  const mode  = (ANSWER_MODES.find((o) => o.value === answerModeChoice) || {}).label || "";
+  const size  = (ROUND_SIZE_OPTIONS.find((o) => o.value === roundSizeChoice) || {}).label || "";
+  const bits = [media, mode + (answerModeChoice === "choose" ? " (" + choiceCountChoice + ")" : ""), size + " species"];
+  if (el("commonToggle") && el("commonToggle").checked) bits.push("commonest");
+  if (el("practiseSummary")) el("practiseSummary").textContent = bits.join(" · ");
+
+  // "Options" — just how far you've strayed from the defaults.
+  let changed = Object.keys(OPTION_DEFAULTS).filter((id) => el(id) && el(id).checked !== OPTION_DEFAULTS[id]).length;
+  if (difficultThresholdChoice !== DEFAULT_DIFFICULT_THRESHOLD) changed += 1;
+  if (uiLang && uiLang !== "en") changed += 1;
+  if (el("optionsSummary")) el("optionsSummary").textContent = changed ? changed + " changed" : "Defaults";
+
+  // "Certificates & my lists" — name whichever is active, and open the fold so
+  // a selected certificate is never hidden behind a closed summary.
+  const fold = el("fixedListFold"), sum = el("fixedListSummary");
+  if (!fold || !sum) return;
+  const cert = certChoice !== "none" ? certById(certChoice) : null;
+  const list = listChoice !== "none" ? customListById(listChoice) : null;
+  if (cert) { sum.textContent = cert.label; fold.open = true; }
+  else if (list) { sum.textContent = list.name; fold.open = true; }
+  else sum.textContent = "";
 }
 
 // -- page translation (self-contained, via Google's translate endpoint) ----
@@ -2207,6 +2617,7 @@ async function setUiLang(lang) {
   uiLang = lang;
   document.documentElement.lang = lang;
   try { localStorage.setItem(LANG_STORE_KEY, lang); } catch (err) { /* storage blocked */ }
+  renderFoldSummaries();   // a non-English language counts as a changed option
   await i18nApplyTo(document.body, lang);   // "en" restores originals, instantly
   if (lang !== "en") startI18nObserver();
 }
@@ -2253,6 +2664,9 @@ async function startSession() {
   game.reverseQuiz    = el("reverseToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
+  game.revealObs      = el("revealObsToggle").checked;
+  game.locationHint   = el("locationHintToggle").checked;
+  game.difficultThreshold = difficultThresholdChoice;
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
@@ -2266,6 +2680,7 @@ async function startSession() {
   game.taxonomy = taxonomyChoice;
   game.certChecklist = "";
   const cert = certChoice !== "none" ? certById(certChoice) : null;
+  const customList = listChoice !== "none" ? customListById(listChoice) : null;
   if (cert) {
     const sp = cert.species();   // [ [id, iNatName, checklistName], ... ]
     game.pool = sp.map((s) => s[0]);
@@ -2275,10 +2690,17 @@ async function startSession() {
       scientificName: game.taxonomy === "checklist" ? s[2] : s[1], commonName: "", count: 0 }));
     game.label = "Certificate · " + cert.label;
     game.commonOnly = false;
+  } else if (customList) {
+    // A user's own list behaves exactly like a certificate pool — a fixed set of
+    // taxon ids, fetched a chunk at a time (see currentFetchIds/poolChunk).
+    game.pool = customList.taxa.map((t) => t.id);
+    game.checklist = customList.taxa.map((t) => ({ id: t.id, scientificName: t.scientificName, commonName: t.commonName || "", count: 0 }));
+    game.label = "List · " + customList.name;
+    game.commonOnly = false;
   }
 
   showScreen("play");
-  setBusy(game.pool ? "Loading certificate species…"
+  setBusy(game.pool ? "Loading your species…"
     : game.commonOnly ? "Finding the most common species…" : "Loading " + mediaWord(true) + "…");
 
   try {
@@ -2421,6 +2843,9 @@ function startHistoryReview(species, answerMode, label) {
   game.learnMore      = el("learnMoreToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
+  game.revealObs      = el("revealObsToggle").checked;
+  game.locationHint   = el("locationHintToggle").checked;
+  game.difficultThreshold = difficultThresholdChoice;
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
   game.allowRepeats   = true;
   game.mode           = "review";
@@ -2447,6 +2872,14 @@ function startDueReview() {
 // where the distractors are your actual confusion partners (see pickDistractors).
 function startConfusionDrill() {
   startHistoryReview(confusionDrillSpecies(), "choose", "👀 Look-alike drill");
+}
+
+// "Focus on difficult species" — a round over exactly your difficult list, in
+// whatever answer mode is selected. Clean wins here graduate species off the
+// list (see recordDifficult), so the list shrinks as you master them.
+function startDifficultFocus() {
+  const sp = difficultList().map((d) => ({ taxonId: d.taxonId, scientificName: d.scientificName, commonName: d.commonName }));
+  startHistoryReview(sp, answerModeChoice === "study" ? "type" : answerModeChoice, "🎯 Difficult species");
 }
 
 // Rebuild a playable question from one saved review-pile media item. Shared
@@ -2648,10 +3081,18 @@ function updatePhotoIndicator() {
 
   if (photos.length > 1) el("photoCount").textContent = (index + 1) + " / " + photos.length;
 
+  // Copyright attribution is always shown (it's a licence requirement and never
+  // names the species). The LINK to the observation would give the answer away,
+  // so it only appears once you've answered — and only if you've opted in.
   const attribution = photos[index].attribution;
+  const obsId = game.current && game.current.observationId;
+  const showLink = game.answered && game.revealObs && obsId;
+  const link = showLink
+    ? "<a href='https://www.inaturalist.org/observations/" + obsId +
+      "' target='_blank' rel='noopener'>iNaturalist</a>" : "";
   el("credit").innerHTML = attribution
-    ? escapeHtml(attribution) + " · <a href='https://www.inaturalist.org/observations/" +
-      game.current.observationId + "' target='_blank' rel='noopener'>iNaturalist</a>" : "";
+    ? escapeHtml(attribution) + (link ? " · " + link : "")
+    : link;
 }
 
 // The prev/next arrow buttons — scroll by exactly one photo's width.
@@ -3036,6 +3477,11 @@ function buildHints(q) {
   const fam = game.familyCache.get(q.taxonId);
   const hints = [];
 
+  // Where it was photographed — a gentle geographic nudge, opt-in (feature 4).
+  if (game.locationHint && q.location) {
+    hints.push("It was observed at: " + escapeHtml(q.location) + ".");
+  }
+
   // Gentle context first: the "other" name and, if we happen to know it, the
   // family — placement without giving the spelling away.
   if (game.useCommonNames && q.commonName) {
@@ -3092,6 +3538,7 @@ function finishAnswer(wasCorrect, typed) {
   el("answerInput").disabled = true;
   hideSuggest("answerSuggest");
   renderHintControl();   // drop the "another hint" button now that it's answered
+  updatePhotoIndicator();   // now that it's answered, the observation link may appear (feature 1)
 
   if (game.mode === "normal") {
     if (wasCorrect) { game.round.correct += 1; game.streak += 1; } else { game.streak = 0; }
@@ -3101,6 +3548,8 @@ function finishAnswer(wasCorrect, typed) {
   // A win you needed a hint for isn't really learned yet — keep it in the
   // review pile so it comes back, even though it counted as correct.
   if (wasCorrect && hintsShown > 0) recordMiss(game.current);
+  // Keep the persistent difficult list current (a hinted win counts as "weak").
+  recordDifficult(game.current, wasCorrect, hintsShown > 0);
 
   // Cross-session spaced repetition + the daily streak apply to any genuine
   // test (normal or review, type or choose) — study cards never reach here.
@@ -3566,19 +4015,22 @@ async function showFacts(etymologyBox, ecologyBox, question, token) {
 // more" link; the pop-up has no need for it).
 function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
   const mood = pickMood(wasCorrect, typed);
+  const badge = wasCorrect ? "ok" : (mood === "skip" ? "" : "bad");   // shape cue, colour-blind safe
   const common = question.commonName ? " <span class='fb-common'>· " + escapeHtml(question.commonName) + "</span>" : "";
   const title = wasCorrect ? pickPraise() : "Correct answer:";
   const you = (!wasCorrect && typed) ? "<span class='fb-you'>You wrote “" + escapeHtml(typed) + "”</span>" : "";
   const combo = (mood === "combo" || mood === "ecstatic" || mood === "legendary")
     ? "<div class='fb-combo'>🔥 " + game.streak + " in a row!</div>" : "";
+  // A short emotive line from the cow — hype on a roll, encouragement on a miss.
+  const quip = MOOD_QUIP[mood] ? "<div class='fb-quip'>" + escapeHtml(pickFrom(MOOD_QUIP[mood])) + "</div>" : "";
   // In certificate mode, show the synonym too — it's worth knowing both names.
   const alt = question.altName
     ? "<span class='fb-alt notranslate'>≡ " + escapeHtml(question.altName) +
       " <span class='fb-alt-src'>(" + (game.taxonomy === "checklist" ? "iNaturalist" : (game.certChecklist || "checklist")) + ")</span></span>"
     : "";
-  return "<div class='fb-head'><div class='fb-icon pop " + mood + "'>" + cowMascot(mood) + "</div>" +
+  return "<div class='fb-head'><div class='fb-icon " + mood + " " + badge + "'>" + cowMascot(mood) + "</div>" +
     "<div><div class='fb-title'>" + title + "</div>" + combo +
-    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + alt + you +
+    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + alt + you + quip +
     (extraHtml ? "<div>" + extraHtml + "</div>" : "") + "</div></div>";
 }
 
@@ -3594,7 +4046,7 @@ function openLearnPopup(question, wasCorrect, typed) {
   el("learnEtymology").innerHTML = "<div class='learn-loading'>Loading…</div>";
   el("learnEcology").innerHTML = "<div class='learn-loading'>Loading…</div>";
   el("learnWikiLink").href = "https://en.wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(question.scientificName);
-  el("learnObsNote").innerHTML = question.observationId
+  el("learnObsNote").innerHTML = (question.observationId && game.revealObs)
     ? "<a href='https://www.inaturalist.org/observations/" + question.observationId +
       "' target='_blank' rel='noopener'>View the iNaturalist observation</a> — " +
       "spotted something misidentified there? Feel free to suggest a correction on iNaturalist."
@@ -3709,7 +4161,19 @@ function renderNoteBlock(taxonId, editing) {
   }
 }
 const PRAISE = ["Nice!", "Correct!", "Well done!", "Exactly!", "You got it!", "Spot on!"];
-const pickPraise = () => PRAISE[randomInt(0, PRAISE.length - 1)];
+const pickFrom = (arr) => arr[randomInt(0, arr.length - 1)];
+const pickPraise = () => pickFrom(PRAISE);
+
+// A little voice for the cow — hype as a streak builds, warmth on a miss. Keyed
+// by the mood pickMood() chose, so the reaction matches the face.
+const MOOD_QUIP = {
+  combo:     ["Three in a row — nice rhythm!", "You're rolling now.", "Keep it going!"],
+  ecstatic:  ["On fire! 🔥", "The cow is in awe.", "Unstoppable!"],
+  legendary: ["LEGENDARY. The whole herd is mooing.", "Bow before the botanist.", "You've made this cow's day."],
+  genus:     ["So close — you had the right genus!", "Nearly! The genus was spot on.", "Right neighbourhood, wrong house."],
+  miss:      ["No stress — you'll know it next time.", "Let's lock this one in.", "Every miss is one you'll remember.", "The cow believes in you."],
+  skip:      ["No guess, no worries — onward.", "We'll come back to this one."],
+};
 
 // -- the results (lesson complete) screen ---------------------------------
 const DONE_MASCOT =
@@ -3964,6 +4428,7 @@ function backToSetup() {
   populateProfileSelect();
   renderSetupStatus();
   renderCertChips();      // refresh certificate progress after a session
+  renderCustomListChips();
   showScreen("setup");
 }
 
@@ -4003,10 +4468,17 @@ const runRegionSearch = debounce(async (query) => {
 // for a feature that's really just "the obvious choice is already at the top").
 function pickTaxonSuggestion(item) {
   if (!item) return;
-  if (certChoice !== "none") { certChoice = "none"; renderCertChips(); }   // searching a group leaves certificate mode
+  leaveFixedSubject();   // searching a group leaves certificate / custom-list mode
   addTaxon({ id: Number(item.dataset.taxonId), name: item.dataset.taxonName });
   el("taxonSearch").value = "";
   hideSuggest("taxonSuggest");
+}
+// Picking a group clears any certificate or custom list that was overriding it.
+function leaveFixedSubject() {
+  let changed = false;
+  if (certChoice !== "none") { certChoice = "none"; changed = true; }
+  if (listChoice !== "none") { listChoice = "none"; changed = true; }
+  if (changed) { renderCertChips(); renderCustomListChips(); }
 }
 function pickRegionSuggestion(item) {
   if (!item) return;
@@ -4107,6 +4579,7 @@ function wireControls() {
     if (!action) return;
     if (action.dataset.action === "due") startDueReview();
     else if (action.dataset.action === "drill") startConfusionDrill();
+    else if (action.dataset.action === "focus") startDifficultFocus();
   });
   // The pencil button opens a plain text box, pre-filled with your current
   // name; pressing Enter or clicking away commits it.
@@ -4136,7 +4609,7 @@ function wireControls() {
   });
   el("taxonChips").addEventListener("click", (e) => {
     if (e.target.dataset.taxonPreset === undefined && e.target.dataset.taxonExtra === undefined) return;
-    if (certChoice !== "none") { certChoice = "none"; renderCertChips(); }   // picking a group leaves certificate mode
+    leaveFixedSubject();   // picking a group leaves certificate / custom-list mode
     if (e.target.dataset.taxonPreset !== undefined) toggleTaxonPreset(e.target.dataset.taxonPreset);
     else removeTaxon(e.target.dataset.taxonExtra);
   });
@@ -4178,10 +4651,18 @@ function wireControls() {
     choiceCountChoice = Number(e.target.dataset.choiceCount);
     renderChoiceCountChips();
   });
+  el("difficultThresholdChips").addEventListener("click", (e) => {
+    if (e.target.dataset.difficultThreshold === undefined) return;
+    difficultThresholdChoice = Number(e.target.dataset.difficultThreshold);
+    renderDifficultThresholdChips();
+    renderSetupStatus();   // the focus banner shows the threshold
+  });
   el("certChips").addEventListener("click", (e) => {
     if (e.target.dataset.cert === undefined) return;
     certChoice = e.target.dataset.cert;
+    if (certChoice !== "none") listChoice = "none";   // a certificate and a custom list are mutually exclusive
     renderCertChips();
+    renderCustomListChips();
   });
   el("taxonomyChips").addEventListener("click", (e) => {
     if (e.target.dataset.taxonomy === undefined) return;
@@ -4196,8 +4677,35 @@ function wireControls() {
   el("certListClose").addEventListener("click", closeCertList);
   el("certListModal").addEventListener("click", (e) => { if (e.target.id === "certListModal") closeCertList(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !el("certListModal").classList.contains("hidden")) closeCertList(); });
-  // learning-aid toggles: keep the "· N on" summary badge in sync
-  AID_TOGGLE_IDS.forEach((id) => el(id).addEventListener("change", renderAidsCount));
+
+  // setup: custom lists — select one, start a new one, or edit the active one.
+  el("listChips").addEventListener("click", (e) => {
+    if (e.target.dataset.listNew !== undefined) { openListEditor(null); return; }
+    if (e.target.dataset.list === undefined) return;
+    listChoice = (listChoice === e.target.dataset.list) ? "none" : e.target.dataset.list;   // click again to deselect
+    if (listChoice !== "none") certChoice = "none";
+    renderCertChips();
+    renderCustomListChips();
+  });
+  el("listHint").addEventListener("click", (e) => {
+    const link = e.target.closest("[data-list-edit]");
+    if (link) openListEditor(link.dataset.listEdit);
+  });
+  el("listEditorClose").addEventListener("click", closeListEditor);
+  el("listEditor").addEventListener("click", (e) => { if (e.target.id === "listEditor") closeListEditor(); });
+  el("listResolveBtn").addEventListener("click", resolveListNames);
+  // Editing the names invalidates the last resolve — require a fresh one to save.
+  el("listNamesInput").addEventListener("input", () => {
+    el("listSaveBtn").disabled = true;
+    el("listResolveStatus").textContent = "Tap “Resolve names” to check these against iNaturalist.";
+  });
+  el("listSaveBtn").addEventListener("click", saveCustomList);
+  el("listDeleteBtn").addEventListener("click", deleteCustomList);
+  el("listFileInput").addEventListener("change", (e) => { if (e.target.files[0]) loadListFile(e.target.files[0]); e.target.value = ""; });
+  // Any option or practise toggle changing keeps the folded summaries honest.
+  Object.keys(OPTION_DEFAULTS).concat(["commonToggle"]).forEach((id) => {
+    if (el(id)) el(id).addEventListener("change", renderFoldSummaries);
+  });
 
   // start / progress
   el("startBtn").addEventListener("click", () => {
@@ -4303,7 +4811,7 @@ loadStore();            // restore players + weak-spot history from this device
 buildChips();           // draws the taxon/region/round-size chips, including today's defaults
 populateProfileSelect();
 renderSetupStatus();    // daily streak + "due today" / look-alike prompts
-renderAidsCount();      // "· N on" badge on the Learning-aids summary
+renderFoldSummaries();  // what each collapsed section currently holds
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 </script>
