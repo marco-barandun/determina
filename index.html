@@ -283,6 +283,36 @@
   .cert-list-num { color: var(--faint); font-size: 11px; min-width: 26px; text-align: right; }
   .cert-list-name { font-style: italic; font-weight: 800; font-size: 13.5px; }
   .cert-list-alt { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+  /* First-run intro — a short, warm walkthrough over the setup screen. */
+  .intro { position: fixed; inset: 0; z-index: 80; background: rgba(40,34,24,.55);
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .intro.hidden { display: none; }
+  .intro-card { background: var(--bg); border-radius: 20px; width: min(400px, 100%);
+    max-height: 88vh; overflow-y: auto; padding: 26px 22px 14px; text-align: center;
+    box-shadow: 0 24px 64px rgba(40,34,24,.35); animation: fbPopIn .3s cubic-bezier(.2,1.2,.4,1); }
+  .intro-art { width: 96px; height: 96px; margin: 0 auto 14px; border-radius: 50%;
+    background: #fbf3e4; display: grid; place-items: center; font-size: 42px; }
+  .intro-art svg { width: 86px; height: 86px; }
+  .intro h2 { font-family: var(--font-display); font-size: 23px; font-weight: 600; font-style: italic;
+    color: var(--green-dark); margin: 0 0 8px; }
+  .intro p { color: var(--muted); font-weight: 700; font-size: 14.5px; line-height: 1.5; margin: 0; }
+  .intro-list { display: flex; flex-direction: column; gap: 11px; text-align: left; margin-top: 16px; }
+  .intro-list:empty { display: none; }
+  .intro-item { display: flex; gap: 11px; align-items: flex-start; }
+  .intro-item .ii-icon { flex: none; width: 28px; height: 28px; border-radius: 9px; background: var(--bg-2);
+    display: grid; place-items: center; font-size: 15px; }
+  .intro-item .ii-text { min-width: 0; }
+  .intro-item b { display: block; font-size: 14px; color: var(--ink); }
+  .intro-item small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 700; line-height: 1.4; }
+  .intro-dots { display: flex; gap: 6px; justify-content: center; margin: 20px 0 14px; }
+  .intro-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--line-2); transition: width .2s, background .2s; }
+  .intro-dot.on { width: 20px; background: var(--green); }
+  .intro-actions { display: flex; gap: 10px; }
+  .intro-actions .btn { flex: 1; }
+  .intro-skip { background: none; border: none; color: var(--faint); font-family: var(--font);
+    font-weight: 700; font-size: 13px; cursor: pointer; padding: 10px; width: 100%; }
+  .intro-skip:hover { color: var(--muted); }
+
   /* Custom-list editor */
   .list-editor-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   .list-names { width: 100%; min-height: 150px; resize: vertical; font-family: var(--font); font-weight: 700;
@@ -664,7 +694,15 @@
   .wk-overview-line.muted { font-size: 13px; font-weight: 700; color: var(--muted); }
   .level-switch { margin-bottom: 4px; }
 
-  .wk-row { display: grid; grid-template-columns: minmax(0,1fr) 80px 46px; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .wk-row { display: grid; grid-template-columns: minmax(0,1fr) 68px 42px 30px; align-items: center; gap: 9px; margin-bottom: 10px; }
+  /* "Train this" — turns any weak-spot row into a targeted round. */
+  .wk-train { flex: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--bg); color: var(--green);
+    display: grid; place-items: center; padding: 0; }
+  .wk-train:hover { background: var(--green); border-color: var(--green); color: #fff; }
+  .wk-train svg { width: 13px; height: 13px; pointer-events: none; }
+  /* The headline action above the bars. */
+  .wk-train-all { width: 100%; margin: 2px 0 16px; }
   .wk-row.now .wk-label .fam { color: var(--blue); }
   .wk-label { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .wk-label .fam { font-weight: 800; }
@@ -913,6 +951,11 @@
         </div>
 
         <div class="field">
+          <div class="field-label">How it works</div>
+          <button type="button" id="introReplay" class="cert-list-link">Show the welcome walkthrough again</button>
+        </div>
+
+        <div class="field">
           <div class="field-label">Translate this page</div>
           <select id="langSelect" class="select notranslate"></select>
           <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
@@ -1029,6 +1072,23 @@
   <section id="progressPanel" class="screen panel hidden"></section>
 
   <div id="toast"></div>
+</div>
+
+<!-- ===================== FIRST-RUN INTRO =============================
+     A short, skippable walkthrough shown once on a first visit (and re-openable
+     from Options). Content is built by renderIntro() from INTRO_SLIDES. -->
+<div id="intro" class="intro hidden">
+  <div class="intro-card">
+    <div id="introArt" class="intro-art"></div>
+    <h2 id="introTitle"></h2>
+    <p id="introBody"></p>
+    <div id="introList" class="intro-list"></div>
+    <div id="introDots" class="intro-dots"></div>
+    <div class="intro-actions">
+      <button id="introNext" class="btn btn-primary">Next</button>
+    </div>
+    <button id="introSkip" class="intro-skip">Skip the intro</button>
+  </div>
 </div>
 
 <!-- ===================== CERTIFICATE SPECIES LIST ======================
@@ -1413,6 +1473,7 @@ const game = {
 
   // The current lesson:
   mode: "normal",           // "normal" or "review"
+  counts: true,             // do answers update stats/streak? false only for the end-of-round review pile
   round: { size: DEFAULT_ROUND_SIZE, index: 0, correct: 0 },
   streak: 0,
   askedTaxa: new Set(),     // species already asked this round — used when allowRepeats is off
@@ -1833,9 +1894,12 @@ function genusRollup(statsMap) {
 }
 
 // The flat, unrolled species list — one row per species you've been asked.
+// taxonId/commonName ride along so a row can be turned straight into a
+// targeted training round (see weakSpotSpecies).
 function speciesRollup(statsMap) {
   return withAccuracy([...statsMap.values()])
-    .map((s) => ({ name: s.scientificName, correct: s.correct, wrong: s.wrong, total: s.total, accuracy: s.accuracy }))
+    .map((s) => ({ taxonId: s.taxonId, name: s.scientificName, commonName: s.commonName,
+                   correct: s.correct, wrong: s.wrong, total: s.total, accuracy: s.accuracy }))
     .sort(byWeakest);
 }
 
@@ -2490,6 +2554,81 @@ function renderFoldSummaries() {
   else sum.textContent = "";
 }
 
+// -- first-run intro ------------------------------------------------------
+//  Shown once, the first time the app is opened, and re-openable from Options.
+//  Deliberately short — four cards: what this is, what to pick, how to answer,
+//  and what it remembers for you. `art` is a function so the slides can use
+//  cowMascot() without caring about definition order.
+const INTRO_KEY = "determinare.intro.v1";
+const INTRO_SLIDES = [
+  {
+    art: () => cowMascot("happy"),
+    title: "Welcome to Determinare",
+    body: "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.",
+  },
+  {
+    art: () => "🌿",
+    title: "Pick what to learn",
+    body: "A group and a place is all you need to start.",
+    items: [
+      ["🔍", "A group of species", "Plants, birds, butterflies — or search any family or genus."],
+      ["🎓", "…or a certificate", "Real exam lists: botany, butterflies, mosses, lichens, birds."],
+      ["📋", "…or your own list", "Paste or upload species names and quiz exactly those."],
+    ],
+  },
+  {
+    art: () => "✏️",
+    title: "Answer your way",
+    items: [
+      ["✏️", "Type", "Recall the name yourself. Stuck? Take a hint, or reveal it."],
+      ["☑️", "Choose", "Pick from a set of names — a gentler way into a new group."],
+      ["📖", "Study", "Just look and learn, no quiz, for a first pass."],
+    ],
+  },
+  {
+    art: () => cowMascot("ecstatic"),
+    title: "It remembers what's hard",
+    items: [
+      ["🔁", "Spaced repetition", "Species come back just before you'd forget them."],
+      ["🎯", "Your weak spots", "Whatever you miss is tracked — and you can drill just those."],
+      ["🔥", "A daily streak", "A small daily goal, to keep the habit going."],
+    ],
+  },
+];
+let introStep = 0;
+
+function renderIntro() {
+  const s = INTRO_SLIDES[introStep];
+  el("introArt").innerHTML = s.art();
+  el("introTitle").textContent = s.title;
+  el("introBody").textContent = s.body || "";
+  el("introBody").style.display = s.body ? "" : "none";
+  el("introList").innerHTML = (s.items || []).map(([icon, title, text]) =>
+    "<div class='intro-item'><span class='ii-icon'>" + icon + "</span>" +
+      "<span class='ii-text'><b>" + escapeHtml(title) + "</b>" +
+      "<small>" + escapeHtml(text) + "</small></span></div>").join("");
+  el("introDots").innerHTML = INTRO_SLIDES.map((_, i) =>
+    "<span class='intro-dot" + (i === introStep ? " on" : "") + "'></span>").join("");
+  const last = introStep === INTRO_SLIDES.length - 1;
+  el("introNext").textContent = last ? "Start exploring" : "Next";
+  el("introSkip").style.visibility = last ? "hidden" : "";
+}
+function openIntro() { introStep = 0; renderIntro(); el("intro").classList.remove("hidden"); }
+function closeIntro() {
+  el("intro").classList.add("hidden");
+  try { localStorage.setItem(INTRO_KEY, "1"); } catch (err) { /* storage blocked — it'll show again */ }
+}
+function advanceIntro() {
+  if (introStep < INTRO_SLIDES.length - 1) { introStep += 1; renderIntro(); }
+  else closeIntro();
+}
+// Only on a genuine first run.
+function maybeShowIntro() {
+  let seen = null;
+  try { seen = localStorage.getItem(INTRO_KEY); } catch (err) { /* storage blocked */ }
+  if (!seen) openIntro();
+}
+
 // -- page translation (self-contained, via Google's translate endpoint) ----
 //  We translate the page ourselves instead of embedding Google's website
 //  widget, which was unreliable. Google's free translate_a/single endpoint
@@ -2670,6 +2809,7 @@ async function startSession() {
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
+  game.counts = true;   // ordinary play always counts
 
   // Certificate mode: quiz a fixed, taxonomy-harmonised species list instead of
   // a group. It overrides the group / common-species choice; region still
@@ -2807,6 +2947,7 @@ function startReview(useFreshPhotos) {
   const entries = shuffle([...game.missed.values()]);
   if (entries.length === 0) return;
   game.mode = "review";
+  game.counts = false;   // you saw these answers seconds ago — they'd flatter the stats
   game.round = { size: entries.length, index: 0, correct: 0 };
   game.roundLog = [];
   game.reviewQueue = entries.map((entry) => useFreshPhotos
@@ -2849,6 +2990,10 @@ function startHistoryReview(species, answerMode, label) {
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
   game.allowRepeats   = true;
   game.mode           = "review";
+  // These are genuine cross-session retrieval (you haven't just been shown the
+  // answer), so unlike the end-of-round pile they DO count — otherwise training
+  // your weak spots could never actually improve them.
+  game.counts         = true;
   game.label          = label;
   game.checklist = historyChecklist();
   game.queue = []; game.seen = new Set(); game.missed = new Map();
@@ -2880,6 +3025,49 @@ function startConfusionDrill() {
 function startDifficultFocus() {
   const sp = difficultList().map((d) => ({ taxonId: d.taxonId, scientificName: d.scientificName, commonName: d.commonName }));
   startHistoryReview(sp, answerModeChoice === "study" ? "type" : answerModeChoice, "🎯 Difficult species");
+}
+
+// -- targeted weak-spot training ------------------------------------------
+// Turn any row of the Weak Spots panel into a playable round: everything you've
+// been asked in that family/genus, the single species itself, or your weakest
+// species overall — always weakest-first so the round front-loads what hurts.
+const WEAK_TRAIN_LIMIT = 20;   // keep a targeted round to a sensible length
+function weakSpotSpecies(level, name) {
+  const all = [...game.stats.values()];
+  const acc = (s) => { const t = s.correct + s.wrong; return t ? s.correct / t : 0; };
+  const weakestFirst = (a, b) => acc(a) - acc(b) || (b.wrong || 0) - (a.wrong || 0);
+  let picked;
+  if (level === "worst") {
+    picked = all.filter((s) => s.wrong > 0).sort(weakestFirst);
+  } else if (level === "family") {
+    picked = all.filter((s) => {
+      const f = game.familyCache.get(s.taxonId);
+      return (f ? f.familyName : "Unknown") === name;
+    }).sort(weakestFirst);
+  } else if (level === "genus") {
+    picked = all.filter((s) => (s.scientificName || "").split(" ")[0] === name).sort(weakestFirst);
+  } else {
+    // A single species on its own would be a one-question round, so bring its
+    // real look-alikes along — that turns it into a discrimination drill.
+    const self = all.filter((s) => s.scientificName === name);
+    const partners = self.length ? confusionPartners(self[0].taxonId) : [];
+    picked = self.concat(partners.filter((p) => !self.some((s) => s.taxonId === p.taxonId)));
+  }
+  const seen = new Set();
+  return picked
+    .filter((s) => s.taxonId && !seen.has(s.taxonId) && seen.add(s.taxonId))
+    .slice(0, WEAK_TRAIN_LIMIT)
+    .map((s) => ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName || "" }));
+}
+
+function startWeakSpotTraining(level, name) {
+  const sp = weakSpotSpecies(level, name);
+  if (!sp.length) return toast("Nothing to train there yet.");
+  const label = level === "worst" ? "🎯 Weakest species"
+    : level === "species" ? "🎯 " + name
+    : "🎯 " + name + " (" + sp.length + ")";
+  closeProgress();
+  startHistoryReview(sp, answerModeChoice === "study" ? "type" : answerModeChoice, label);
 }
 
 // Rebuild a playable question from one saved review-pile media item. Shared
@@ -3540,7 +3728,7 @@ function finishAnswer(wasCorrect, typed) {
   renderHintControl();   // drop the "another hint" button now that it's answered
   updatePhotoIndicator();   // now that it's answered, the observation link may appear (feature 1)
 
-  if (game.mode === "normal") {
+  if (game.counts) {
     if (wasCorrect) { game.round.correct += 1; game.streak += 1; } else { game.streak = 0; }
     recordResult(game.current, wasCorrect);
   }
@@ -3653,77 +3841,120 @@ function updateStreak() {
 }
 
 // -- the cow mascot ---------------------------------------------------------
-//  One cow head, drawn once, with just the eyes/mouth swapped per mood — so
-//  every expression is a small, easy-to-read face string layered on the same
-//  shared drawing, rather than six separate full cow illustrations.
-const COW_HEAD =
-  "<ellipse cx='16' cy='16' rx='8' ry='11' fill='#f7dcb4' transform='rotate(-25 16 16)'/>" +  // left ear
-  "<ellipse cx='48' cy='16' rx='8' ry='11' fill='#f7dcb4' transform='rotate(25 48 16)'/>" +   // right ear
-  "<ellipse cx='32' cy='33' rx='27' ry='24' fill='#fff2da' stroke='#e3c79a' stroke-width='1.5'/>" +  // head
-  "<ellipse cx='23' cy='17' rx='9' ry='11' fill='#caa06a' opacity='.85'/>" +   // a brown patch, for character
-  "<ellipse cx='32' cy='47' rx='15' ry='10' fill='#fff8ec'/>" +               // snout
-  "<ellipse cx='27' cy='46' rx='2' ry='3' fill='#b8895a'/>" +                 // left nostril
-  "<ellipse cx='37' cy='46' rx='2' ry='3' fill='#b8895a'/>";                  // right nostril
+//  One cow head, drawn once, with just the eyes/mouth swapped per mood. The
+//  whole character shares a single ink colour and outline weight so it reads as
+//  one deliberate drawing rather than a pile of shapes: horns and ears tuck
+//  BEHIND the head (drawn first), the muzzle sits inside it, the coat patch
+//  stays clear of the eyes, and every mood's features land on the same anchors
+//  — eyes at y31 (x22 / x42), mouth on the muzzle around y49.
+const COW_INK    = "#5c4033";   // outline + facial features
+const COW_CREAM  = "#fff6e8";   // coat
+const COW_TAN    = "#f0d8b4";   // horns
+const COW_PATCH  = "#c8a274";   // the single coat patch
+const COW_MUZZLE = "#ffe3d8";   // muzzle
+const COW_BLUSH  = "#f3b3ab";   // inner ear + cheeks
+const COW_TEAR   = "#7ec8ec";
 
-const SPARKLE = (cx, cy, r) =>
+const COW_HEAD =
+  // Horns and ears first, then the inner ears, then the head on top of both —
+  // so the head cleanly masks the inner half of each ear and only the outer
+  // part shows. (Drawing the pink after the head made it read as a blob ON the
+  // face rather than inside an ear.)
+  "<g stroke='" + COW_INK + "' stroke-width='2' stroke-linejoin='round'>" +
+    "<ellipse cx='21' cy='12' rx='4.2' ry='5.6' fill='" + COW_TAN + "' transform='rotate(-24 21 12)'/>" +
+    "<ellipse cx='43' cy='12' rx='4.2' ry='5.6' fill='" + COW_TAN + "' transform='rotate(24 43 12)'/>" +
+    "<ellipse cx='9' cy='31' rx='9' ry='6' fill='" + COW_CREAM + "' transform='rotate(-22 9 31)'/>" +
+    "<ellipse cx='55' cy='31' rx='9' ry='6' fill='" + COW_CREAM + "' transform='rotate(22 55 31)'/>" +
+  "</g>" +
+  "<ellipse cx='6' cy='30.5' rx='3.9' ry='2.5' fill='" + COW_BLUSH + "' transform='rotate(-22 6 30.5)'/>" +
+  "<ellipse cx='58' cy='30.5' rx='3.9' ry='2.5' fill='" + COW_BLUSH + "' transform='rotate(22 58 30.5)'/>" +
+  "<ellipse cx='32' cy='35' rx='23' ry='21' fill='" + COW_CREAM + "' stroke='" + COW_INK + "' stroke-width='2'/>" +
+  // Everything below sits inside the head outline, so none of it is stroked.
+  "<ellipse cx='22' cy='21' rx='7' ry='5' fill='" + COW_PATCH + "' transform='rotate(-12 22 21)'/>" +
+  "<ellipse cx='14' cy='41' rx='3.8' ry='2.8' fill='" + COW_BLUSH + "' opacity='.5'/>" +
+  "<ellipse cx='50' cy='41' rx='3.8' ry='2.8' fill='" + COW_BLUSH + "' opacity='.5'/>" +
+  // Muzzle last, drawn with the same outline as the head so it belongs to it.
+  "<ellipse cx='32' cy='46' rx='14' ry='8.5' fill='" + COW_MUZZLE + "' stroke='" + COW_INK + "' stroke-width='2'/>" +
+  "<ellipse cx='26.5' cy='44' rx='1.9' ry='2.5' fill='" + COW_INK + "' opacity='.7'/>" +
+  "<ellipse cx='37.5' cy='44' rx='1.9' ry='2.5' fill='" + COW_INK + "' opacity='.7'/>";
+
+const SPARKLE = (cx, cy, r, fill) =>
   "<path d='M" + cx + " " + (cy - r) + " L" + (cx + r * 0.3) + " " + (cy - r * 0.3) +
   " L" + (cx + r) + " " + cy + " L" + (cx + r * 0.3) + " " + (cy + r * 0.3) +
   " L" + cx + " " + (cy + r) + " L" + (cx - r * 0.3) + " " + (cy + r * 0.3) +
-  " L" + (cx - r) + " " + cy + " L" + (cx - r * 0.3) + " " + (cy - r * 0.3) + " Z' fill='#ffd35c'/>";
+  " L" + (cx - r) + " " + cy + " L" + (cx - r * 0.3) + " " + (cy - r * 0.3) + " Z' fill='" + (fill || "#ffcf4d") + "'/>";
+
+// Shared face parts, so every mood is built from the same vocabulary.
+const EYE = (cx, cy, r) =>
+  "<circle cx='" + cx + "' cy='" + cy + "' r='" + r + "' fill='" + COW_INK + "'/>" +
+  "<circle cx='" + (cx + r * 0.34) + "' cy='" + (cy - r * 0.4) + "' r='" + (r * 0.34) + "' fill='#fff'/>";
+// A closed, upward-curving "^^" eye — the classic happy squint.
+const EYE_HAPPY = (cx, cy) =>
+  "<path d='M" + (cx - 4.6) + " " + (cy + 1.6) + " Q" + cx + " " + (cy - 3.6) + " " + (cx + 4.6) + " " + (cy + 1.6) +
+  "' stroke='" + COW_INK + "' stroke-width='2.4' fill='none' stroke-linecap='round'/>";
+// Closed, downward-curving — sad.
+const EYE_SAD = (cx, cy) =>
+  "<path d='M" + (cx - 4.4) + " " + (cy - 1) + " Q" + cx + " " + (cy + 3.8) + " " + (cx + 4.4) + " " + (cy - 1) +
+  "' stroke='" + COW_INK + "' stroke-width='2.4' fill='none' stroke-linecap='round'/>";
+const HEART = (cx, cy, s) =>
+  "<path d='M" + cx + " " + (cy + s * 0.85) +
+  " C" + (cx - s * 1.2) + " " + (cy - s * 0.1) + " " + (cx - s * 0.8) + " " + (cy - s * 1.15) + " " + cx + " " + (cy - s * 0.32) +
+  " C" + (cx + s * 0.8) + " " + (cy - s * 1.15) + " " + (cx + s * 1.2) + " " + (cy - s * 0.1) + " " + cx + " " + (cy + s * 0.85) +
+  " Z' fill='#e2566f'/>";
+// A mouth stroked on the muzzle.
+const MOUTH = (d, w) =>
+  "<path d='" + d + "' stroke='" + COW_INK + "' stroke-width='" + (w || 2) + "' fill='none' stroke-linecap='round'/>";
+// An open grin — a filled shape rather than a line, for the big wins.
+const GRIN = (d) => "<path d='" + d + "' fill='" + COW_INK + "'/>";
+// A rounded teardrop, nicer than a stroked squiggle.
+const TEAR = (cx, cy) =>
+  "<path d='M" + cx + " " + cy + " q-2.6 3.9 0 5.2 q2.6-1.3 0-5.2 Z' fill='" + COW_TEAR + "'/>";
 
 // Each mood is just eyes + mouth (+ the occasional sparkle or tear) on top of
 // the shared head above.
 const COW_FACES = {
-  // One right answer.
+  // One right answer — bright open eyes and a soft smile.
   happy:
-    "<circle cx='22' cy='28' r='4' fill='#4a3626'/><circle cx='42' cy='28' r='4' fill='#4a3626'/>" +
-    "<circle cx='23.2' cy='26.6' r='1.2' fill='#fff'/><circle cx='43.2' cy='26.6' r='1.2' fill='#fff'/>" +
-    "<path d='M22 52 Q32 58 42 52' stroke='#8a5a34' stroke-width='2.4' fill='none' stroke-linecap='round'/>",
+    EYE(22, 31, 4.3) + EYE(42, 31, 4.3) +
+    MOUTH("M26 48.5 Q32 53 38 48.5"),
 
-  // A short streak — a couple in a row.
+  // A short streak — the squint appears, plus a couple of sparkles.
   combo:
-    "<path d='M16 26 Q22 20 28 26' stroke='#4a3626' stroke-width='3' fill='none' stroke-linecap='round'/>" +
-    "<path d='M36 26 Q42 20 48 26' stroke='#4a3626' stroke-width='3' fill='none' stroke-linecap='round'/>" +
-    "<path d='M20 51 Q32 60 44 51' stroke='#8a5a34' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
-    SPARKLE(8, 12, 5) + SPARKLE(56, 10, 4),
+    EYE_HAPPY(22, 31) + EYE_HAPPY(42, 31) +
+    MOUTH("M25 48 Q32 54.5 39 48", 2.2) +
+    SPARKLE(7, 12, 4.2) + SPARKLE(57, 10, 3.4),
 
-  // On a real streak now — heart eyes and a big grin.
+  // On a real streak now — heart eyes and an open grin.
   ecstatic:
-    "<path d='M17 27 Q22 20 27 27 Q22 31 17 27 Z' fill='#e0567a'/>" +
-    "<path d='M37 27 Q42 20 47 27 Q42 31 37 27 Z' fill='#e0567a'/>" +
-    "<path d='M19 50 Q32 62 45 50 Q32 57 19 50 Z' fill='#8a5a34'/>" +
-    SPARKLE(6, 10, 5) + SPARKLE(58, 8, 4) + SPARKLE(32, 3, 3.5),
+    HEART(22, 31, 5.2) + HEART(42, 31, 5.2) +
+    GRIN("M25 47.5 Q32 55.5 39 47.5 Z") +
+    SPARKLE(6.5, 11, 4.6) + SPARKLE(57.5, 9, 3.8) + SPARKLE(32, 3.5, 3.2),
 
-  // A long streak — this cow has lost it, in the best way. Paired with a
-  // wiggle animation (see .fb-icon.legendary) since a still face undersells it.
+  // A long streak — star-struck. Paired with a wiggle animation (see
+  // .fb-icon.legendary) since a still face undersells it.
   legendary:
-    "<path d='M17 27 Q22 19 27 27 Q22 32 17 27 Z' fill='#e0567a'/>" +
-    "<path d='M37 27 Q42 19 47 27 Q42 32 37 27 Z' fill='#e0567a'/>" +
-    "<path d='M18 48 Q32 66 46 48 Q32 60 18 48 Z' fill='#7a4a2a'/>" +
-    SPARKLE(6, 8, 5) + SPARKLE(58, 6, 4.5) + SPARKLE(32, 1, 4) + SPARKLE(4, 40, 3.5) + SPARKLE(60, 42, 3.5),
+    SPARKLE(22, 31, 6) + SPARKLE(42, 31, 6) +
+    GRIN("M24 47 Q32 56.5 40 47 Z") +
+    SPARKLE(6, 10, 4.6) + SPARKLE(58, 8, 4) + SPARKLE(32, 3, 3.4) +
+    SPARKLE(5, 44, 3.2) + SPARKLE(59, 46, 3.2),
 
-  // Wrong species, but you had the right genus — a small miss, not a disaster.
+  // Wrong species, but the right genus — worried, not devastated.
   genus:
-    "<path d='M17 22 Q22 19 27 22' stroke='#4a3626' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
-    "<path d='M37 22 Q42 19 47 22' stroke='#4a3626' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
-    "<circle cx='22' cy='29' r='3.6' fill='#4a3626'/><circle cx='42' cy='29' r='3.6' fill='#4a3626'/>" +
-    "<path d='M23 54 Q32 49 41 54' stroke='#8a5a34' stroke-width='2.4' fill='none' stroke-linecap='round'/>" +
-    "<path d='M18 33 q-2 4 -1 7' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>",   // one tear
+    MOUTH("M17.5 24.5 Q22 22.5 26.5 24.5", 2) + MOUTH("M37.5 24.5 Q42 22.5 46.5 24.5", 2) +
+    EYE(22, 31.5, 3.9) + EYE(42, 31.5, 3.9) +
+    MOUTH("M27 50.5 Q32 47.5 37 50.5") +
+    TEAR(16.5, 36),
 
-  // Wrong genus too — a real miss.
+  // Wrong genus too — a real miss: eyes squeezed shut, two tears.
   miss:
-    "<path d='M16 20 Q22 24 28 20' stroke='#4a3626' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
-    "<path d='M36 20 Q42 24 48 20' stroke='#4a3626' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
-    "<path d='M18 27 l8 6 M26 27 l-8 6' stroke='#4a3626' stroke-width='2.4' stroke-linecap='round'/>" +      // x eye
-    "<path d='M38 27 l8 6 M46 27 l-8 6' stroke='#4a3626' stroke-width='2.4' stroke-linecap='round'/>" +      // x eye
-    "<path d='M22 56 Q32 47 42 56' stroke='#8a5a34' stroke-width='2.6' fill='none' stroke-linecap='round'/>" +
-    "<path d='M17 33 q-2 5 -1 9' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>" +
-    "<path d='M47 33 q2 5 1 9' stroke='#6fb8e0' stroke-width='2' fill='none' stroke-linecap='round'/>",
+    EYE_SAD(22, 31) + EYE_SAD(42, 31) +
+    MOUTH("M26 51 Q32 47 38 51", 2.2) +
+    TEAR(16, 35) + TEAR(48, 35),
 
   // You skipped — no guess means no judgment, just a curious look.
   skip:
-    "<circle cx='22' cy='29' r='3.6' fill='#4a3626'/><circle cx='42' cy='29' r='3.6' fill='#4a3626'/>" +
-    "<path d='M25 53 L39 53' stroke='#8a5a34' stroke-width='2.4' stroke-linecap='round'/>",
+    EYE(22, 31, 3.7) + EYE(42, 31, 3.7) +
+    MOUTH("M28 49.5 L36 49.5"),
 };
 
 const cowMascot = (mood) => "<svg viewBox='0 0 64 64'>" + COW_HEAD + COW_FACES[mood] + "</svg>";
@@ -4266,13 +4497,18 @@ function renderPanel() {
 // One row of the bar chart — shared by the family, genus, and species views.
 // `italic` follows taxonomic convention: species and genus names are set in
 // italics, family names upright.
-const weakBar = (r, italic, mastery) =>
+const TRAIN_ICON = "<svg viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg>";
+const weakBar = (r, italic, mastery, level) =>
   "<div class='wk-row'><div class='wk-label'><span class='" + (italic ? "sci" : "fam") + "'>" +
     escapeHtml(r.name) + "</span>" +
     (mastery ? "<span class='mastery " + mastery + "'>" + MASTERY_LABEL[mastery] + "</span>" : "") +
     "<span class='wk-count'>" + r.correct + "/" + r.total + "</span></div>" +
   "<div class='wk-track'><div class='wk-fill " + accuracyClass(r.accuracy) + "' style='width:" + pct(r.accuracy) + "'></div></div>" +
-  "<div class='wk-pct'>" + pct(r.accuracy) + "</div></div>";
+  "<div class='wk-pct'>" + pct(r.accuracy) + "</div>" +
+  (level ? "<button type='button' class='wk-train' data-train-level='" + level +
+    "' data-train-name='" + escapeHtml(r.name) + "' aria-label='Train " + escapeHtml(r.name) + "' title='Train this'>" +
+    TRAIN_ICON + "</button>" : "<span></span>") +
+  "</div>";
 
 // Which grouping level the Weak Spots tab is currently showing.
 let weakLevel = "family";   // "family" | "genus" | "species"
@@ -4304,20 +4540,29 @@ function renderWeakTab() {
 
   let body;
   if (weakLevel === "family") {
-    body = "<h3>By family</h3>" + weaknessesByFamily().map((r) => weakBar(r, !r.isFamily)).join("");
+    body = "<h3>By family</h3>" + weaknessesByFamily().map((r) => weakBar(r, !r.isFamily, null, "family")).join("");
   } else if (weakLevel === "genus") {
-    body = "<h3>By genus</h3>" + weaknessesByGenus().map((r) => weakBar(r, true)).join("");
+    body = "<h3>By genus</h3>" + weaknessesByGenus().map((r) => weakBar(r, true, null, "genus")).join("");
   } else {
     const tough = toughestSpecies();
     const toughSection = tough.length === 0 ? "" :
-      "<h3>Needs the most work</h3>" + tough.map((r) => weakBar(r, true, masteryOf(r))).join("");
+      "<h3>Needs the most work</h3>" + tough.map((r) => weakBar(r, true, masteryOf(r), "species")).join("");
     body = toughSection + "<h3>Every species</h3>" +
-      weaknessesBySpecies().map((r) => weakBar(r, true, masteryOf(r))).join("");
+      weaknessesBySpecies().map((r) => weakBar(r, true, masteryOf(r), "species")).join("");
   }
+
+  // The headline action: drill the species that actually trip you up, worst
+  // first. Only offered once something has genuinely gone wrong.
+  const weakCount = weaknessesBySpecies().filter((s) => s.wrong > 0).length;
+  const trainAll = weakCount === 0 ? "" :
+    "<button class='btn btn-primary wk-train-all' data-train-level='worst'>" +
+      "🎯 Train my " + Math.min(weakCount, WEAK_TRAIN_LIMIT) + " weakest species</button>";
 
   return "<p class='panel-sub'>" + summary.answers + " answers so far. " +
       "<button class='btn-link' data-panel='reset'>Reset this player</button></p>" +
-    renderWeakOverview(summary) + weakLevelSwitch() + body;
+    renderWeakOverview(summary) + trainAll +
+    "<p class='panel-sub'>Tap ▶ on any row to train just that one.</p>" +
+    weakLevelSwitch() + body;
 }
 
 // A GitHub-style practice grid: the last 12 weeks, one cell per day, shaded by
@@ -4674,6 +4919,11 @@ function wireControls() {
     const link = e.target.closest("[data-cert-list]");
     if (link) openCertList(link.dataset.certList);
   });
+  // first-run intro
+  el("introNext").addEventListener("click", advanceIntro);
+  el("introSkip").addEventListener("click", closeIntro);
+  el("introReplay").addEventListener("click", openIntro);
+
   el("certListClose").addEventListener("click", closeCertList);
   el("certListModal").addEventListener("click", (e) => { if (e.target.id === "certListModal") closeCertList(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !el("certListModal").classList.contains("hidden")) closeCertList(); });
@@ -4726,6 +4976,10 @@ function wireControls() {
 
   // progress panel (delegated)
   el("progressPanel").addEventListener("click", (e) => {
+    // "Train this" — on the row buttons and the headline action. Uses closest()
+    // because the row button wraps an <svg>, which is what the click lands on.
+    const train = e.target.closest("[data-train-level]");
+    if (train) return startWeakSpotTraining(train.dataset.trainLevel, train.dataset.trainName || "");
     if (e.target.dataset.tab) { panelTab = e.target.dataset.tab; renderPanel(); return; }
     if (e.target.dataset.weakLevel) { weakLevel = e.target.dataset.weakLevel; renderPanel(); return; }
     const action = e.target.dataset.panel;
@@ -4814,6 +5068,7 @@ renderSetupStatus();    // daily streak + "due today" / look-alike prompts
 renderFoldSummaries();  // what each collapsed section currently holds
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
+maybeShowIntro();       // the four-card walkthrough, on a first visit only
 </script>
 </body>
 </html>
