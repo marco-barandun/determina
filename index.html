@@ -532,16 +532,25 @@
   .rev-photo.wrong::after { content: "✕"; background: var(--red); }
   .rev-photo:disabled { cursor: default; }
 
-  /* Compare-after-a-miss (aid A): the two look-alikes side by side. */
-  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 12px; }
+  /* Compare-after-a-miss (aid A): the two look-alikes side by side — the one
+     you picked vs. the right answer, so a wrong choice is unmistakable. */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 12px; }
   .compare-col { border: 2px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-2); }
   .compare-col.right { border-color: var(--green); } .compare-col.wrong { border-color: var(--red); }
-  .compare-col .cmp-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--line); }
+  /* A coloured header strip with a ✓/✕ badge, so the correct vs. picked column
+     reads instantly — by shape and colour, not colour alone. */
+  .compare-col .cmp-tag { display: flex; align-items: center; gap: 6px; padding: 6px 9px;
+    font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: #fff; }
+  .compare-col.right .cmp-tag { background: var(--green); } .compare-col.wrong .cmp-tag { background: var(--red); }
+  .compare-col .cmp-mark { flex: none; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.3);
+    display: grid; place-items: center; font-size: 11px; }
+  .cmp-imgwrap { position: relative; background: var(--line); aspect-ratio: 4/3; }
+  .compare-col .cmp-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cmp-imgwrap .cmp-loading { position: absolute; inset: 0; display: grid; place-items: center; }
   .compare-col .cmp-body { padding: 7px 9px; }
-  .compare-col .cmp-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
-  .compare-col.right .cmp-tag { color: var(--green-text); } .compare-col.wrong .cmp-tag { color: var(--red-text); }
   .compare-col .cmp-name { font-style: italic; font-weight: 800; font-size: 13px; }
   .compare-col .cmp-common { font-weight: 700; font-size: 12px; color: var(--muted); }
+  .learn-compare-wrap { margin: 2px 0 14px; }
 
   /* Self-rating (aid D): Anki-style buttons in place of Continue. */
   .rate-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
@@ -1079,7 +1088,7 @@
      from Options). Content is built by renderIntro() from INTRO_SLIDES. -->
 <div id="intro" class="intro hidden">
   <div class="intro-card">
-    <div id="introArt" class="intro-art"></div>
+    <div id="introArt" class="intro-art notranslate"></div>
     <h2 id="introTitle"></h2>
     <p id="introBody"></p>
     <div id="introList" class="intro-list"></div>
@@ -1170,6 +1179,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <div id="learnResultHeader" class="learn-result"></div>
+    <div id="learnCompare"></div>
     <h3>Where in the world?</h3>
     <div id="learnMap" class="learn-map"><div class="learn-loading">Loading map…</div></div>
     <div id="learnEtymologySection" class="hidden">
@@ -1413,6 +1423,10 @@ function toQuestions(observations) {
         scientificName: obs.taxon.name,
         commonName: obs.taxon.preferred_common_name || "",
         location: obs.place_guess || "",   // human-readable place, for the optional location hint
+        // iNaturalist's broad group ("Plantae", "Insecta", "Aves", ...). Kept on
+        // every species we record so multiple-choice options and look-alike
+        // pairs never mix a grasshopper in with the plants (see sameGroup).
+        iconic: obs.taxon.iconic_taxon_name || "",
       };
       if (wantSound) {
         // Keep every clip of the observation (capped, same idea as photos
@@ -1676,6 +1690,7 @@ function recordResult(question, wasCorrect) {
     commonName: question.commonName, correct: 0, wrong: 0,
   };
   if (wasCorrect) stat.correct += 1; else stat.wrong += 1;
+  if (question.iconic) stat.iconic = question.iconic;   // keeps history rounds within one group
   game.stats.set(question.taxonId, stat);
   saveStore();
 }
@@ -1705,6 +1720,7 @@ function recordDifficult(question, wasCorrect, weak) {
     e.wrong = (e.wrong || 0) + 1;
     e.scientificName = question.scientificName;
     e.commonName = question.commonName;
+    if (question.iconic) e.iconic = question.iconic;
     game.difficult.set(id, e);
   }
   saveStore();
@@ -1731,6 +1747,7 @@ function updateSrs(question, wasCorrect, weak) {
   e.due = now + SRS_INTERVALS[e.box] * DAY_MS;
   e.scientificName = question.scientificName;   // keep names fresh (locale can change)
   e.commonName = question.commonName;
+  if (question.iconic) e.iconic = question.iconic;
   game.srs.set(question.taxonId, e);
   saveStore();
 }
@@ -1796,7 +1813,36 @@ function recordConfusion(target, guess) {
   game.confusions.set(key, c);
   saveStore();
 }
-const slimSpecies = (s) => ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName || "" });
+const slimSpecies = (s) => ({ taxonId: s.taxonId, scientificName: s.scientificName,
+  commonName: s.commonName || "", iconic: s.iconic || "" });
+
+// The broad group ("Plantae", "Insecta", "Aves", ...) for a species, from
+// wherever we happen to know it. Data saved before this was recorded simply has
+// none — such species count as "unknown" and are used only after same-group
+// ones, rather than being excluded outright.
+function iconicFor(taxonId) {
+  const fam = game.familyCache.get(taxonId);
+  if (fam && fam.iconic) return fam.iconic;
+  const st = game.stats.get(taxonId);
+  if (st && st.iconic) return st.iconic;
+  const sr = game.srs.get(taxonId);
+  if (sr && sr.iconic) return sr.iconic;
+  return "";
+}
+// Split candidates into same-group / unknown-group / other-group buckets. The
+// caller composes them across ALL its sources before deciding whether it needs
+// the cross-group ones — deciding per source would let a single cross-group
+// candidate through while a same-group one was still available elsewhere.
+function byGroup(candidates, want, groupOf) {
+  const same = [], unknown = [], other = [];
+  candidates.forEach((c) => {
+    const g = groupOf(c);
+    if (!want || !g) unknown.push(c);
+    else if (g === want) same.push(c);
+    else other.push(c);
+  });
+  return { same: shuffle(same), unknown: shuffle(unknown), other: shuffle(other) };
+}
 // The species this one is most often confused with (for smarter distractors).
 function confusionPartners(taxonId) {
   const out = [];
@@ -1855,8 +1901,11 @@ async function resolveFamilies() {
       (data.results || []).forEach((taxon) => {
         const family = (taxon.ancestors || []).find((a) => a.rank === "family");
         const genus = (taxon.name || "").split(" ")[0];
+        // iconic backfills the broad group for species recorded before we
+        // started storing it, so old histories also keep their options in-group.
         game.familyCache.set(taxon.id, { taxonId: taxon.id,
-          familyName: family ? family.name : (genus || "Other"), isFamily: Boolean(family) });
+          familyName: family ? family.name : (genus || "Other"), isFamily: Boolean(family),
+          iconic: taxon.iconic_taxon_name || "" });
       });
     } catch (err) { /* leave unresolved; they group under "Unknown" */ }
   }
@@ -2604,7 +2653,7 @@ function renderIntro() {
   el("introBody").textContent = s.body || "";
   el("introBody").style.display = s.body ? "" : "none";
   el("introList").innerHTML = (s.items || []).map(([icon, title, text]) =>
-    "<div class='intro-item'><span class='ii-icon'>" + icon + "</span>" +
+    "<div class='intro-item'><span class='ii-icon notranslate'>" + icon + "</span>" +
       "<span class='ii-text'><b>" + escapeHtml(title) + "</b>" +
       "<small>" + escapeHtml(text) + "</small></span></div>").join("");
   el("introDots").innerHTML = INTRO_SLIDES.map((_, i) =>
@@ -2612,6 +2661,9 @@ function renderIntro() {
   const last = introStep === INTRO_SLIDES.length - 1;
   el("introNext").textContent = last ? "Start exploring" : "Next";
   el("introSkip").style.visibility = last ? "hidden" : "";
+  // The intro is built after setupTranslate() has already swept the page, so it
+  // has to translate its own freshly-written text (and again on every slide).
+  if (uiLang !== "en") i18nApplyTo(el("intro"), uiLang);
 }
 function openIntro() { introStep = 0; renderIntro(); el("intro").classList.remove("hidden"); }
 function closeIntro() {
@@ -2752,13 +2804,45 @@ function startI18nObserver() {
   i18nObserver.observe(document.body, { childList: true, subtree: true });
 }
 
-async function setUiLang(lang) {
+// `persist` is true only for a deliberate pick from the language menu. Auto-
+// detection applies the language WITHOUT saving it, so every load re-reads the
+// device — otherwise the first-run detection would be stored as if it were a
+// choice, and the app could never follow a device whose language later changes.
+async function setUiLang(lang, persist) {
   uiLang = lang;
   document.documentElement.lang = lang;
-  try { localStorage.setItem(LANG_STORE_KEY, lang); } catch (err) { /* storage blocked */ }
+  if (persist) { try { localStorage.setItem(LANG_STORE_KEY, lang); } catch (err) { /* storage blocked */ } }
   renderFoldSummaries();   // a non-English language counts as a changed option
   await i18nApplyTo(document.body, lang);   // "en" restores originals, instantly
   if (lang !== "en") startI18nObserver();
+}
+
+// The device's own language, mapped onto a language we actually offer, so a
+// first-time visitor gets the app in their language without hunting for the
+// picker. navigator.languages is in preference order, so the first hit wins.
+// Browser language tags that don't match the code we serve: Norwegian arrives
+// as "nb"/"nn" (we list "no"), and some Androids still send the pre-1989 codes
+// "in" for Indonesian and "iw" for Hebrew.
+const LANG_ALIASES = { nb: "no", nn: "no", in: "id", iw: "he" };
+
+function detectDeviceLang() {
+  const codes = TRANSLATE_LANGS.map((l) => l.code);
+  const prefs = (navigator.languages && navigator.languages.length)
+    ? navigator.languages : [navigator.language || ""];
+  for (const raw of prefs) {
+    const tag = String(raw || "").trim();
+    if (!tag) continue;
+    // Exact match first, so "zh-TW" is never flattened into "zh-CN".
+    const exact = codes.find((c) => c.toLowerCase() === tag.toLowerCase());
+    if (exact) return exact;
+    const base = tag.split("-")[0].toLowerCase();
+    // Chinese is the one case where the region/script decides which we serve.
+    if (base === "zh") return /hant|tw|hk|mo/i.test(tag) ? "zh-TW" : "zh-CN";
+    // Otherwise fall back to the base language ("de-CH" -> "de", "pt-BR" -> "pt").
+    const byBase = codes.find((c) => c.toLowerCase() === (LANG_ALIASES[base] || base));
+    if (byBase) return byBase;
+  }
+  return "en";
 }
 
 function setupTranslate() {
@@ -2766,12 +2850,17 @@ function setupTranslate() {
   if (!sel) return;
   sel.innerHTML = TRANSLATE_LANGS.map((l) =>
     "<option value='" + l.code + "'>" + escapeHtml(l.label) + "</option>").join("");
-  let saved = "en";
-  try { saved = localStorage.getItem(LANG_STORE_KEY) || "en"; } catch (err) { /* none */ }
-  if (!TRANSLATE_LANGS.some((l) => l.code === saved)) saved = "en";
-  sel.value = saved;
-  sel.addEventListener("change", () => setUiLang(sel.value));
-  if (saved !== "en") setUiLang(saved);   // re-apply a remembered language on load
+  let saved = null;
+  try { saved = localStorage.getItem(LANG_STORE_KEY); } catch (err) { /* none */ }
+  // A language you picked yourself always wins; with nothing saved (a first
+  // visit) follow the device instead of assuming English.
+  const valid = TRANSLATE_LANGS.some((l) => l.code === saved);
+  const lang = valid ? saved : detectDeviceLang();
+  sel.value = lang;
+  // A menu pick is an explicit choice, so it's saved; the load-time apply below
+  // never saves, so a detected language keeps following the device.
+  sel.addEventListener("change", () => setUiLang(sel.value, true));
+  if (lang !== "en") setUiLang(lang, false);
 }
 
 
@@ -2900,7 +2989,8 @@ function growChecklist(questions) {
   const known = new Set(game.checklist.map((s) => s.id));
   questions.forEach((q) => {
     if (q.taxonId && !known.has(q.taxonId)) {
-      game.checklist.push({ id: q.taxonId, scientificName: q.scientificName, commonName: q.commonName, count: 0 });
+      game.checklist.push({ id: q.taxonId, scientificName: q.scientificName, commonName: q.commonName,
+        iconic: q.iconic || "", count: 0 });
       known.add(q.taxonId);
     }
   });
@@ -2964,10 +3054,12 @@ function startReview(useFreshPhotos) {
 // region session loaded.
 function historyChecklist() {
   const m = new Map();
-  const add = (id, sci, common) => { if (id && !m.has(id)) m.set(id, { id, scientificName: sci, commonName: common || "", count: 0 }); };
-  game.srs.forEach((e) => add(e.taxonId, e.scientificName, e.commonName));
-  game.stats.forEach((s) => add(s.taxonId, s.scientificName, s.commonName));
-  game.confusions.forEach((c) => { add(c.a.taxonId, c.a.scientificName, c.a.commonName); add(c.b.taxonId, c.b.scientificName, c.b.commonName); });
+  const add = (id, sci, common, iconic) => {
+    if (id && !m.has(id)) m.set(id, { id, scientificName: sci, commonName: common || "", iconic: iconic || iconicFor(id), count: 0 });
+  };
+  game.srs.forEach((e) => add(e.taxonId, e.scientificName, e.commonName, e.iconic));
+  game.stats.forEach((s) => add(s.taxonId, s.scientificName, s.commonName, s.iconic));
+  game.confusions.forEach((c) => { add(c.a.taxonId, c.a.scientificName, c.a.commonName, c.a.iconic); add(c.b.taxonId, c.b.scientificName, c.b.commonName, c.b.iconic); });
   return [...m.values()];
 }
 
@@ -3000,7 +3092,8 @@ function startHistoryReview(species, answerMode, label) {
   game.streak = 0; game.askedTaxa = new Set(); game.roundLog = [];
   game.round = { size: species.length, index: 0, correct: 0 };
   game.reviewQueue = shuffle(species).map((s) =>
-    ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName, fresh: true }));
+    ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName,
+       iconic: s.iconic || iconicFor(s.taxonId), fresh: true }));
   updateStreak();
   showScreen("play");
   updateProgress();
@@ -3076,6 +3169,7 @@ function startWeakSpotTraining(level, name) {
 // whichever media type ("photo" or "sound") the current session is quizzing on.
 function questionFromSavedMedia(base, media) {
   const q = { taxonId: base.taxonId, scientificName: base.scientificName, commonName: base.commonName,
+    iconic: base.iconic || iconicFor(base.taxonId),
     attribution: media ? media.attribution : "", observationId: media ? media.observationId : null };
   q[game.media === "sound" ? "soundUrl" : "photoUrl"] = media ? media.url : "";
   return q;
@@ -3393,8 +3487,14 @@ function onLightboxWheel(e) {
 
 // Enough other photographed species queued up to build a 4-photo reverse quiz?
 function reverseDistractorPool() {
-  return game.queue.filter((q) => q.taxonId !== game.current.taxonId &&
+  const pool = game.queue.filter((q) => q.taxonId !== game.current.taxonId &&
     q.photos && q.photos.length && q.photos[0].url);
+  // Same rule as the name options: picking the bird among three plants would be
+  // a trivially easy question, so keep the photos within one group.
+  const want = (game.current && game.current.iconic) || iconicFor(game.current.taxonId);
+  const g = byGroup(pool, want, (q) => q.iconic || iconicFor(q.taxonId));
+  const ranked = g.same.concat(g.unknown);
+  return ranked.length ? ranked : g.other;
 }
 function shouldReverse() {
   return game.reverseQuiz && game.media === "photo" && game.answerMode !== "study" &&
@@ -3514,12 +3614,33 @@ function presentChoose() {
 // Wrong names to sit alongside the right one. Species this one is actually
 // confused with come first (so Choose mode quietly drills your real
 // look-alikes), then the rest are filled from the region's checklist.
+// Options always stay inside the studied group: a grasshopper question is never
+// offered plant names. History rounds (due review, difficult focus, weak-spot
+// training) draw on everything you've ever studied, so without this they'd mix
+// groups freely. Same-group first, then species whose group we don't know, and
+// cross-group only if there is nothing else at all.
 function pickDistractors(excludeId, n) {
   const chosen = [], used = new Set([excludeId]);
   const add = (s) => { if (s && s.taxonId && !used.has(s.taxonId)) { used.add(s.taxonId); chosen.push(s); } };
-  confusionPartners(excludeId).forEach(add);
-  shuffle(game.checklist.filter((s) => s.id !== excludeId && s.scientificName))
-    .forEach((s) => add({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName }));
+  const want = (game.current && game.current.iconic) || iconicFor(excludeId);
+  const asOption = (s) => ({ taxonId: s.id, scientificName: s.scientificName, commonName: s.commonName, iconic: s.iconic });
+
+  const partners = byGroup(confusionPartners(excludeId), want, (s) => s.iconic || iconicFor(s.taxonId));
+  const pool = game.checklist.filter((s) => s.id !== excludeId && s.scientificName);
+  const rest = byGroup(pool, want, (s) => s.iconic || iconicFor(s.id));
+
+  // In-group first, confusion partners leading (they're your real look-alikes),
+  // then species whose group we never recorded.
+  partners.same.forEach(add);
+  rest.same.map(asOption).forEach(add);
+  partners.unknown.forEach(add);
+  rest.unknown.map(asOption).forEach(add);
+  // Cross-group is a true last resort — only when nothing in-group exists at
+  // all, so a question never ends up showing just its own answer.
+  if (chosen.length === 0) {
+    partners.other.forEach(add);
+    rest.other.map(asOption).forEach(add);
+  }
   return chosen.slice(0, n);
 }
 
@@ -4249,7 +4370,8 @@ function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
   const badge = wasCorrect ? "ok" : (mood === "skip" ? "" : "bad");   // shape cue, colour-blind safe
   const common = question.commonName ? " <span class='fb-common'>· " + escapeHtml(question.commonName) + "</span>" : "";
   const title = wasCorrect ? pickPraise() : "Correct answer:";
-  const you = (!wasCorrect && typed) ? "<span class='fb-you'>You wrote “" + escapeHtml(typed) + "”</span>" : "";
+  const answerVerb = game.answerMode === "choose" ? "picked" : "wrote";
+  const you = (!wasCorrect && typed) ? "<span class='fb-you'>You " + answerVerb + " “" + escapeHtml(typed) + "”</span>" : "";
   const combo = (mood === "combo" || mood === "ecstatic" || mood === "legendary")
     ? "<div class='fb-combo'>🔥 " + game.streak + " in a row!</div>" : "";
   // A short emotive line from the cow — hype on a roll, encouragement on a miss.
@@ -4272,6 +4394,10 @@ function openLearnPopup(question, wasCorrect, typed) {
   const token = learnMoreToken;
   el("learnResultHeader").className = "learn-result " + (wasCorrect ? "correct" : "wrong");
   el("learnResultHeader").innerHTML = resultHeaderHtml(question, wasCorrect, typed);
+  // The same correct-vs-picked comparison as the banner, so it's still visible
+  // once the pop-up covers the banner (this was the main gap on a wrong answer).
+  el("learnCompare").innerHTML = (!wasCorrect && game.lastGuess)
+    ? "<div class='learn-compare-wrap'>" + compareBlockHtml(question, game.lastGuess) + "</div>" : "";
   el("learnMap").innerHTML = "<div class='learn-loading'>Loading map…</div>";
   el("learnEtymologySection").classList.add("hidden");   // hidden until showFacts knows there is one
   el("learnEtymology").innerHTML = "<div class='learn-loading'>Loading…</div>";
@@ -4283,6 +4409,7 @@ function openLearnPopup(question, wasCorrect, typed) {
       "spotted something misidentified there? Feel free to suggest a correction on iNaturalist."
     : "";
   el("learnPopup").classList.remove("hidden");
+  loadComparePhotos();   // fills the compare images in both the banner and here
 
   const mapBox = el("learnMap");
   showDistributionMap(mapBox, question.scientificName, token).catch(() => {
@@ -4303,10 +4430,10 @@ function showFeedback(wasCorrect, typed) {
   const q = game.current;
   const learnMore = "<a class='fb-learn' href='" + learnMoreUrl(q) + "' target='_blank' rel='noopener'>" +
     "🔍 Do you want to learn more about this " + subjectNoun() + "?</a>";
-  // Always show the two side by side after a real look-alike miss — whenever we
-  // have the wrong species you actually picked and a photo to show for it, the
-  // right answer sits next to your wrong one so you learn what tells them apart.
-  const compare = (!wasCorrect && game.lastGuess && game.media === "photo")
+  // Always show the two side by side after a real look-alike miss — the species
+  // you picked next to the right answer, so a wrong choice is unmistakable.
+  // Photos are fetched as needed, so it works in sound mode too.
+  const compare = (!wasCorrect && game.lastGuess)
     ? compareBlockHtml(q, game.lastGuess) : "";
   // Aid E — a slot for the personal memory note.
   const note = game.mnemonics ? "<div id='fbNote' class='fb-note'></div>" : "";
@@ -4332,28 +4459,53 @@ function wireFeedback(q) {
   el("feedback").querySelectorAll(".rate-btn").forEach((b) =>
     b.addEventListener("click", () => { rateSrs(q, b.dataset.rate); nextQuestion(); }));
   if (game.mnemonics) renderNoteBlock(q.taxonId, false);
-  if (el("cmpGuessImg") && game.lastGuess) {
-    fetchSpeciesPhoto(game.lastGuess.taxonId).then((url) => {
-      const img = el("cmpGuessImg");
-      if (img && url) img.src = url;
-    });
-  }
+  loadComparePhotos();
 }
 
-// The two look-alikes side by side (aid A): the one you guessed, then the right
-// answer. The correct photo is the one already on screen; the guess photo is
-// fetched in wireFeedback().
+// The two look-alikes side by side (aid A): the one you picked and the right
+// answer, clearly labelled and marked ✕ / ✓. Images carry data-sp-id and are
+// filled by loadComparePhotos(), so the same markup works in the feedback
+// banner and inside the distribution pop-up without clashing element ids.
 function compareBlockHtml(correct, guess) {
-  const col = (cls, tag, sp, imgId, imgUrl) =>
+  const col = (cls, tag, mark, sp, url) =>
     "<div class='compare-col " + cls + "'>" +
-      "<img class='cmp-img' id='" + imgId + "' src='" + escapeHtml(imgUrl || "") + "' alt=''>" +
-      "<div class='cmp-body'><div class='cmp-tag'>" + tag + "</div>" +
+      "<div class='cmp-tag'><span class='cmp-mark'>" + mark + "</span>" + tag + "</div>" +
+      "<div class='cmp-imgwrap'>" +
+        (url ? "" : "<div class='cmp-loading'><div class='spinner'></div></div>") +
+        "<img class='cmp-img' data-sp-id='" + sp.taxonId + "' src='" + escapeHtml(url || "") + "' alt=''>" +
+      "</div>" +
+      "<div class='cmp-body'>" +
         "<div class='cmp-name notranslate'>" + escapeHtml(sp.scientificName) + "</div>" +
         (sp.commonName ? "<div class='cmp-common notranslate'>" + escapeHtml(sp.commonName) + "</div>" : "") +
       "</div></div>";
+  // In photo mode the correct answer's photo is already on screen; otherwise
+  // (sound mode) it's fetched like the guess photo.
+  const onScreen = game.media === "photo" && questionPhotos(correct)[0];
   return "<div class='compare'>" +
-    col("wrong", "You said", guess, "cmpGuessImg", "") +
-    col("right", "Correct", correct, "cmpRightImg", questionPhotos(correct)[0].url) + "</div>";
+    col("wrong", "Your pick", "✕", guess, "") +
+    col("right", "Correct answer", "✓", correct, onScreen ? onScreen.url : "") + "</div>";
+}
+
+// Fill any compare image that doesn't have a photo yet, de-duplicating by
+// species so the guess/correct photos are each fetched once even when the same
+// compare block is shown in both the banner and the pop-up.
+function loadComparePhotos() {
+  const empty = [...document.querySelectorAll(".cmp-img[data-sp-id]")].filter((i) => !i.getAttribute("src"));
+  const byId = new Map();
+  empty.forEach((img) => {
+    const id = Number(img.dataset.spId);
+    if (!byId.has(id)) byId.set(id, []);
+    byId.get(id).push(img);
+  });
+  byId.forEach((imgs, id) => fetchSpeciesPhoto(id).then((url) => {
+    if (!url) return;
+    imgs.forEach((img) => {
+      if (img.getAttribute("src")) return;
+      img.src = url;
+      const loader = img.parentElement.querySelector(".cmp-loading");
+      if (loader) loader.remove();
+    });
+  }));
 }
 
 // The Again/Hard/Good/Easy row (aid D), each showing when it'll bring the
