@@ -970,6 +970,17 @@
           <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
         </div>
 
+        <div class="field">
+          <div class="field-label">Backup &amp; restore</div>
+          <div class="list-editor-row">
+            <button type="button" id="exportBackupBtn" class="btn btn-ghost">Export my data</button>
+            <label class="btn btn-ghost list-upload-btn">Import data
+              <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
+            </label>
+          </div>
+          <div class="hint" style="margin-top:8px;">Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.</div>
+        </div>
+
         <div class="aids-divider">Learning aids</div>
 
         <label class="toggle field">
@@ -1339,7 +1350,7 @@ function toast(message) {
 //  No key or login is needed to read public data. We retry once on failure
 //  and time out slow requests, so a flaky connection doesn't hang the app.
 
-async function apiGet(path, params, tries = 2) {
+async function apiGet(path, params, tries = 3) {
   const url = new URL(API + path);
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== "") url.searchParams.set(key, value);
@@ -1355,7 +1366,9 @@ async function apiGet(path, params, tries = 2) {
       return await response.json();
     } catch (err) {
       if (attempt === tries) throw err;
-      await sleep(700);
+      // Back off a little more on each retry (with a touch of jitter), so a
+      // busy/flaky API gets breathing room instead of an immediate second hit.
+      await sleep(600 * attempt + Math.floor(Math.random() * 300));
     }
   }
 }
@@ -1507,6 +1520,7 @@ const game = {
   daily: {},                // "YYYY-MM-DD" -> species answered that day (feature: daily streak)
   notes: {},                // taxonId -> personal memory note (aid E)
   difficult: new Map(),     // taxonId -> { taxonId, scientificName, commonName, streak, wrong, addedAt } (feature: difficult list)
+  wrongQ: new Map(),        // taxonId -> the EXACT Choose question you missed { taxonId, ..., options:[...], at } — replayed verbatim, never recombined
   familyCache: new Map(),   // taxonId -> { taxonId, familyName, isFamily } (shared)
   compares: [],             // other people's summaries, imported from share-codes
   customLists: [],          // user-made taxa lists [{ id, name, taxa:[{id,scientificName,commonName}] }] (feature: my lists)
@@ -1589,7 +1603,7 @@ const currentProfile = () => game.profiles.get(game.activeId);
 function createProfile(name) {
   const profile = { id: newProfileId(), name: name || "Player", createdAt: Date.now(),
                     stats: new Map(), snapshots: [], srs: new Map(), confusions: new Map(), daily: {}, notes: {},
-                    difficult: new Map() };
+                    difficult: new Map(), wrongQ: new Map() };
   game.profiles.set(profile.id, profile);
   activateProfile(profile.id);
   return profile;
@@ -1615,6 +1629,7 @@ function activateProfile(id) {
   game.daily = p.daily;
   game.notes = p.notes;
   game.difficult = p.difficult;
+  game.wrongQ = p.wrongQ;
   saveStore();
 }
 
@@ -1625,6 +1640,7 @@ function saveStore() {
       stats: [...p.stats.values()], snapshots: p.snapshots,
       srs: [...p.srs.values()], confusions: [...p.confusions.values()], daily: p.daily, notes: p.notes,
       difficult: [...(p.difficult ? p.difficult.values() : [])],
+      wrongQ: [...(p.wrongQ ? p.wrongQ.values() : [])],
     }));
     localStorage.setItem(STORE_KEY, JSON.stringify({
       activeId: game.activeId,
@@ -1647,11 +1663,17 @@ function loadStore() {
     saved.profiles.forEach((p) => {
       const stats = new Map((p.stats || []).map((s) => [s.taxonId, s]));
       const srs = new Map((p.srs || []).map((e) => [e.taxonId, e]));
-      const confusions = new Map((p.confusions || []).map((c) => [c.key, c]));
+      // Drop legacy cross-group confusion pairs (e.g. a plant recorded against
+      // an insect) that older versions could save — they only ever produced
+      // nonsensical look-alike pairings.
+      const confusions = new Map((p.confusions || [])
+        .filter((c) => !(c.a && c.b && c.a.iconic && c.b.iconic && c.a.iconic !== c.b.iconic))
+        .map((c) => [c.key, c]));
       const difficult = new Map((p.difficult || []).map((d) => [d.taxonId, d]));
+      const wrongQ = new Map((p.wrongQ || []).map((w) => [w.taxonId, w]));
       game.profiles.set(p.id, { id: p.id, name: p.name, createdAt: p.createdAt,
                                 stats, snapshots: p.snapshots || [],
-                                srs, confusions, daily: p.daily || {}, notes: p.notes || {}, difficult });
+                                srs, confusions, daily: p.daily || {}, notes: p.notes || {}, difficult, wrongQ });
     });
     game.activeId = saved.activeId;
   } else {
@@ -1666,7 +1688,7 @@ function loadStore() {
   }
   const p = currentProfile();
   game.stats = p.stats; game.srs = p.srs; game.confusions = p.confusions; game.daily = p.daily; game.notes = p.notes;
-  game.difficult = p.difficult;
+  game.difficult = p.difficult; game.wrongQ = p.wrongQ;
   saveStore();
 }
 
@@ -1680,6 +1702,55 @@ function migrateOldStore() {
     (old.stats || []).forEach((s) => profile.stats.set(s.taxonId, s));
     saveStore();
   } catch (err) { /* nothing to migrate */ }
+}
+
+// -- backup & restore -----------------------------------------------------
+// Everything lives in localStorage, so a cleared browser or a new device would
+// lose it all. Export downloads the whole store (every player, custom lists,
+// imported compare-codes, cached families) as one JSON file; import restores it.
+function exportBackup() {
+  saveStore();   // make sure localStorage reflects the current session
+  const raw = localStorage.getItem(STORE_KEY) || "{}";
+  const blob = new Blob([raw], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "determinare-backup-" + todayStr() + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast("Backup downloaded.");
+}
+
+function importBackup(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch (err) { toast("That file isn't valid JSON."); return; }
+    if (!data || !Array.isArray(data.profiles) || data.profiles.length === 0) {
+      toast("That file isn't a Determinare backup.");
+      return;
+    }
+    if (!window.confirm("Import this backup? It replaces the players and progress currently in this browser.")) return;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+    catch (err) { toast("Couldn't save the imported data (storage blocked)."); return; }
+    // Rebuild every in-memory structure from the freshly-imported store.
+    game.profiles = new Map();
+    game.familyCache = new Map();
+    game.compares = [];
+    game.customLists = [];
+    game.activeId = null;
+    loadStore();
+    populateProfileSelect();
+    renderSetupStatus();
+    renderCertChips();
+    renderCustomListChips();
+    toast("Backup imported.");
+  };
+  reader.onerror = () => toast("Couldn't read that file.");
+  reader.readAsText(file);
 }
 
 // Record one result for a species. Called in normal play only, so the picture
@@ -1783,8 +1854,18 @@ function saveNote(taxonId, text) {
 }
 
 // -- daily practice streak ------------------------------------------------
-const todayStr = () => new Date().toISOString().slice(0, 10);   // "YYYY-MM-DD", local-ish
-const dayStr = (d) => new Date(d).toISOString().slice(0, 10);
+// "YYYY-MM-DD" in the device's LOCAL time zone — not UTC. Using toISOString()
+// here would put the day boundary at UTC midnight, so an evening session west
+// of UTC could count as "tomorrow" and quietly break a streak; local date
+// components keep the day boundary at the learner's own midnight.
+const ymdLocal = (d) => {
+  const dt = new Date(d);
+  return dt.getFullYear() + "-" +
+    String(dt.getMonth() + 1).padStart(2, "0") + "-" +
+    String(dt.getDate()).padStart(2, "0");
+};
+const todayStr = () => ymdLocal(new Date());
+const dayStr = (d) => ymdLocal(d);
 // Count one answered species toward today's tally (drives the streak + goal).
 function recordDailyActivity() {
   const t = todayStr();
@@ -1807,6 +1888,11 @@ const confusionKey = (a, b) => [a, b].sort((x, y) => x - y).join("_");
 // one entry per unordered pair, with a running count.
 function recordConfusion(target, guess) {
   if (!target || !guess || target.taxonId === guess.taxonId) return;
+  // A confusion only makes sense within one broad group — a plant "confused"
+  // with an insect is noise (a typo or a stray option), not a look-alike.
+  const tg = target.iconic || iconicFor(target.taxonId);
+  const gg = guess.iconic || iconicFor(guess.taxonId);
+  if (tg && gg && tg !== gg) return;
   const key = confusionKey(target.taxonId, guess.taxonId);
   const c = game.confusions.get(key) || { key, a: slimSpecies(target), b: slimSpecies(guess), count: 0 };
   c.count += 1;
@@ -1852,16 +1938,6 @@ function confusionPartners(taxonId) {
   });
   return out.sort((x, y) => y.count - x.count).map((o) => o.sp);
 }
-// Every species involved in a confusion, worst pairs first — the drill queue.
-function confusionDrillSpecies() {
-  const pairs = [...game.confusions.values()].sort((a, b) => b.count - a.count);
-  const seen = new Set(), out = [];
-  pairs.forEach((c) => [c.a, c.b].forEach((s) => {
-    if (!seen.has(s.taxonId)) { seen.add(s.taxonId); out.push(s); }
-  }));
-  return out;
-}
-
 
 // == 6. Weak spots, milestones & share-codes ===============================
 
@@ -2069,19 +2145,37 @@ function answerSuggestions(query, limit = 6) {
 }
 
 // -- answer checking (forgiving of small typos) ----------------------------
-const genusAndEpithet = (name) => normalize(name).split(" ").slice(0, 2).join(" ");
+const nameWords = (name) => normalize(name).split(" ").filter(Boolean).slice(0, 2);
+const genusAndEpithet = (name) => nameWords(name).join(" ");
 
-// Same "small typos forgiven" tolerance rule used for the scientific name,
-// applied to whichever string is being checked — pulled out so the common
-// name gets the same leniency instead of requiring an exact match.
+// Same "small typos forgiven" tolerance rule, applied to a whole string — used
+// for common names, which are free-form phrases rather than two Latin words.
 const closeEnough = (a, b) => a === b || levenshtein(a, b) <= (b.length > 8 ? 2 : 1);
 
+// Per-word typo tolerance for a scientific name: forgive a slip or two in
+// proportion to the word's length, but never enough to reach a *different* real
+// name. Longer words allow two edits; short ones must be spot on. Checking the
+// genus and epithet word-by-word (rather than on the joined string, as before)
+// is what stops a couple of forgiven letters silently crossing from one species
+// to another — e.g. "Carex flava" is no longer accepted for "Carex flacca",
+// nor "Malva sylvestris" for "Malus sylvestris".
+const wordTolerance = (w) => w.length >= 9 ? 2 : w.length >= 4 ? 1 : 0;
+const wordCloseEnough = (a, b) => a === b || levenshtein(a, b) <= wordTolerance(b);
+
+// A typed scientific name matches only when BOTH the genus and the species
+// epithet are (near-)right. A bare genus is never accepted as a species answer.
+function scientificMatches(answer, target) {
+  const a = nameWords(answer), b = nameWords(target);
+  if (b.length < 2) return b.length === 1 && a.length >= 1 && wordCloseEnough(a[0], b[0]);
+  if (a.length < 2) return false;
+  return wordCloseEnough(a[0], b[0]) && wordCloseEnough(a[1], b[1]);
+}
+
 function isCorrect(answer, question) {
-  const given = genusAndEpithet(answer);
-  if (given && closeEnough(given, genusAndEpithet(question.scientificName))) return true;
+  if (scientificMatches(answer, question.scientificName)) return true;
   // In certificate mode, accept the other taxonomy's name too (e.g. either
   // "Anemone nemorosa" or "Anemonoides nemorosa"), whichever is being shown.
-  if (given && question.altName && closeEnough(given, genusAndEpithet(question.altName))) return true;
+  if (question.altName && scientificMatches(answer, question.altName)) return true;
   if (question.commonName && closeEnough(normalize(answer), normalize(question.commonName))) return true;
   return false;
 }
@@ -2534,7 +2628,6 @@ function renderSetupStatus() {
   const streak = currentDailyStreak();
   const today = game.daily[todayStr()] || 0;
   const due = dueSrsEntries().length;
-  const pairs = game.confusions.size;
   let html = "";
 
   if (streak > 0 || today > 0 || game.stats.size > 0) {
@@ -2551,10 +2644,11 @@ function renderSetupStatus() {
       "<small>Spaced repetition — the ones you're about to forget</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
-  if (pairs > 0) {
-    html += "<button type='button' class='prompt-banner drill' data-action='drill'>" +
-      "<span class='pb-emoji'>👀</span><span class='pb-text'>Drill " + pairs + " look-alike " + (pairs === 1 ? "pair" : "pairs") +
-      "<small>Species you've mixed up, told apart</small></span>" +
+  const missed = game.wrongQ ? game.wrongQ.size : 0;
+  if (missed > 0) {
+    html += "<button type='button' class='prompt-banner drill' data-action='replay'>" +
+      "<span class='pb-emoji'>👀</span><span class='pb-text'>Replay " + missed + " question" + (missed === 1 ? "" : "s") + " you missed" +
+      "<small>The exact same photo and choices — until you nail them</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   const hard = game.difficult.size;
@@ -3093,7 +3187,7 @@ function startHistoryReview(species, answerMode, label) {
   game.round = { size: species.length, index: 0, correct: 0 };
   game.reviewQueue = shuffle(species).map((s) =>
     ({ taxonId: s.taxonId, scientificName: s.scientificName, commonName: s.commonName,
-       iconic: s.iconic || iconicFor(s.taxonId), fresh: true }));
+       iconic: s.iconic || iconicFor(s.taxonId), fixedOptions: s.fixedOptions || null, fresh: true }));
   updateStreak();
   showScreen("play");
   updateProgress();
@@ -3106,10 +3200,35 @@ function startDueReview() {
   startHistoryReview(due, answerModeChoice === "study" ? "type" : answerModeChoice, "🔁 Due for review");
 }
 
-// "Drill your look-alikes" — Choose-mode round over the species you mix up,
-// where the distractors are your actual confusion partners (see pickDistractors).
-function startConfusionDrill() {
-  startHistoryReview(confusionDrillSpecies(), "choose", "👀 Look-alike drill");
+// -- exact wrong-question replay ------------------------------------------
+// When you miss a multiple-choice question, we store the WHOLE question — the
+// target plus the exact options that were on screen — and later replay it
+// verbatim. Nothing is recombined, so the set of species can never drift into
+// nonsense (a plant question sprouting insect options).
+function recordWrongQuestion(target, options) {
+  if (!target || !options || !options.length) return;
+  game.wrongQ.set(target.taxonId, {
+    taxonId: target.taxonId, scientificName: target.scientificName,
+    commonName: target.commonName || "", iconic: target.iconic || "",
+    options: options.map((o) => ({ taxonId: o.taxonId, scientificName: o.scientificName, commonName: o.commonName || "" })),
+    at: Date.now(),
+  });
+  saveStore();
+}
+// You got it right — the exact question has served its purpose, so retire it.
+function clearWrongQuestion(taxonId) {
+  if (game.wrongQ && game.wrongQ.delete(taxonId)) saveStore();
+}
+
+// "Replay the questions you missed" — the same photo and the same options,
+// just reshuffled. Always Choose mode (that's the only mode with a fixed option
+// set to replay).
+function startWrongReplay() {
+  const items = [...game.wrongQ.values()].sort((a, b) => b.at - a.at);
+  if (!items.length) return;
+  const species = items.map((w) => ({ taxonId: w.taxonId, scientificName: w.scientificName,
+    commonName: w.commonName, iconic: w.iconic, fixedOptions: w.options }));
+  startHistoryReview(species, "choose", "🔁 Questions you missed");
 }
 
 // "Focus on difficult species" — a round over exactly your difficult list, in
@@ -3245,11 +3364,13 @@ async function nextQuestion() {
   if (game.mode === "review") {
     let q = game.reviewQueue.shift();
     if (!q) return showDone();
+    const fixedOptions = q.fixedOptions || null;   // the exact stored options survive the photo swap
     if (q.fresh) {
       setBusy("Finding another " + mediaWord() + "…");
       const fresh = await fetchFreshPhoto(q);
       q = fresh || fallbackPhoto(q);
     }
+    if (fixedOptions) q.fixedOptions = fixedOptions;
     game.current = q;
     presentQuestion();
     return;
@@ -3293,6 +3414,17 @@ function questionSounds(question) {
   return [{ url: question.soundUrl, attribution: question.attribution }];
 }
 
+// A broken lead photo/sound skips to the next question — but a run of dead
+// URLs (offline, or a pool of gone media) must not turn that into an unbounded
+// skip-storm that hammers the queue and top-up. Count consecutive failures and
+// bail to the error screen once too many pile up; any successful load clears it.
+function onMediaOk() { game.mediaFails = 0; }
+function onMediaBroken() {
+  game.mediaFails = (game.mediaFails || 0) + 1;
+  if (game.mediaFails >= 8) { game.mediaFails = 0; showError(new Error("media")); return; }
+  nextQuestion();
+}
+
 function showPhotoGallery(photos) {
   game.currentMedia = photos;   // read by the scroll handler as you swipe
 
@@ -3308,11 +3440,11 @@ function showPhotoGallery(photos) {
 
   el("photoLoading").classList.remove("hidden");
   const firstImage = strip.querySelector("img");
-  firstImage.onload  = () => el("photoLoading").classList.add("hidden");
-  firstImage.onerror = () => nextQuestion();   // the lead photo is broken — just skip ahead
+  firstImage.onload  = () => { el("photoLoading").classList.add("hidden"); onMediaOk(); };
+  firstImage.onerror = () => onMediaBroken();   // the lead photo is broken — skip ahead (guarded)
   // A cached image can already be complete before onload is attached, in which
   // case onload never fires and the spinner would sit on top of it forever.
-  if (firstImage.complete && firstImage.naturalWidth > 0) el("photoLoading").classList.add("hidden");
+  if (firstImage.complete && firstImage.naturalWidth > 0) { el("photoLoading").classList.add("hidden"); onMediaOk(); }
 
   updatePhotoIndicator();   // sets the "1 / n" pill and the credit line for photo 1
 }
@@ -3339,7 +3471,8 @@ function showSoundGallery(sounds) {
 
   el("photoLoading").classList.add("hidden");   // audio needs no preload spinner
   const firstAudio = strip.querySelector("audio");
-  firstAudio.onerror = () => nextQuestion();   // the lead clip is broken — just skip ahead
+  firstAudio.onloadeddata = () => onMediaOk();
+  firstAudio.onerror = () => onMediaBroken();   // the lead clip is broken — skip ahead (guarded)
 
   updatePhotoIndicator();
 }
@@ -3535,7 +3668,11 @@ function presentQuestion() {
   if (game.media === "sound") showSoundGallery(questionSounds(game.current));
   else showPhotoGallery(questionPhotos(game.current));
 
-  const mode = game.answerMode;
+  let mode = game.answerMode;
+  // A Choose question needs at least one distractor to sit beside the answer;
+  // with none available (e.g. a one-species custom list) a "multiple choice"
+  // would just hand over the answer, so fall back to Study for this one question.
+  if (mode === "choose" && pickDistractors(game.current.taxonId, 1).length === 0) mode = "study";
   // Show only the answer region for the current mode.
   el("answerInput").closest(".search.answer").classList.toggle("hidden", mode !== "type");
   el("hintArea").classList.toggle("hidden", mode !== "type");
@@ -3647,7 +3784,14 @@ function pickDistractors(excludeId, n) {
 let currentChoices = [];   // the option objects on screen, for confusion logging
 function renderChoices() {
   const correct = { taxonId: game.current.taxonId, scientificName: game.current.scientificName, commonName: game.current.commonName };
-  currentChoices = shuffle([correct].concat(pickDistractors(correct.taxonId, (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1)));
+  if (game.current.fixedOptions && game.current.fixedOptions.length) {
+    // Replaying a missed question — show the exact same options, just reshuffled.
+    currentChoices = shuffle(game.current.fixedOptions.map((o) =>
+      ({ taxonId: o.taxonId, scientificName: o.scientificName, commonName: o.commonName })));
+    if (!currentChoices.some((o) => o.taxonId === correct.taxonId)) currentChoices.unshift(correct);
+  } else {
+    currentChoices = shuffle([correct].concat(pickDistractors(correct.taxonId, (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1)));
+  }
   el("choiceArea").innerHTML = currentChoices.map((o) =>
     "<button type='button' class='choice notranslate' data-taxon='" + o.taxonId + "'>" +
       escapeHtml(answerLabelFor(o)) + "</button>").join("");
@@ -3671,6 +3815,11 @@ function chooseAnswer(chosenId, label) {
   if (!wasCorrect) {
     const guess = currentChoices.find((o) => o.taxonId === chosenId);
     if (guess) { game.lastGuess = guess; recordConfusion(game.current, guess); }
+    // Store the whole question — target + these exact options — to replay as-is.
+    recordWrongQuestion(game.current, currentChoices);
+  } else {
+    // Answered right, so the stored version of this question has done its job.
+    clearWrongQuestion(game.current.taxonId);
   }
   finishAnswer(wasCorrect, label);
 }
@@ -4975,7 +5124,7 @@ function wireControls() {
     const action = e.target.closest("[data-action]");
     if (!action) return;
     if (action.dataset.action === "due") startDueReview();
-    else if (action.dataset.action === "drill") startConfusionDrill();
+    else if (action.dataset.action === "replay") startWrongReplay();
     else if (action.dataset.action === "focus") startDifficultFocus();
   });
   // The pencil button opens a plain text box, pre-filled with your current
@@ -5075,6 +5224,13 @@ function wireControls() {
   el("introNext").addEventListener("click", advanceIntro);
   el("introSkip").addEventListener("click", closeIntro);
   el("introReplay").addEventListener("click", openIntro);
+
+  // backup & restore
+  el("exportBackupBtn").addEventListener("click", exportBackup);
+  el("importBackupInput").addEventListener("change", (e) => {
+    if (e.target.files[0]) importBackup(e.target.files[0]);
+    e.target.value = "";   // allow re-importing the same file later
+  });
 
   el("certListClose").addEventListener("click", closeCertList);
   el("certListModal").addEventListener("click", (e) => { if (e.target.id === "certListModal") closeCertList(); });
