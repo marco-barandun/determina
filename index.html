@@ -484,6 +484,20 @@
   }
   .hint-btn:hover { background: var(--bg-2); color: var(--ink); }
 
+  /* "Where was this seen?" — a button that reveals a continental map of the
+     observation's own location. Uses the same pill look as the hint button. */
+  .obs-location { margin-top: 12px; }
+  .obs-location:empty { display: none; }
+  .obs-btn {
+    background: none; border: 1.5px dashed var(--line-2); color: var(--muted);
+    border-radius: 999px; padding: 7px 15px; font-family: var(--font); font-weight: 700;
+    font-size: 13px; cursor: pointer;
+  }
+  .obs-btn:hover { background: var(--bg-2); color: var(--ink); }
+  .obs-map { height: 190px; border-radius: 12px; overflow: hidden; margin-top: 10px;
+    border: 2px solid var(--line); }
+  .obs-map .leaflet-container { height: 100%; background: var(--bg-2); }
+
   /* Multiple-choice ("Choose") answer grid — recognition instead of recall. */
   .choice-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
   .choice {
@@ -547,7 +561,10 @@
   .compare-col .cmp-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .cmp-imgwrap .cmp-loading { position: absolute; inset: 0; display: grid; place-items: center; }
   .compare-col .cmp-body { padding: 7px 9px; }
-  .compare-col .cmp-name { font-style: italic; font-weight: 800; font-size: 13px; }
+  /* Wrap the full binomial (overriding the leaderboard's nowrap/ellipsis .cmp-name),
+     breaking a long genus if need be, so a species name is never cut off. */
+  .compare-col .cmp-name { font-style: italic; font-weight: 800; font-size: 13px;
+    white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.25; }
   .learn-compare-wrap { margin: 2px 0 14px; }
 
   /* Self-rating (aid D): Anki-style buttons in place of Continue. */
@@ -1075,6 +1092,7 @@
                spellcheck="false" enterkeyhint="go" data-lpignore="true" data-1p-ignore data-form-type="other">
         <div id="answerSuggest" class="suggest hidden"></div>
       </div>
+      <div id="obsLocation" class="obs-location"></div>
       <div id="hintArea" class="hint-area"></div>
       <div id="choiceArea" class="choice-area hidden"></div>
       <div id="studyAnswer" class="study-answer hidden"></div>
@@ -1444,6 +1462,7 @@ function toQuestions(observations) {
         scientificName: obs.taxon.name,
         commonName: obs.taxon.preferred_common_name || "",
         location: obs.place_guess || "",   // human-readable place, for the optional location hint
+        coords: obs.location || "",        // "lat,lng" of the observation, for the map button
         // iNaturalist's broad group ("Plantae", "Insecta", "Aves", ...). Kept on
         // every species we record so multiple-choice options and look-alike
         // pairs never mix a grasshopper in with the plants (see sameGroup).
@@ -2942,6 +2961,7 @@ const MANUAL_I18N = {
   "Next": { de: "Weiter", it: "Avanti", fr: "Suivant", es: "Siguiente" },
   "Continue": { de: "Weiter", it: "Continua", fr: "Continuer", es: "Continuar" },
   "💡 Need a hint?": { de: "💡 Brauchst du einen Hinweis?", it: "💡 Ti serve un aiuto?", fr: "💡 Besoin d'un indice ?", es: "💡 ¿Necesitas una pista?" },
+  "📍 Where was this seen?": { de: "📍 Wo wurde das gesehen?", it: "📍 Dove è stata vista?", fr: "📍 Où a-t-elle été vue ?", es: "📍 ¿Dónde se vio?" },
   "Show another hint": { de: "Weiteren Hinweis zeigen", it: "Mostra un altro aiuto", fr: "Afficher un autre indice", es: "Mostrar otra pista" },
   "Reviewing your misses": { de: "Deine Fehler wiederholen", it: "Ripasso degli errori", fr: "Révision de tes erreurs", es: "Repasando tus fallos" },
   "🔁 Seen it — try again": { de: "🔁 Schon gesehen – versuch's nochmal", it: "🔁 Già vista: riprova", fr: "🔁 Déjà vue — réessaie", es: "🔁 Ya vista: inténtalo otra vez" },
@@ -3219,6 +3239,7 @@ async function startSession() {
   game.counts = true;   // ordinary play always counts
   game.covered = new Set(); game.gbifTried = new Set(); game.gapFilling = false;   // GBIF gap-fill bookkeeping
   game.obsCount = new Map();   // taxonId -> iNat photo count for the pool (drives GBIF top-up)
+  game.balancedPool = []; game.speciesObs = new Map();   // equal-weight species sampling
 
   // Certificate mode: quiz a fixed, taxonomy-harmonised species list instead of
   // a group. It overrides the group / common-species choice; region still
@@ -3298,23 +3319,27 @@ async function startSession() {
       game.obsCount = await fetchObsCounts(game.pool, game.placeId);
     }
 
-    // First request tells us how many observations exist (so we know the page
-    // range). In certificate mode each fetch pulls a fresh random chunk of the
-    // list, so we keep the page range small rather than measuring one chunk.
-    const first = await fetchObservations(currentFetchIds(), game.placeId, 1);
-    const total = first.total_results || 0;
-    game.maxPage = game.pool ? 4 : Math.min(Math.max(1, Math.ceil(total / PER_PAGE)), MAX_PAGE);
-
-    // For variety, play from a random page rather than the newest uploads.
-    let batch = first.results || [];
-    if (game.maxPage > 1) {
-      const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage));
-      batch = data.results || batch;
+    // Build the equal-weight species pool and fill the first questions from it,
+    // sampling species uniformly so common and rare species get the same shot.
+    await buildBalancedPool();
+    if (game.balancedPool.length) {
+      await fillBalanced(BALANCED_BATCH);
+    } else {
+      // Fallback: the old observation-feed paging, when a species pool can't be
+      // built (e.g. species_counts failed).
+      const first = await fetchObservations(currentFetchIds(), game.placeId, 1);
+      const total = first.total_results || 0;
+      game.maxPage = game.pool ? 4 : Math.min(Math.max(1, Math.ceil(total / PER_PAGE)), MAX_PAGE);
+      let batch = first.results || [];
+      if (game.maxPage > 1) {
+        const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage));
+        batch = data.results || batch;
+      }
+      const candidates = shuffle(toQuestions(batch));
+      candidates.forEach((q) => { game.seen.add(q.observationId); game.covered.add(q.taxonId); });
+      game.queue = filterUnique(candidates);
+      growChecklist(candidates);
     }
-    const candidates = shuffle(toQuestions(batch));
-    candidates.forEach((q) => { game.seen.add(q.observationId); game.covered.add(q.taxonId); });
-    game.queue = filterUnique(candidates);
-    growChecklist(candidates);
 
     // If iNat gave us nothing but GBIF gap-fill is on, let GBIF supply the first
     // images before we give up (e.g. a list entirely of species iNat lacks).
@@ -3323,9 +3348,9 @@ async function startSession() {
     }
     if (game.queue.length === 0) { showEmpty(); return; }
 
-    // In common / certificate mode the checklist is already the focus set;
-    // otherwise enrich name suggestions with the region's top species.
-    if (!game.commonOnly && !game.pool) loadTopSpeciesInBackground();
+    // Balanced mode already has the full species list as the checklist; only the
+    // fallback normal path still needs the background top-species enrichment.
+    if (!game.balancedPool.length && !game.commonOnly && !game.pool) loadTopSpeciesInBackground();
     startRound("normal");
     gapFillGbif();   // start surfacing iNat-less species alongside the common ones
   } catch (err) {
@@ -3675,17 +3700,83 @@ async function appendWebImages(question) {
 function poolChunk() { return shuffle(game.pool).slice(0, CERT_CHUNK).join(","); }
 function currentFetchIds() { return game.pool ? poolChunk() : game.taxonIds; }
 
+// -- equal-weight sampling ---------------------------------------------------
+//  iNaturalist's observation feed is dominated by common species (they simply
+//  have far more observations), so paging through it over-represents them and a
+//  learner rarely meets the rarer species. Instead we build a species POOL and
+//  draw from it UNIFORMLY — every species has the same chance of being the next
+//  question — fetching one species' observations at a time and caching them.
+const BALANCED_BATCH = 8;   // how many questions a fill adds at once
+
+// One species' observations, as ready-to-play questions.
+async function fetchSpeciesObs(taxonId) {
+  try {
+    const params = { taxon_id: taxonId, place_id: game.placeId, quality_grade: "research", rank: "species", per_page: 30, page: 1 };
+    params[game.media === "sound" ? "sounds" : "photos"] = "true";
+    const data = await apiGet("/observations", params);
+    return toQuestions(data.results);
+  } catch (err) { return []; }
+}
+
+// Build the equal-weight pool once per session: the fixed list in pool mode, the
+// region's species list otherwise.
+async function buildBalancedPool() {
+  game.speciesObs = new Map();
+  const binomials = (arr) => arr
+    .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
+    .map((s) => ({ id: s.id, scientificName: s.scientificName }));
+  if (game.pool || game.commonOnly) { game.balancedPool = binomials(game.checklist); return; }
+  try {
+    const top = await fetchTopSpecies(game.taxonIds, game.placeId);
+    game.checklist = top
+      .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
+      .map((s) => ({ id: s.id, scientificName: s.scientificName, commonName: s.commonName, count: s.count }));
+    game.balancedPool = game.checklist.map((s) => ({ id: s.id, scientificName: s.scientificName }));
+  } catch (err) { game.balancedPool = []; }
+}
+
+// Add up to `want` questions to the queue, each from a uniformly-random species.
+async function fillBalanced(want) {
+  const pool = game.balancedPool;
+  if (!pool || !pool.length) return;
+  const inQueue = new Set(game.queue.map((q) => q.taxonId));
+  let added = 0, tries = 0;
+  const cap = want * 6 + 15;
+  while (added < want && tries < cap) {
+    tries++;
+    const sp = pool[randomInt(0, pool.length - 1)];   // uniform — every species equal
+    if (!game.allowRepeats && (game.askedTaxa.has(sp.id) || inQueue.has(sp.id))) continue;
+    let c = game.speciesObs.get(sp.id);
+    if (!c) { c = { questions: shuffle(await fetchSpeciesObs(sp.id)), idx: 0 }; game.speciesObs.set(sp.id, c); }
+    if (c.idx >= c.questions.length) {
+      if (c.questions.length === 0) continue;                          // this species has nothing (GBIF gap-fill covers it)
+      c.questions = shuffle(await fetchSpeciesObs(sp.id)); c.idx = 0;   // exhausted → refetch for fresh variety
+      if (c.questions.length === 0) continue;
+    }
+    const q = c.questions[c.idx++];
+    if (game.seen.has(q.observationId)) continue;
+    game.seen.add(q.observationId);
+    if (game.covered) game.covered.add(q.taxonId);
+    game.queue.push(q); inQueue.add(q.taxonId); added++;
+  }
+  if (game.seen.size > 6000) game.seen = new Set([...game.seen].slice(-1500));
+}
+
 async function topUpQueue() {
   if (game.fetching) return;
   game.fetching = true;
   try {
-    const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage || 1));
-    const candidates = shuffle(toQuestions(data.results)).filter((q) => !game.seen.has(q.observationId));
-    candidates.forEach((q) => { game.seen.add(q.observationId); if (game.covered) game.covered.add(q.taxonId); });
-    const fresh = filterUnique(candidates);
-    game.queue.push(...fresh);
-    growChecklist(candidates);
-    if (game.seen.size > 4000) game.seen = new Set([...game.seen].slice(-1000));
+    if (game.balancedPool && game.balancedPool.length) {
+      await fillBalanced(BALANCED_BATCH);
+    } else {
+      // Fallback (balanced pool unavailable): the old observation-feed paging.
+      const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage || 1));
+      const candidates = shuffle(toQuestions(data.results)).filter((q) => !game.seen.has(q.observationId));
+      candidates.forEach((q) => { game.seen.add(q.observationId); if (game.covered) game.covered.add(q.taxonId); });
+      game.queue.push(...filterUnique(candidates));
+      growChecklist(candidates);
+      if (game.seen.size > 4000) game.seen = new Set([...game.seen].slice(-1000));
+    }
   } catch (err) { /* nextQuestion() surfaces a message if truly empty */ }
   finally { game.fetching = false; }
   gapFillGbif();   // species iNat had nothing for get a GBIF image (opt-in, pool mode)
@@ -4043,7 +4134,7 @@ function presentQuestion() {
   // Reverse (aid C) hides the photo card entirely and shows a grid of photos to
   // pick from, so it gets its own branch before the normal media gallery.
   el("playMain").classList.toggle("reverse-active", game.reverseThis);
-  if (game.reverseThis) { presentReverse(); return; }
+  if (game.reverseThis) { destroyObsMap(); if (el("obsLocation")) el("obsLocation").innerHTML = ""; presentReverse(); return; }
 
   if (game.media === "sound") showSoundGallery(questionSounds(game.current));
   else { showPhotoGallery(questionPhotos(game.current)); appendWebImages(game.current); }
@@ -4059,6 +4150,7 @@ function presentQuestion() {
   el("choiceArea").classList.toggle("hidden", mode !== "choose");
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
   el("reverseArea").classList.add("hidden");
+  renderObsLocation();   // the "where was this seen?" button (Type mode, if we have coords)
 
   if (mode === "study") presentStudy();
   else if (mode === "choose") presentChoose();
@@ -4437,6 +4529,7 @@ function clearBusy() {
       "type='text' autocomplete='off' autocorrect='off' autocapitalize='none' spellcheck='false' " +
       "enterkeyhint='go' data-lpignore='true' data-1p-ignore data-form-type='other'>" +
       "<div id='answerSuggest' class='suggest hidden'></div></div>" +
+    "<div id='obsLocation' class='obs-location'></div>" +
     "<div id='hintArea' class='hint-area'></div>" +
     "<div id='choiceArea' class='choice-area hidden'></div>" +
     "<div id='studyAnswer' class='study-answer hidden'></div>" +
@@ -4695,6 +4788,38 @@ async function showDistributionMap(mapBox, scientificName, token) {
   if (token !== learnMoreToken) return;   // check again — the second await was another chance to go stale
   if (bounds) map.fitBounds(bounds, { maxZoom: 6, padding: [10, 10] });
   map.invalidateSize();   // guards against Leaflet caching a stale size for the container
+}
+
+// -- "Where was this seen?" — the current observation on a continental map ---
+//  A button (before the hint button, Type mode) that reveals a small Leaflet map
+//  centred on THIS observation's own coordinates at a continental zoom. Its own
+//  map instance, torn down and rebuilt per question so Leaflet never reuses a
+//  stale container.
+let obsMap = null;
+function destroyObsMap() { if (obsMap) { obsMap.remove(); obsMap = null; } }
+
+function renderObsLocation() {
+  const box = el("obsLocation");
+  destroyObsMap();
+  if (!box) return;
+  const coords = game.current && game.current.coords;
+  // Only when we actually have coordinates and we're typing (before the hint button).
+  if (!coords || game.answerMode !== "type") { box.innerHTML = ""; return; }
+  box.innerHTML = "<button type='button' id='obsMapBtn' class='obs-btn'>📍 Where was this seen?</button>";
+  el("obsMapBtn").addEventListener("click", () => showObsMap(coords));
+}
+
+function showObsMap(coords) {
+  const parts = String(coords).split(",").map(Number);
+  if (parts.length !== 2 || parts.some(isNaN)) return;
+  const [lat, lng] = parts;
+  const box = el("obsLocation");
+  box.innerHTML = "<div id='obsMap' class='obs-map'></div>";
+  destroyObsMap();
+  obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView([lat, lng], 4);
+  L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural", { maxZoom: 8, attribution: "GBIF" }).addTo(obsMap);
+  L.circleMarker([lat, lng], { radius: 8, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 }).addTo(obsMap);
+  obsMap.invalidateSize();
 }
 
 // A short, plain-language summary of the species from Wikipedia. Used both
