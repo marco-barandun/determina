@@ -340,19 +340,24 @@
   /* Setup status: daily streak + "due today" / look-alike prompts */
   .setup-status { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
   .setup-status:empty { display: none; }
-  .streak-line { display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  .streak-line { display: flex; align-items: center; gap: 14px; padding: 10px 14px;
     background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius); }
-  .streak-line .flame { font-size: 22px; }
+  .streak-line .flame { display: grid; place-items: center; color: var(--line-2); }
+  .streak-line .flame.lit { color: var(--gold); }
+  .streak-line .flame svg { width: 24px; height: 24px; }
   .streak-line .streak-days { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--gold); }
   .streak-line .streak-txt { font-weight: 700; font-size: 13px; color: var(--muted); line-height: 1.3; }
   .streak-line .goal-ring { margin-left: auto; }
-  .prompt-banner { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-    padding: 14px 16px; border-radius: var(--radius); border: none; cursor: pointer;
-    font-family: var(--font); font-weight: 800; box-shadow: 0 2px 6px rgba(58,53,46,.12); }
+  .prompt-banner { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    padding: 11px 14px; border-radius: var(--radius); border: none; cursor: pointer;
+    font-family: var(--font); font-weight: 800; font-size: 14px;
+    box-shadow: 0 2px 6px rgba(58,53,46,.12); }
   .prompt-banner:active { transform: scale(.99); }
-  .prompt-banner .pb-emoji { font-size: 22px; flex: none; }
+  .prompt-banner .pb-icon { flex: none; display: grid; place-items: center; }
+  .prompt-banner .pb-icon svg { width: 24px; height: 24px; }
   .prompt-banner .pb-text { flex: 1; }
-  .prompt-banner .pb-text small { display: block; font-weight: 700; font-size: 12px; opacity: .8; margin-top: 1px; }
+  .prompt-banner .pb-text small { display: block; font-weight: 700; font-size: 11.5px;
+    line-height: 1.35; opacity: .85; margin-top: 2px; }
   .prompt-banner .pb-go { flex: none; font-size: 18px; }
   .prompt-banner.due { background: var(--green); color: #fff; }
   .prompt-banner.drill { background: var(--blue); color: #fff; }
@@ -467,6 +472,32 @@
   /* The answer controls keep their natural height — only the photo flexes. */
   .search.answer, .hint-area, .choice-area, .study-answer, .where-area { flex: none; }
   .answer-input { font-size: 20px; font-style: italic; padding: 14px; }
+
+  /* The setup screen's two top-corner icons. Deliberately quiet: they are the
+     way out to settings, not part of the main path through the page. */
+  .setup-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .setup-top .icon-btn { position: relative; }
+  /* A dot on the gear when something differs from the defaults — the old
+     "3 changed" summary said the same thing but cost a whole row. */
+  .icon-dot { position: absolute; top: 3px; right: 3px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--gold); border: 2px solid var(--bg); }
+
+  /* The sheet those icons open. Anchored to the bottom on a phone, where the
+     thumb is, and centred once there is room for it. */
+  .sheet { position: fixed; inset: 0; z-index: 70; background: rgba(58,53,46,.55);
+    display: flex; align-items: flex-end; justify-content: center; }
+  .sheet-card { background: var(--bg); width: 100%; max-width: 520px; max-height: 92vh;
+    border-radius: var(--radius) var(--radius) 0 0; display: flex; flex-direction: column;
+    box-shadow: 0 -8px 40px rgba(58,53,46,.3); animation: slideUp .2s ease; }
+  .sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px;
+    border-bottom: 1.5px solid var(--line); }
+  .sheet-head h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600;
+    color: var(--green-dark); margin: 0; flex: 1; }
+  .sheet-body { overflow-y: auto; padding: 16px; }
+  @media (min-width: 560px) {
+    .sheet { align-items: center; padding: 20px; }
+    .sheet-card { border-radius: var(--radius); }
+  }
 
   /* What the chosen group and place actually hold — sizing up a selection
      before committing a round to it. Three numbers and one sentence; the
@@ -875,6 +906,17 @@
 
   <!-- ============================ SETUP ============================ -->
   <section id="setup" class="screen setup">
+    <!-- Language on one side, everything configurable on the other. Both open
+         the same sheet; see #sheet below the screens. -->
+    <div class="setup-top">
+      <button id="langBtn" class="icon-btn" type="button" aria-label="Language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg>
+      </button>
+      <button id="settingsBtn" class="icon-btn" type="button" aria-label="Options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <span id="settingsDot" class="icon-dot hidden"></span>
+      </button>
+    </div>
     <div class="brand">
       <div class="mascot">
         <svg viewBox="0 0 100 100" fill="none">
@@ -912,7 +954,7 @@
       <div class="field" id="taxonField">
         <div class="field-label">Group of species</div>
         <div class="search">
-          <input id="taxonSearch" class="input" placeholder="Search a group — Plantae, Poaceae, Carex…" autocomplete="off" spellcheck="false">
+          <input id="taxonSearch" class="input" placeholder="Search a group — Birds, Iris, grasshoppers…" autocomplete="off" spellcheck="false">
           <div id="taxonSuggest" class="suggest hidden"></div>
         </div>
         <div id="taxonChips" class="chips"></div>
@@ -1014,116 +1056,6 @@
     </details>
 
     <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
-
-    <!-- OPTIONS live BELOW the primary Start button, so the essential flow
-         (pick what to learn → start) stays front and centre. -->
-    <details class="fold" id="optionsFold">
-      <summary>
-        <span class="fold-title">Options</span>
-        <span class="fold-sum" id="optionsSummary"></span>
-        <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </summary>
-      <div class="fold-body">
-        <label class="toggle field">
-          <span>
-            <b>Repeat species</b>
-            <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
-          </span>
-          <input id="repeatToggle" type="checkbox" checked>
-          <span class="switch"></span>
-        </label>
-
-        <label class="toggle field">
-          <span>
-            <b>Suggest names as I type</b>
-            <span class="hint">Typing “dro rot” finds Drosera rotundifolia. Turn this off to type every name in full.</span>
-          </span>
-          <input id="assistToggle" type="checkbox" checked>
-          <span class="switch"></span>
-        </label>
-
-        <label class="toggle field">
-          <span>
-            <b>Show distribution &amp; facts after each answer</b>
-            <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
-          </span>
-          <input id="learnMoreToggle" type="checkbox">
-          <span class="switch"></span>
-        </label>
-
-        <label class="toggle field">
-          <span>
-            <b>Reveal the iNaturalist observation link after answering</b>
-            <span class="hint">The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.</span>
-          </span>
-          <input id="revealObsToggle" type="checkbox" checked>
-          <span class="switch"></span>
-        </label>
-
-        <div class="field">
-          <div class="field-label">Clear a difficult species after…</div>
-          <div id="difficultThresholdChips" class="chips"></div>
-          <div class="hint" style="margin-top:8px;">Correct answers in a row before a species drops off your difficult list.</div>
-        </div>
-
-        <div class="field">
-          <div class="field-label">How it works</div>
-          <button type="button" id="introReplay" class="cert-list-link">Show the welcome walkthrough again</button>
-        </div>
-
-        <div class="field">
-          <div class="field-label">Translate this page</div>
-          <select id="langSelect" class="select notranslate"></select>
-          <div class="hint" style="margin-top:6px;">German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.</div>
-        </div>
-
-        <div class="field">
-          <div class="field-label">Backup &amp; restore</div>
-          <div class="list-editor-row">
-            <button type="button" id="exportBackupBtn" class="btn btn-ghost">Export my data</button>
-            <label class="btn btn-ghost list-upload-btn">Import data
-              <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
-            </label>
-          </div>
-          <div class="hint" style="margin-top:8px;">Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.</div>
-        </div>
-
-        <div class="aids-divider">Learning aids</div>
-
-        <label class="toggle field">
-          <span>
-            <b>Also ask in reverse</b>
-            <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
-          </span>
-          <input id="reverseToggle" type="checkbox">
-          <span class="switch"></span>
-        </label>
-        <label class="toggle field">
-          <span>
-            <b>Rate how well you knew it</b>
-            <span class="hint">After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).</span>
-          </span>
-          <input id="selfRateToggle" type="checkbox">
-          <span class="switch"></span>
-        </label>
-        <label class="toggle field">
-          <span>
-            <b>Let me add memory notes</b>
-            <span class="hint">Jot a private cue on any species (“round leaves”). It reappears when that species comes back.</span>
-          </span>
-          <input id="mnemonicToggle" type="checkbox">
-          <span class="switch"></span>
-        </label>
-        <label class="toggle field" style="margin-bottom:0;">
-          <span>
-            <b>Offer the observation's location as a hint</b>
-            <span class="hint">Adds “where it was seen” to the hint ladder in Type mode — a geographic nudge toward the answer.</span>
-          </span>
-          <input id="locationHintToggle" type="checkbox">
-          <span class="switch"></span>
-        </label>
-      </div>
-    </details>
 
     <button id="progressBtnSetup" class="btn btn-ghost btn-big">My progress</button>
   </section>
@@ -1328,6 +1260,130 @@
   </div>
 </div>
 
+<!-- ============================== SETTINGS SHEET ==========================
+     Options and the language picker used to sit on the setup screen as two
+     more folds below the Start button, which made a page whose actual job is
+     "pick a group, pick a place, start" look like a preferences screen. They
+     are the same controls and the same element ids — only their home moved,
+     so nothing that reads them had to change. Both panels live here at once
+     and openSheet() shows one; moving the nodes around instead would have
+     meant re-wiring every listener. -->
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <h2 id="sheetTitle">Options</h2>
+      <button id="sheetClose" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="sheet-body">
+      <div id="optionsPanel">
+
+      <label class="toggle field">
+        <span>
+          <b>Repeat species</b>
+          <span class="hint">On: the same species can come up more than once. Off: every species appears at most once per round.</span>
+        </span>
+        <input id="repeatToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field">
+        <span>
+          <b>Suggest names as I type</b>
+          <span class="hint">Typing “dro rot” finds Drosera rotundifolia. Turn this off to type every name in full.</span>
+        </span>
+        <input id="assistToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field">
+        <span>
+          <b>Show distribution &amp; facts after each answer</b>
+          <span class="hint">See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.</span>
+        </span>
+        <input id="learnMoreToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+
+      <label class="toggle field">
+        <span>
+          <b>Reveal the iNaturalist observation link after answering</b>
+          <span class="hint">The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.</span>
+        </span>
+        <input id="revealObsToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
+
+      <div class="field">
+        <div class="field-label">Clear a difficult species after…</div>
+        <div id="difficultThresholdChips" class="chips"></div>
+        <div class="hint" style="margin-top:8px;">Correct answers in a row before a species drops off your difficult list.</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">How it works</div>
+        <button type="button" id="introReplay" class="cert-list-link">Show the welcome walkthrough again</button>
+      </div>
+
+
+      <div class="field">
+        <div class="field-label">Backup &amp; restore</div>
+        <div class="list-editor-row">
+          <button type="button" id="exportBackupBtn" class="btn btn-ghost">Export my data</button>
+          <label class="btn btn-ghost list-upload-btn">Import data
+            <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
+          </label>
+        </div>
+        <div class="hint" style="margin-top:8px;">Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.</div>
+      </div>
+
+      <div class="aids-divider">Learning aids</div>
+
+      <label class="toggle field">
+        <span>
+          <b>Also ask in reverse</b>
+          <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
+        </span>
+        <input id="reverseToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+      <label class="toggle field">
+        <span>
+          <b>Rate how well you knew it</b>
+          <span class="hint">After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).</span>
+        </span>
+        <input id="selfRateToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+      <label class="toggle field">
+        <span>
+          <b>Let me add memory notes</b>
+          <span class="hint">Jot a private cue on any species (“round leaves”). It reappears when that species comes back.</span>
+        </span>
+        <input id="mnemonicToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+      <label class="toggle field" style="margin-bottom:0;">
+        <span>
+          <b>Offer the observation's location as a hint</b>
+          <span class="hint">Adds “where it was seen” to the hint ladder in Type mode — a geographic nudge toward the answer.</span>
+        </span>
+        <input id="locationHintToggle" type="checkbox">
+        <span class="switch"></span>
+      </label>
+      </div>
+      <div id="langPanel" class="hidden">
+      <div class="field">
+        <div class="field-label">Translate this page</div>
+        <select id="langSelect" class="select notranslate"></select>
+        <div class="hint" style="margin-top:6px;">German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.</div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==========================================================================
 //  DETERMINARE
@@ -1374,6 +1430,19 @@ const ICON_CAMERA = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' 
   "<path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'/><circle cx='12' cy='13' r='4'/></svg>";
 const ICON_SOUND = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
   "<path d='M11 5 6 9H2v6h4l5 4z'/><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'/></svg>";
+// The setup screen's status icons, in the same line-drawn family as the mode
+// chips above. Each one carries the distinction its banner's text makes:
+// a clock for the drill that is about timing, a rewind arrow for the one that
+// replays a question you already got wrong, a target for the species that keep
+// beating you. The emoji they replace were three variations on "circle".
+const ICON_FLAME = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M12 22c3.9 0 7-2.8 7-6.6 0-4.4-4.3-6.3-4.3-10.4-2 1-3 2.7-3 4.6 0 1.4-1.2 2-1.9 1.2-.6-.7-.8-1.7-.8-2.5C6.9 10 5 12.3 5 15.4 5 19.2 8.1 22 12 22z'/></svg>";
+const ICON_CLOCK = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<circle cx='12' cy='12' r='9'/><polyline points='12 6.5 12 12 15.5 14'/></svg>";
+const ICON_REWIND = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M3.2 12a8.8 8.8 0 1 0 2.6-6.2'/><polyline points='3 3.5 3 9 8.5 9'/></svg>";
+const ICON_TARGET = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5'/><circle cx='12' cy='12' r='1.4'/></svg>";
 const MEDIA_OPTIONS = [
   { label: "By photo", value: "photo", icon: ICON_CAMERA },
   { label: "By sound", value: "sound", icon: ICON_SOUND },
@@ -2936,7 +3005,7 @@ function renderSetupStatus() {
 
   if (streak > 0 || today > 0 || game.stats.size > 0) {
     html += "<div class='streak-line'>" +
-      "<span class='flame'>" + (streak > 0 ? "🔥" : "🌱") + "</span>" +
+      "<span class='flame" + (streak > 0 ? " lit" : "") + "'>" + ICON_FLAME + "</span>" +
       "<span><span class='streak-days'>" + streak + "</span> " +
         "<span class='streak-txt'>day" + (streak === 1 ? "" : "s") + " in a row<br>" +
         today + " / " + DAILY_GOAL + " species today</span></span>" +
@@ -2952,21 +3021,21 @@ function renderSetupStatus() {
   // the titles, which Google handles.
   if (due > 0) {
     html += "<button type='button' class='prompt-banner due' data-action='due'>" +
-      "<span class='pb-emoji'>🔁</span><span class='pb-text'>Review " + due + " species due today" +
+      "<span class='pb-icon'>" + ICON_CLOCK + "</span><span class='pb-text'>Review " + due + " species due today" +
       "<small>Species you already got right, coming back just before you'd forget them. Keeping up with these is what makes them stick.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   const missed = game.wrongQ ? game.wrongQ.size : 0;
   if (missed > 0) {
     html += "<button type='button' class='prompt-banner drill' data-action='replay'>" +
-      "<span class='pb-emoji'>👀</span><span class='pb-text'>Replay " + missed + " question" + (missed === 1 ? "" : "s") + " you missed" +
+      "<span class='pb-icon'>" + ICON_REWIND + "</span><span class='pb-text'>Replay " + missed + " question" + (missed === 1 ? "" : "s") + " you missed" +
       "<small>Not just the species — the same photo and the same options, so you meet each confusion again exactly as it caught you.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   const hard = game.difficult.size;
   if (hard > 0) {
     html += "<button type='button' class='prompt-banner focus' data-action='focus'>" +
-      "<span class='pb-emoji'>🎯</span><span class='pb-text'>Focus on " + hard + " difficult " + (hard === 1 ? "species" : "species") +
+      "<span class='pb-icon'>" + ICON_TARGET + "</span><span class='pb-text'>Focus on " + hard + " difficult " + (hard === 1 ? "species" : "species") +
       "<small>Species you keep getting wrong, whatever the mode or the photo. Answer one right enough times in a row and it leaves the list.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
@@ -2998,7 +3067,7 @@ function renderFoldSummaries() {
   let changed = Object.keys(OPTION_DEFAULTS).filter((id) => el(id) && el(id).checked !== OPTION_DEFAULTS[id]).length;
   if (difficultThresholdChoice !== DEFAULT_DIFFICULT_THRESHOLD) changed += 1;
   if (uiLang && uiLang !== "en") changed += 1;
-  if (el("optionsSummary")) el("optionsSummary").textContent = changed ? changed + " changed" : "Defaults";
+  if (el("settingsDot")) el("settingsDot").classList.toggle("hidden", changed === 0);
 
   // "Certificates & my lists" — name whichever is active, and open the fold so
   // a selected certificate is never hidden behind a closed summary.
@@ -3203,6 +3272,7 @@ const MANUAL_I18N = {
   "Correct answers in a row before a species drops off your difficult list.": { de: "So viele richtige Antworten in Folge braucht eine Art, bis sie von deiner Liste der schwierigen Arten verschwindet.", it: "Quante risposte corrette di fila servono perché una specie non sia più considerata difficile.", fr: "Nombre de bonnes réponses d'affilée nécessaires pour qu'une espèce quitte ta liste des difficiles.", es: "Cuántas veces seguidas tienes que acertar una especie para que salga de tu lista de difíciles." },
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
   "Show the welcome walkthrough again": { de: "Einführung nochmal ansehen", it: "Rivedi l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Volver a ver la introducción" },
+  "Language": { de: "Sprache", it: "Lingua", fr: "Langue", es: "Idioma" },
   "Translate this page": { de: "Diese Seite übersetzen", it: "Traduci questa pagina", fr: "Traduire cette page", es: "Traducir esta página" },
   "German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.": { de: "Deutsch, Italienisch, Französisch und Spanisch sind von Hand übersetzt, alle anderen Sprachen übernimmt Google Übersetzer – nicht perfekt, aber gut genug, um die App in vielen Sprachen nutzbar zu machen. Wissenschaftliche Artnamen werden nie übersetzt. Mit Englisch bist du sofort wieder beim Original.", it: "Tedesco, italiano, francese e spagnolo sono tradotti a mano; le altre lingue passano da Google Traduttore: una traduzione imperfetta, ma sufficiente a rendere l'app utilizzabile quasi ovunque. I nomi scientifici non vengono mai tradotti. Scegli l'inglese per tornare subito all'originale.", fr: "L'allemand, l'italien, le français et l'espagnol sont traduits à la main ; les autres langues passent par Google Traduction, imparfait mais suffisant pour rendre l'application utilisable à peu près partout. Les noms scientifiques ne sont jamais traduits. Choisis l'anglais pour revenir instantanément à la version d'origine.", es: "El alemán, el italiano, el francés y el español están traducidos a mano; el resto pasa por Google Traductor: no es perfecto, pero basta para que la app se pueda usar en muchos idiomas. Los nombres científicos no se traducen nunca. Si eliges inglés, vuelves al original al instante." },
   "Backup & restore": { de: "Sichern & wiederherstellen", it: "Backup e ripristino", fr: "Sauvegarde et restauration", es: "Copia de seguridad y restauración" },
@@ -3316,7 +3386,7 @@ const MANUAL_I18N = {
   "Start exploring": { de: "Los geht's", it: "Iniziamo!", fr: "C'est parti !", es: "¡Vamos allá!" },
   "Skip the intro": { de: "Einführung überspringen", it: "Salta l'introduzione", fr: "Passer l'intro", es: "Saltar la introducción" },
   // Input placeholders (kept in the same informal voice as the rest)
-  "Search a group — Plantae, Poaceae, Carex…": { de: "Suche eine Gruppe – Plantae, Poaceae, Carex…", it: "Cerca un gruppo – Plantae, Poaceae, Carex…", fr: "Cherche un groupe — Plantae, Poaceae, Carex…", es: "Busca un grupo: Plantae, Poaceae, Carex…" },
+  "Search a group — Birds, Iris, grasshoppers…": { de: "Suche eine Gruppe – Vögel, Iris, Heuschrecken…", it: "Cerca un gruppo – uccelli, Iris, cavallette…", fr: "Cherche un groupe — oiseaux, Iris, sauterelles…", es: "Busca un grupo: aves, Iris, saltamontes…" },
   "Search a place — pick more than one if you like": { de: "Suche ein Gebiet – gern auch mehrere", it: "Cerca un luogo – anche più di uno", fr: "Cherche un lieu, ou plusieurs", es: "Busca un lugar: puedes elegir varios" },
   "Type the species": { de: "Tippe den Artnamen", it: "Scrivi la specie", fr: "Tape le nom de l'espèce", es: "Escribe el nombre de la especie" },
   // Progress panel
@@ -6308,7 +6378,7 @@ function wireControls() {
   // first-run intro
   el("introNext").addEventListener("click", advanceIntro);
   el("introSkip").addEventListener("click", closeIntro);
-  el("introReplay").addEventListener("click", openIntro);
+  el("introReplay").addEventListener("click", () => { closeSheet(); openIntro(); });
 
   // backup & restore
   el("exportBackupBtn").addEventListener("click", exportBackup);
@@ -6389,6 +6459,7 @@ function wireControls() {
   wireLightbox();
   wireLearnPopup();
   wireMapPopup();
+  wireSheet();
 
   // close dropdowns when clicking away
   document.addEventListener("click", (e) => {
@@ -6449,6 +6520,29 @@ function wireLearnPopup() {
     if (e.key === "Enter" && game.answered && e.target.tagName !== "BUTTON") {
       return popupOpen ? closeLearnPopupAndAdvance() : nextQuestion();
     }
+  });
+}
+
+// The settings sheet. Both panels are always in the DOM; opening one is just
+// showing it, so every control keeps the listeners it was given at start-up.
+function openSheet(which) {
+  el("sheetTitle").textContent = which === "lang" ? "Language" : "Options";
+  el("optionsPanel").classList.toggle("hidden", which === "lang");
+  el("langPanel").classList.toggle("hidden", which !== "lang");
+  el("sheet").classList.remove("hidden");
+}
+function closeSheet() {
+  el("sheet").classList.add("hidden");
+  // Whatever you just changed in there is reflected on the page behind it.
+  renderFoldSummaries();
+}
+function wireSheet() {
+  el("settingsBtn").addEventListener("click", () => openSheet("options"));
+  el("langBtn").addEventListener("click", () => openSheet("lang"));
+  el("sheetClose").addEventListener("click", closeSheet);
+  el("sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("sheet").classList.contains("hidden")) closeSheet();
   });
 }
 

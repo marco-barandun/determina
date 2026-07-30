@@ -70,6 +70,12 @@ grep -n "^// == " index.html
 The four screens are plain `<section class="screen">` elements in the markup:
 `#setup`, `#play`, `#done`, `#progressPanel`. `showScreen(name)` toggles them.
 
+Four overlays sit outside those screens and are shown by toggling `.hidden`:
+`#lightbox`, `#learnPopup`, `#mapPopup` and `#sheet`. The last one holds both
+the Options controls and the language picker — they were folds on the setup
+screen once, and only their position in the markup changed, so the ids every
+handler reads are the same. `openSheet("options" | "lang")` shows one panel.
+
 CSS is a single `<style>` block above the markup. There is no CSS framework.
 
 ---
