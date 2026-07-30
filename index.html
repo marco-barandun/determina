@@ -510,7 +510,6 @@
     border: 2px solid var(--line); border-radius: var(--radius); padding: 16px;
   }
   .study-answer .sci { font-family: var(--font-display); font-style: italic; font-size: 22px; font-weight: 600; color: var(--green-dark); display: block; }
-  .study-answer .common { font-weight: 700; color: var(--muted); margin-top: 4px; display: block; }
   .study-answer .tag { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); display: block; margin-bottom: 8px; }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
@@ -549,7 +548,6 @@
   .cmp-imgwrap .cmp-loading { position: absolute; inset: 0; display: grid; place-items: center; }
   .compare-col .cmp-body { padding: 7px 9px; }
   .compare-col .cmp-name { font-style: italic; font-weight: 800; font-size: 13px; }
-  .compare-col .cmp-common { font-weight: 700; font-size: 12px; color: var(--muted); }
   .learn-compare-wrap { margin: 2px 0 14px; }
 
   /* Self-rating (aid D): Anki-style buttons in place of Continue. */
@@ -619,7 +617,6 @@
   .feedback.wrong .fb-quip { color: var(--red-text); }
   .fb-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
   .fb-name { font-style: italic; font-weight: 800; }
-  .fb-common { font-style: normal; font-weight: 700; color: inherit; opacity: .8; }
   .fb-alt { display: block; font-style: italic; font-weight: 700; font-size: 13px; opacity: .7; margin-top: 1px; }
   .fb-alt-src { font-style: normal; font-size: 11px; opacity: .8; }
   .fb-you { display: block; font-weight: 700; font-size: 13px; opacity: .8; margin-top: 2px; }
@@ -889,7 +886,7 @@
           <div id="roundSizeChips" class="chips"></div>
         </div>
 
-        <label class="toggle field" style="margin-bottom:0;">
+        <label class="toggle field">
           <span>
             <b>Start with common species</b>
             <span class="hint">Quiz only the ~30 species you're most likely to actually see.</span>
@@ -897,10 +894,31 @@
           <input id="commonToggle" type="checkbox">
           <span class="switch"></span>
         </label>
+
+        <label class="toggle field">
+          <span>
+            <b>Region's species, photos from anywhere</b>
+            <span class="hint">Quiz the species that occur in your region, but pull observations from everywhere — a much bigger sample, so more and better photos. Needs a region selected.</span>
+          </span>
+          <input id="regionGlobalToggle" type="checkbox">
+          <span class="switch"></span>
+        </label>
+
+        <label class="toggle field" style="margin-bottom:0;">
+          <span>
+            <b>Top up thin species with GBIF photos</b>
+            <span class="hint">For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.</span>
+          </span>
+          <input id="webImagesToggle" type="checkbox" checked>
+          <span class="switch"></span>
+        </label>
       </div>
     </details>
 
-    <!-- OPTIONS — folded, and says whether anything's been changed. -->
+    <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
+
+    <!-- OPTIONS live BELOW the primary Start button, so the essential flow
+         (pick what to learn → start) stays front and centre. -->
     <details class="fold" id="optionsFold">
       <summary>
         <span class="fold-title">Options</span>
@@ -923,15 +941,6 @@
             <span class="hint">Type <i>dro rot</i> → pick <i>Drosera rotundifolia</i>. Turn off to type every name in full.</span>
           </span>
           <input id="assistToggle" type="checkbox" checked>
-          <span class="switch"></span>
-        </label>
-
-        <label class="toggle field">
-          <span>
-            <b>Answer with common names</b>
-            <span class="hint">Type <i>dandelion</i> instead of <i>Taraxacum officinale</i>. Species without a common name still fall back to the scientific one.</span>
-          </span>
-          <input id="commonNamesToggle" type="checkbox">
           <span class="switch"></span>
         </label>
 
@@ -967,7 +976,7 @@
         <div class="field">
           <div class="field-label">Translate this page</div>
           <select id="langSelect" class="select notranslate"></select>
-          <div class="hint" style="margin-top:6px;">Translation by Google. Species names — scientific and common — stay exactly as iNaturalist has them; pick English to switch back instantly.</div>
+          <div class="hint" style="margin-top:6px;">German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.</div>
         </div>
 
         <div class="field">
@@ -1018,7 +1027,6 @@
       </div>
     </details>
 
-    <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
     <button id="progressBtnSetup" class="btn btn-ghost btn-big">My progress</button>
   </section>
 
@@ -1482,7 +1490,6 @@ const game = {
   mnemonics: false,        // E: personal memory notes per species
   choiceCount: DEFAULT_CHOICE_COUNT,   // how many options in Choose / reverse modes
   assist: true,
-  useCommonNames: false,   // type/match against the common name instead of the scientific one
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
   revealObs: true,    // reveal the iNaturalist observation link AFTER answering (never before — no cheating)
   locationHint: false,   // offer the observation's place as a progressive hint
@@ -2138,8 +2145,7 @@ function answerSuggestions(query, limit = 6) {
   const q = normalize(query);
   if (!q) return [];
   return game.checklist
-    .filter((sp) => matchesAbbreviation(q, sp.scientificName) ||
-                    (sp.commonName && normalize(sp.commonName).includes(q)))
+    .filter((sp) => matchesAbbreviation(q, sp.scientificName))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 }
@@ -2176,7 +2182,6 @@ function isCorrect(answer, question) {
   // In certificate mode, accept the other taxonomy's name too (e.g. either
   // "Anemone nemorosa" or "Anemonoides nemorosa"), whichever is being shown.
   if (question.altName && scientificMatches(answer, question.altName)) return true;
-  if (question.commonName && closeEnough(normalize(answer), normalize(question.commonName))) return true;
   return false;
 }
 
@@ -2668,7 +2673,7 @@ const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle", "lo
 // listed here; anything differing is what "customised" counts.
 const OPTION_DEFAULTS = {
   repeatToggle: true, assistToggle: true, revealObsToggle: true,
-  commonNamesToggle: false, learnMoreToggle: false,
+  learnMoreToggle: false,
   reverseToggle: false, selfRateToggle: false, mnemonicToggle: false, locationHintToggle: false,
 };
 function renderFoldSummaries() {
@@ -2678,6 +2683,8 @@ function renderFoldSummaries() {
   const size  = (ROUND_SIZE_OPTIONS.find((o) => o.value === roundSizeChoice) || {}).label || "";
   const bits = [media, mode + (answerModeChoice === "choose" ? " (" + choiceCountChoice + ")" : ""), size + " species"];
   if (el("commonToggle") && el("commonToggle").checked) bits.push("commonest");
+  if (el("regionGlobalToggle") && el("regionGlobalToggle").checked) bits.push("global photos");
+  if (el("webImagesToggle") && el("webImagesToggle").checked) bits.push("GBIF top-up");
   if (el("practiseSummary")) el("practiseSummary").textContent = bits.join(" · ");
 
   // "Options" — just how far you've strayed from the defaults.
@@ -2784,22 +2791,25 @@ function maybeShowIntro() {
 //  reload. A MutationObserver re-translates anything the game injects while
 //  you play. Latin species names are left alone (see I18N_SKIP_SEL). Language
 //  names in the picker are autonyms so they read the same in any language.
+// The five first-class languages lead the list — English (native) plus the four
+// that are hand-translated (see MANUAL_I18N) — then the machine-translated rest.
 const TRANSLATE_LANGS = [
-  { code: "en", label: "English" },       { code: "ar", label: "العربية" },
-  { code: "bg", label: "Български" },      { code: "cs", label: "Čeština" },
-  { code: "da", label: "Dansk" },         { code: "de", label: "Deutsch" },
-  { code: "el", label: "Ελληνικά" },      { code: "es", label: "Español" },
-  { code: "fi", label: "Suomi" },         { code: "fr", label: "Français" },
+  { code: "en", label: "English" },       { code: "de", label: "Deutsch" },
+  { code: "it", label: "Italiano" },      { code: "fr", label: "Français" },
+  { code: "es", label: "Español" },
+  { code: "ar", label: "العربية" },       { code: "bg", label: "Български" },
+  { code: "cs", label: "Čeština" },       { code: "da", label: "Dansk" },
+  { code: "el", label: "Ελληνικά" },      { code: "fi", label: "Suomi" },
   { code: "he", label: "עברית" },         { code: "hi", label: "हिन्दी" },
   { code: "hu", label: "Magyar" },        { code: "id", label: "Bahasa Indonesia" },
-  { code: "it", label: "Italiano" },      { code: "ja", label: "日本語" },
-  { code: "ko", label: "한국어" },         { code: "nl", label: "Nederlands" },
-  { code: "no", label: "Norsk" },         { code: "pl", label: "Polski" },
-  { code: "pt", label: "Português" },     { code: "ro", label: "Română" },
-  { code: "ru", label: "Русский" },       { code: "sv", label: "Svenska" },
-  { code: "th", label: "ไทย" },           { code: "tr", label: "Türkçe" },
-  { code: "uk", label: "Українська" },    { code: "vi", label: "Tiếng Việt" },
-  { code: "zh-CN", label: "简体中文" },     { code: "zh-TW", label: "繁體中文" },
+  { code: "ja", label: "日本語" },          { code: "ko", label: "한국어" },
+  { code: "nl", label: "Nederlands" },    { code: "no", label: "Norsk" },
+  { code: "pl", label: "Polski" },        { code: "pt", label: "Português" },
+  { code: "ro", label: "Română" },        { code: "ru", label: "Русский" },
+  { code: "sv", label: "Svenska" },       { code: "th", label: "ไทย" },
+  { code: "tr", label: "Türkçe" },        { code: "uk", label: "Українська" },
+  { code: "vi", label: "Tiếng Việt" },    { code: "zh-CN", label: "简体中文" },
+  { code: "zh-TW", label: "繁體中文" },
 ];
 const LANG_STORE_KEY = "determinare.lang";
 
@@ -2808,7 +2818,7 @@ const LANG_STORE_KEY = "determinare.lang";
 // Species names — scientific AND real iNaturalist common names — must never be
 // machine-translated (a translated common name is an invented name, not a real
 // one). Every element that shows a name carries one of these classes.
-const I18N_SKIP_SEL = ".notranslate,[translate='no'],#langSelect,.sci,.fb-name,.fb-common,.common,.suggest-item,.cmp-name,.cmp-common,.credit";
+const I18N_SKIP_SEL = ".notranslate,[translate='no'],#langSelect,.sci,.fb-name,.suggest-item,.cmp-name,.credit";
 const i18nCache = new Map();     // (lang + "␟" + english) -> translated
 let uiLang = "en";
 let i18nObserver = null;
@@ -2829,12 +2839,225 @@ function i18nTextNodes(root) {
   return out;
 }
 
-// Translate one English string to `lang` via Google's endpoint, cached. On any
-// failure it just returns the original, so a hiccup leaves that bit in English
-// rather than breaking the page.
+// ---- hand-made translations (better than the machine) --------------------
+//  Machine translation (Google) is a blunt instrument: it mistranslates our
+//  domain terms, botches tone, and can't see the UI context. It's kept only
+//  because covering every language by hand is impossible, and an imperfect
+//  translation still lets a non-English speaker use the app. For the FOUR
+//  languages most of our users read — German, Italian, French, Spanish — the
+//  main, non-dynamic UI is instead translated here by hand, and these override
+//  Google (see i18nTranslate). The keys are the exact English source strings;
+//  dynamic content (species, places, stats) is still left to Google. The
+//  language dropdown and everything's appearance are unchanged.
+const MANUAL_I18N = {
+  "Determinare": { de: "Determinare", it: "Determinare", fr: "Determinare", es: "Determinare" },
+  "Learn to name species from real photos and sounds.": { de: "Lerne, Arten anhand echter Fotos und Geräusche zu bestimmen.", it: "Impara a riconoscere le specie da foto e suoni reali.", fr: "Apprenez à nommer les espèces à partir de vraies photos et de vrais sons.", es: "Aprende a nombrar especies con fotos y sonidos reales." },
+  "Playing as": { de: "Spielt als", it: "Giochi come", fr: "Vous jouez en tant que", es: "Jugando como" },
+  "+ New player…": { de: "+ Neue:r Spieler:in…", it: "+ Nuovo giocatore…", fr: "+ Nouveau joueur…", es: "+ Nuevo jugador…" },
+  "What to learn": { de: "Was lernen", it: "Cosa imparare", fr: "Que veux-tu apprendre", es: "Qué aprender" },
+  "Pick a group and a place — that's enough to start.": { de: "Wähle eine Gruppe und einen Ort – das genügt, um zu starten.", it: "Scegli un gruppo e un luogo: basta questo per iniziare.", fr: "Choisis un groupe et un lieu — c'est tout ce qu'il faut pour commencer.", es: "Elige un grupo y un lugar: es suficiente para empezar." },
+  "Group of species": { de: "Artengruppe", it: "Gruppo di specie", fr: "Groupe d'espèces", es: "Grupo de especies" },
+  "Where?": { de: "Wo?", it: "Dove?", fr: "Où ?", es: "¿Dónde?" },
+  "Certificates & my lists": { de: "Zertifikate & meine Listen", it: "Certificati e le mie liste", fr: "Certificats et mes listes", es: "Certificados y mis listas" },
+  "Study for a certificate": { de: "Für ein Zertifikat lernen", it: "Studia per un certificato", fr: "Réviser pour un certificat", es: "Estudiar para un certificado" },
+  "…or your own list": { de: "…oder deine eigene Liste", it: "…o la tua lista", fr: "…ou ta propre liste", es: "…o tu propia lista" },
+  "＋ New list": { de: "＋ Neue Liste", it: "＋ Nuova lista", fr: "＋ Nouvelle liste", es: "＋ Nueva lista" },
+  "New list": { de: "Neue Liste", it: "Nuova lista", fr: "Nouvelle liste", es: "Nueva lista" },
+  "How to practise": { de: "Wie üben", it: "Come esercitarsi", fr: "Comment s'entraîner", es: "Cómo practicar" },
+  "Identify by": { de: "Bestimmen nach", it: "Identifica tramite", fr: "Identifier par", es: "Identificar por" },
+  "By photo": { de: "Foto", it: "Foto", fr: "Photo", es: "Foto" },
+  "By sound": { de: "Ton", it: "Suono", fr: "Son", es: "Sonido" },
+  "Answer by": { de: "Antworten mit", it: "Rispondi con", fr: "Répondre par", es: "Responder con" },
+  "Type": { de: "Tippen", it: "Scrivi", fr: "Saisir", es: "Escribir" },
+  "Choose": { de: "Wählen", it: "Scegli", fr: "Choisir", es: "Elegir" },
+  "Study": { de: "Lernen", it: "Studia", fr: "Étudier", es: "Estudiar" },
+  "Type the name from memory. Stuck? Use a hint, or Reveal to see it.": { de: "Tippe den Namen aus dem Gedächtnis. Nicht weiter? Nutze einen Hinweis oder „Aufdecken“, um ihn zu sehen.", it: "Scrivi il nome a memoria. Bloccato? Usa un aiuto o „Rivela“ per vederlo.", fr: "Saisis le nom de mémoire. Bloqué ? Prends un indice, ou « Révéler » pour le voir.", es: "Escribe el nombre de memoria. ¿Atascado? Usa una pista o «Revelar» para verlo." },
+  "How many choices?": { de: "Wie viele Optionen?", it: "Quante opzioni?", fr: "Combien d'options ?", es: "¿Cuántas opciones?" },
+  "How many species per round?": { de: "Wie viele Arten pro Runde?", it: "Quante specie per turno?", fr: "Combien d'espèces par tour ?", es: "¿Cuántas especies por ronda?" },
+  "No limit": { de: "Kein Limit", it: "Nessun limite", fr: "Sans limite", es: "Sin límite" },
+  "Start with common species": { de: "Mit häufigen Arten beginnen", it: "Inizia con le specie comuni", fr: "Commencer par les espèces communes", es: "Empezar con especies comunes" },
+  "Quiz only the ~30 species you're most likely to actually see.": { de: "Übe nur die ~30 Arten, die du am ehesten wirklich siehst.", it: "Esercitati solo sulle ~30 specie che è più probabile vedere davvero.", fr: "Ne révise que les ~30 espèces que tu as le plus de chances de voir.", es: "Practica solo las ~30 especies que es más probable que veas." },
+  "Region's species, photos from anywhere": { de: "Arten der Region, Fotos von überall", it: "Specie della regione, foto da ovunque", fr: "Espèces de la région, photos de partout", es: "Especies de la región, fotos de cualquier lugar" },
+  "Quiz the species that occur in your region, but pull observations from everywhere — a much bigger sample, so more and better photos. Needs a region selected.": { de: "Übe die Arten, die in deiner Region vorkommen, ziehe die Beobachtungen aber von überall heran – eine viel grössere Stichprobe und damit mehr und bessere Fotos. Es muss eine Region gewählt sein.", it: "Esercitati sulle specie presenti nella tua regione, ma prendi le osservazioni da ovunque: un campione molto più ampio e quindi foto più numerose e migliori. Serve una regione selezionata.", fr: "Révise les espèces présentes dans ta région, mais tire les observations du monde entier — un échantillon bien plus grand, donc des photos plus nombreuses et de meilleure qualité. Une région doit être sélectionnée.", es: "Practica las especies que aparecen en tu región, pero toma las observaciones de todas partes: una muestra mucho mayor y, por tanto, más y mejores fotos. Debes tener una región seleccionada." },
+  "Start learning": { de: "Lernen starten", it: "Inizia a imparare", fr: "Commencer à apprendre", es: "Empezar a aprender" },
+  "Options": { de: "Optionen", it: "Opzioni", fr: "Options", es: "Opciones" },
+  "Defaults": { de: "Standard", it: "Predefinite", fr: "Par défaut", es: "Predeterminadas" },
+  "Repeat species": { de: "Arten wiederholen", it: "Ripeti le specie", fr: "Répéter les espèces", es: "Repetir especies" },
+  "On: the same species can come up more than once. Off: every species appears at most once per round.": { de: "Ein: dieselbe Art kann mehrmals vorkommen. Aus: jede Art erscheint höchstens einmal pro Runde.", it: "Attivo: la stessa specie può comparire più volte. Disattivo: ogni specie compare al massimo una volta per turno.", fr: "Activé : une même espèce peut revenir plusieurs fois. Désactivé : chaque espèce apparaît au plus une fois par tour.", es: "Activado: la misma especie puede salir más de una vez. Desactivado: cada especie aparece como máximo una vez por ronda." },
+  "Suggest names as I type": { de: "Namen beim Tippen vorschlagen", it: "Suggerisci i nomi mentre scrivo", fr: "Suggérer les noms pendant la saisie", es: "Sugerir nombres mientras escribo" },
+  "→ pick": { de: "→ wähle", it: "→ scegli", fr: "→ choisis", es: "→ elige" },
+  ". Turn off to type every name in full.": { de: ". Ausschalten, um jeden Namen vollständig zu tippen.", it: ". Disattiva per scrivere ogni nome per intero.", fr: ". Désactive pour saisir chaque nom en entier.", es: ". Desactívalo para escribir cada nombre completo." },
+  "Show distribution & facts after each answer": { de: "Verbreitung & Fakten nach jeder Antwort zeigen", it: "Mostra distribuzione e informazioni dopo ogni risposta", fr: "Afficher la répartition et des infos après chaque réponse", es: "Mostrar distribución y datos tras cada respuesta" },
+  "See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.": { de: "Sieh eine kontinentweite GBIF-Verbreitungskarte und eine kurze Wikipedia-Zusammenfassung zu jeder abgefragten Art.", it: "Vedi una mappa di distribuzione GBIF su scala continentale e un breve riassunto da Wikipedia per ogni specie richiesta.", fr: "Vois une carte de répartition GBIF à l'échelle continentale et un court résumé Wikipédia pour chaque espèce demandée.", es: "Consulta un mapa de distribución de GBIF a escala continental y un breve resumen de Wikipedia para cada especie preguntada." },
+  "Reveal the iNaturalist observation link after answering": { de: "iNaturalist-Beobachtungslink nach dem Antworten anzeigen", it: "Mostra il link all'osservazione iNaturalist dopo la risposta", fr: "Afficher le lien vers l'observation iNaturalist après la réponse", es: "Mostrar el enlace a la observación de iNaturalist tras responder" },
+  "The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.": { de: "Der Link ist beim Bestimmen immer verborgen (damit du nicht spickst). Aktiviere ihn, um ihn nach dem Antworten zu zeigen.", it: "Il link è sempre nascosto mentre identifichi (così non puoi sbirciare la risposta). Attivalo per mostrarlo dopo aver risposto.", fr: "Le lien est toujours masqué pendant l'identification (pour ne pas voir la réponse). Active-le pour l'afficher une fois que tu as répondu.", es: "El enlace está siempre oculto mientras identificas (para que no veas la respuesta). Actívalo para mostrarlo una vez que hayas respondido." },
+  "Clear a difficult species after…": { de: "Schwierige Art entfernen nach…", it: "Rimuovi una specie difficile dopo…", fr: "Retirer une espèce difficile après…", es: "Quitar una especie difícil tras…" },
+  "2 in a row": { de: "2 in Folge", it: "2 di fila", fr: "2 d'affilée", es: "2 seguidas" },
+  "3 in a row": { de: "3 in Folge", it: "3 di fila", fr: "3 d'affilée", es: "3 seguidas" },
+  "5 in a row": { de: "5 in Folge", it: "5 di fila", fr: "5 d'affilée", es: "5 seguidas" },
+  "Correct answers in a row before a species drops off your difficult list.": { de: "Richtige Antworten in Folge, bis eine Art von deiner Schwierig-Liste verschwindet.", it: "Risposte corrette di fila prima che una specie esca dalla tua lista dei difficili.", fr: "Bonnes réponses d'affilée avant qu'une espèce quitte ta liste des difficiles.", es: "Respuestas correctas seguidas antes de que una especie salga de tu lista de difíciles." },
+  "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
+  "Show the welcome walkthrough again": { de: "Willkommens-Tour erneut anzeigen", it: "Mostra di nuovo l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Ver de nuevo la introducción" },
+  "Translate this page": { de: "Diese Seite übersetzen", it: "Traduci questa pagina", fr: "Traduire cette page", es: "Traducir esta página" },
+  "German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.": { de: "Deutsch, Italienisch, Französisch und Spanisch sind von Hand übersetzt; der Rest nutzt Google Übersetzer – unvollkommen, aber genug, um die App in vielen Sprachen nutzbar zu machen. Wissenschaftliche Artnamen werden nie übersetzt. Wähle Englisch, um sofort zurückzuwechseln.", it: "Tedesco, italiano, francese e spagnolo sono tradotti a mano; il resto usa Google Traduttore: imperfetto, ma sufficiente a rendere l'app utilizzabile in molte lingue. I nomi scientifici non vengono mai tradotti. Scegli l'inglese per tornare subito indietro.", fr: "L'allemand, l'italien, le français et l'espagnol sont traduits à la main ; le reste utilise Google Traduction — imparfait, mais suffisant pour rendre l'app utilisable dans de nombreuses langues. Les noms scientifiques ne sont jamais traduits. Choisis l'anglais pour revenir aussitôt.", es: "El alemán, el italiano, el francés y el español están traducidos a mano; el resto usa Google Traductor: imperfecto, pero suficiente para que la app sea usable en muchos idiomas. Los nombres científicos nunca se traducen. Elige inglés para volver al instante." },
+  "Backup & restore": { de: "Sichern & wiederherstellen", it: "Backup e ripristino", fr: "Sauvegarde et restauration", es: "Copia y restauración" },
+  "Export my data": { de: "Meine Daten exportieren", it: "Esporta i miei dati", fr: "Exporter mes données", es: "Exportar mis datos" },
+  "Import data": { de: "Daten importieren", it: "Importa dati", fr: "Importer des données", es: "Importar datos" },
+  "Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.": { de: "Deine Spieler und Fortschritte liegen nur in diesem Browser. Exportiere sie in eine Datei als Sicherung oder um sie auf ein anderes Gerät zu übertragen, und importiere sie zum Wiederherstellen.", it: "I tuoi giocatori e i progressi vivono solo in questo browser. Esportali in un file per fare un backup o passare a un altro dispositivo, e importali per ripristinarli.", fr: "Tes joueurs et ta progression n'existent que dans ce navigateur. Exporte-les dans un fichier pour garder une sauvegarde ou passer à un autre appareil, et importe-les pour les restaurer.", es: "Tus jugadores y tu progreso solo existen en este navegador. Expórtalos a un archivo para tener una copia o pasar a otro dispositivo, e impórtalos para restaurar." },
+  "Learning aids": { de: "Lernhilfen", it: "Aiuti all'apprendimento", fr: "Aides à l'apprentissage", es: "Ayudas de aprendizaje" },
+  "Also ask in reverse": { de: "Auch umgekehrt fragen", it: "Chiedi anche al contrario", fr: "Demander aussi à l'envers", es: "Preguntar también al revés" },
+  "Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).": { de: "Zeigt manchmal den Namen und vier Fotos – wähle das richtige. Trainiert die andere Richtung (nur Fotos).", it: "A volte mostra il nome e quattro foto: scegli quella giusta. Allena la direzione opposta (solo foto).", fr: "Montre parfois le nom et quatre photos — choisis la bonne. Entraîne le sens inverse (photos uniquement).", es: "A veces muestra el nombre y cuatro fotos: elige la correcta. Entrena el sentido inverso (solo fotos)." },
+  "Rate how well you knew it": { de: "Bewerte, wie gut du es wusstest", it: "Valuta quanto la sapevi", fr: "Évalue à quel point tu la connaissais", es: "Valora cuánto la sabías" },
+  "After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).": { de: "Tippe nach jeder Antwort auf Nochmal / Schwer / Gut / Leicht, um zu steuern, wann sie wiederkommt (Anki-Stil).", it: "Dopo ogni risposta tocca Di nuovo / Difficile / Buono / Facile per decidere quando riproporla (stile Anki).", fr: "Après chaque réponse, appuie sur Encore / Difficile / Correct / Facile pour régler son retour (façon Anki).", es: "Tras cada respuesta, toca Otra vez / Difícil / Bien / Fácil para decidir cuándo vuelve (estilo Anki)." },
+  "Let me add memory notes": { de: "Eigene Merknotizen erlauben", it: "Permetti note mnemoniche", fr: "Autoriser des notes mémo", es: "Permitir notas para recordar" },
+  "Offer the observation's location as a hint": { de: "Fundort der Beobachtung als Hinweis anbieten", it: "Offri il luogo dell'osservazione come aiuto", fr: "Proposer le lieu de l'observation comme indice", es: "Ofrecer el lugar de la observación como pista" },
+  "My progress": { de: "Mein Fortschritt", it: "I miei progressi", fr: "Ma progression", es: "Mi progreso" },
+  "Grasshoppers": { de: "Heuschrecken", it: "Cavallette", fr: "Sauterelles", es: "Saltamontes" },
+  "Butterflies": { de: "Schmetterlinge", it: "Farfalle", fr: "Papillons", es: "Mariposas" },
+  "Birds": { de: "Vögel", it: "Uccelli", fr: "Oiseaux", es: "Aves" },
+  "Plants": { de: "Pflanzen", it: "Piante", fr: "Plantes", es: "Plantas" },
+  "None": { de: "Keins", it: "Nessuno", fr: "Aucun", es: "Ninguno" },
+  "🌿 Botany 200": { de: "🌿 Botanik 200", it: "🌿 Botanica 200", fr: "🌿 Botanique 200", es: "🌿 Botánica 200" },
+  "🌿 Botany 400": { de: "🌿 Botanik 400", it: "🌿 Botanica 400", fr: "🌿 Botanique 400", es: "🌿 Botánica 400" },
+  "🌿 Botany 600": { de: "🌿 Botanik 600", it: "🌿 Botanica 600", fr: "🌿 Botanique 600", es: "🌿 Botánica 600" },
+  "🦋 Butterflies": { de: "🦋 Schmetterlinge", it: "🦋 Farfalle", fr: "🦋 Papillons", es: "🦋 Mariposas" },
+  "🍃 Mosses 60": { de: "🍃 Moose 60", it: "🍃 Muschi 60", fr: "🍃 Mousses 60", es: "🍃 Musgos 60" },
+  "🍃 Mosses 120": { de: "🍃 Moose 120", it: "🍃 Muschi 120", fr: "🍃 Mousses 120", es: "🍃 Musgos 120" },
+  "🪨 Lichens 60": { de: "🪨 Flechten 60", it: "🪨 Licheni 60", fr: "🪨 Lichens 60", es: "🪨 Líquenes 60" },
+  "🪨 Lichens 150": { de: "🪨 Flechten 150", it: "🪨 Licheni 150", fr: "🪨 Lichens 150", es: "🪨 Líquenes 150" },
+  "🐦 Birds": { de: "🐦 Vögel", it: "🐦 Uccelli", fr: "🐦 Oiseaux", es: "🐦 Aves" },
+  // Play screen
+  "What species is this?": { de: "Welche Art ist das?", it: "Che specie è?", fr: "Quelle est cette espèce ?", es: "¿Qué especie es esta?" },
+  "What species is calling?": { de: "Welche Art ruft?", it: "Che specie sta cantando?", fr: "Quelle espèce chante ?", es: "¿Qué especie canta?" },
+  "Which species is this?": { de: "Welche Art ist das?", it: "Quale specie è?", fr: "Quelle est cette espèce ?", es: "¿Cuál es esta especie?" },
+  "Which one is calling?": { de: "Welche ruft?", it: "Quale sta cantando?", fr: "Laquelle chante ?", es: "¿Cuál canta?" },
+  "Look and learn": { de: "Anschauen und lernen", it: "Guarda e impara", fr: "Observe et apprends", es: "Mira y aprende" },
+  "Listen and learn": { de: "Anhören und lernen", it: "Ascolta e impara", fr: "Écoute et apprends", es: "Escucha y aprende" },
+  "This is": { de: "Das ist", it: "Questa è", fr: "C'est", es: "Es" },
+  "Type a name — e.g. dro rot": { de: "Tippe einen Namen – z. B. dro rot", it: "Scrivi un nome – es. dro rot", fr: "Saisis un nom — p. ex. dro rot", es: "Escribe un nombre: p. ej. dro rot" },
+  "Type the full scientific name": { de: "Vollständigen wissenschaftlichen Namen tippen", it: "Scrivi il nome scientifico completo", fr: "Saisis le nom scientifique complet", es: "Escribe el nombre científico completo" },
+  "Skip": { de: "Überspringen", it: "Salta", fr: "Passer", es: "Saltar" },
+  "Reveal": { de: "Aufdecken", it: "Rivela", fr: "Révéler", es: "Revelar" },
+  "Check": { de: "Prüfen", it: "Verifica", fr: "Vérifier", es: "Comprobar" },
+  "Next": { de: "Weiter", it: "Avanti", fr: "Suivant", es: "Siguiente" },
+  "Continue": { de: "Weiter", it: "Continua", fr: "Continuer", es: "Continuar" },
+  "💡 Need a hint?": { de: "💡 Brauchst du einen Hinweis?", it: "💡 Ti serve un aiuto?", fr: "💡 Besoin d'un indice ?", es: "💡 ¿Necesitas una pista?" },
+  "Show another hint": { de: "Weiteren Hinweis zeigen", it: "Mostra un altro aiuto", fr: "Afficher un autre indice", es: "Mostrar otra pista" },
+  "Reviewing your misses": { de: "Deine Fehler wiederholen", it: "Ripasso degli errori", fr: "Révision de tes erreurs", es: "Repasando tus fallos" },
+  "🔁 Seen it — try again": { de: "🔁 Schon gesehen – versuch's nochmal", it: "🔁 Già vista: riprova", fr: "🔁 Déjà vue — réessaie", es: "🔁 Ya vista: inténtalo otra vez" },
+  // Feedback
+  "Correct answer:": { de: "Richtige Antwort:", it: "Risposta corretta:", fr: "Bonne réponse :", es: "Respuesta correcta:" },
+  "Nice!": { de: "Schön!", it: "Bene!", fr: "Bien !", es: "¡Bien!" },
+  "Correct!": { de: "Richtig!", it: "Corretto!", fr: "Correct !", es: "¡Correcto!" },
+  "Well done!": { de: "Gut gemacht!", it: "Ben fatto!", fr: "Bravo !", es: "¡Bien hecho!" },
+  "Exactly!": { de: "Genau!", it: "Esatto!", fr: "Exactement !", es: "¡Exacto!" },
+  "You got it!": { de: "Erwischt!", it: "Ci sei!", fr: "Tu l'as !", es: "¡Lo tienes!" },
+  "Spot on!": { de: "Punktgenau!", it: "Perfetto!", fr: "Pile ça !", es: "¡Justo!" },
+  "Your pick": { de: "Deine Wahl", it: "La tua scelta", fr: "Ton choix", es: "Tu elección" },
+  "Correct answer": { de: "Richtige Antwort", it: "Risposta corretta", fr: "Bonne réponse", es: "Respuesta correcta" },
+  "Again": { de: "Nochmal", it: "Di nuovo", fr: "Encore", es: "Otra vez" },
+  "Hard": { de: "Schwer", it: "Difficile", fr: "Difficile", es: "Difícil" },
+  "Good": { de: "Gut", it: "Buono", fr: "Correct", es: "Bien" },
+  "Easy": { de: "Leicht", it: "Facile", fr: "Facile", es: "Fácil" },
+  // Distribution / facts pop-up
+  "Where in the world?": { de: "Wo auf der Welt?", it: "Dove nel mondo?", fr: "Où dans le monde ?", es: "¿Dónde en el mundo?" },
+  "Etymology": { de: "Etymologie", it: "Etimologia", fr: "Étymologie", es: "Etimología" },
+  "Ecology": { de: "Ökologie", it: "Ecologia", fr: "Écologie", es: "Ecología" },
+  "Read more on Wikipedia →": { de: "Mehr auf Wikipedia →", it: "Leggi di più su Wikipedia →", fr: "En savoir plus sur Wikipédia →", es: "Leer más en Wikipedia →" },
+  // First-run intro
+  "Welcome to Determinare": { de: "Willkommen bei Determinare", it: "Benvenuto in Determinare", fr: "Bienvenue sur Determinare", es: "Bienvenido a Determinare" },
+  "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.": { de: "Lerne, Arten anhand echter Fotos und Geräusche zu erkennen – jedes eine echte iNaturalist-Beobachtung, keine geschönte Lehrbuchtafel.", it: "Impara a riconoscere le specie da foto e suoni reali: ognuno è una vera osservazione iNaturalist, non un'illustrazione da manuale.", fr: "Apprends à reconnaître les espèces à partir de vraies photos et de vrais sons — chacun est une véritable observation iNaturalist, pas une planche de manuel idéalisée.", es: "Aprende a reconocer especies con fotos y sonidos reales: cada uno es una observación auténtica de iNaturalist, no una lámina de libro de texto." },
+  "Pick what to learn": { de: "Wähle, was du lernst", it: "Scegli cosa imparare", fr: "Choisis quoi apprendre", es: "Elige qué aprender" },
+  "A group and a place is all you need to start.": { de: "Eine Gruppe und ein Ort genügen zum Start.", it: "Un gruppo e un luogo bastano per iniziare.", fr: "Un groupe et un lieu suffisent pour commencer.", es: "Un grupo y un lugar bastan para empezar." },
+  "A group of species": { de: "Eine Artengruppe", it: "Un gruppo di specie", fr: "Un groupe d'espèces", es: "Un grupo de especies" },
+  "Plants, birds, butterflies — or search any family or genus.": { de: "Pflanzen, Vögel, Schmetterlinge – oder suche eine beliebige Familie oder Gattung.", it: "Piante, uccelli, farfalle: o cerca qualsiasi famiglia o genere.", fr: "Plantes, oiseaux, papillons — ou cherche n'importe quelle famille ou genre.", es: "Plantas, aves, mariposas: o busca cualquier familia o género." },
+  "…or a certificate": { de: "…oder ein Zertifikat", it: "…o un certificato", fr: "…ou un certificat", es: "…o un certificado" },
+  "Real exam lists: botany, butterflies, mosses, lichens, birds.": { de: "Echte Prüfungslisten: Botanik, Schmetterlinge, Moose, Flechten, Vögel.", it: "Liste d'esame reali: botanica, farfalle, muschi, licheni, uccelli.", fr: "De vraies listes d'examen : botanique, papillons, mousses, lichens, oiseaux.", es: "Listas de examen reales: botánica, mariposas, musgos, líquenes, aves." },
+  "Paste or upload species names and quiz exactly those.": { de: "Füge Artennamen ein oder lade sie hoch und übe genau diese.", it: "Incolla o carica nomi di specie ed esercitati esattamente su quelli.", fr: "Colle ou importe des noms d'espèces et révise exactement ceux-là.", es: "Pega o sube nombres de especies y practica justo esos." },
+  "Answer your way": { de: "Antworte auf deine Art", it: "Rispondi a modo tuo", fr: "Réponds à ta façon", es: "Responde a tu manera" },
+  "Recall the name yourself. Stuck? Take a hint, or reveal it.": { de: "Erinnere den Namen selbst. Nicht weiter? Nimm einen Hinweis oder decke ihn auf.", it: "Ricorda il nome da solo. Bloccato? Prendi un aiuto o rivelalo.", fr: "Retrouve le nom toi-même. Bloqué ? Prends un indice ou révèle-le.", es: "Recuerda el nombre tú mismo. ¿Atascado? Toma una pista o revélalo." },
+  "Pick from a set of names — a gentler way into a new group.": { de: "Wähle aus einer Reihe von Namen – ein sanfterer Einstieg in eine neue Gruppe.", it: "Scegli tra un insieme di nomi: un modo più semplice per entrare in un nuovo gruppo.", fr: "Choisis parmi un ensemble de noms — une entrée en douceur dans un nouveau groupe.", es: "Elige entre un conjunto de nombres: una entrada más suave a un grupo nuevo." },
+  "Just look and learn, no quiz, for a first pass.": { de: "Einfach anschauen und lernen, ohne Abfrage, für einen ersten Durchgang.", it: "Solo guarda e impara, senza quiz, per una prima passata.", fr: "Observe et apprends simplement, sans quiz, pour un premier passage.", es: "Solo mira y aprende, sin cuestionario, para una primera pasada." },
+  "It remembers what's hard": { de: "Es merkt sich, was schwerfällt", it: "Ricorda ciò che è difficile", fr: "Il retient ce qui est difficile", es: "Recuerda lo que te cuesta" },
+  "Spaced repetition": { de: "Verteiltes Wiederholen", it: "Ripetizione dilazionata", fr: "Répétition espacée", es: "Repetición espaciada" },
+  "Species come back just before you'd forget them.": { de: "Arten kommen kurz zurück, bevor du sie vergisst.", it: "Le specie ritornano poco prima che tu le dimentichi.", fr: "Les espèces reviennent juste avant que tu les oublies.", es: "Las especies vuelven justo antes de que las olvides." },
+  "Your weak spots": { de: "Deine Schwachstellen", it: "I tuoi punti deboli", fr: "Tes points faibles", es: "Tus puntos débiles" },
+  "Whatever you miss is tracked — and you can drill just those.": { de: "Was du verfehlst, wird erfasst – und du kannst gezielt genau das üben.", it: "Ciò che sbagli viene registrato e puoi esercitarti solo su quello.", fr: "Ce que tu rates est suivi — et tu peux réviser uniquement ça.", es: "Lo que fallas queda registrado y puedes practicar solo eso." },
+  "A daily streak": { de: "Eine tägliche Serie", it: "Una serie giornaliera", fr: "Une série quotidienne", es: "Una racha diaria" },
+  "A small daily goal, to keep the habit going.": { de: "Ein kleines Tagesziel, um die Gewohnheit zu halten.", it: "Un piccolo obiettivo quotidiano, per mantenere l'abitudine.", fr: "Un petit objectif quotidien, pour garder l'habitude.", es: "Una pequeña meta diaria para mantener el hábito." },
+  "Start exploring": { de: "Los geht's", it: "Inizia a esplorare", fr: "Commencer à explorer", es: "Empezar a explorar" },
+  "Skip the intro": { de: "Intro überspringen", it: "Salta l'introduzione", fr: "Passer l'intro", es: "Saltar la introducción" },
+  // Input placeholders (kept in the same informal voice as the rest)
+  "Search a group — Plantae, Poaceae, Carex…": { de: "Eine Gruppe suchen – Plantae, Poaceae, Carex…", it: "Cerca un gruppo – Plantae, Poaceae, Carex…", fr: "Cherche un groupe — Plantae, Poaceae, Carex…", es: "Busca un grupo: Plantae, Poaceae, Carex…" },
+  "Search a place — pick more than one if you like": { de: "Einen Ort suchen – gern auch mehrere", it: "Cerca un luogo – anche più di uno", fr: "Cherche un lieu — plusieurs possibles", es: "Busca un lugar: puedes elegir varios" },
+  "Type the species": { de: "Art eingeben", it: "Scrivi la specie", fr: "Saisis l'espèce", es: "Escribe la especie" },
+  // Progress panel
+  "Close": { de: "Schliessen", it: "Chiudi", fr: "Fermer", es: "Cerrar" },
+  "Weak spots": { de: "Schwachstellen", it: "Punti deboli", fr: "Points faibles", es: "Puntos débiles" },
+  "Over time": { de: "Im Zeitverlauf", it: "Nel tempo", fr: "Dans le temps", es: "Con el tiempo" },
+  "Vs others": { de: "Im Vergleich", it: "Con altri", fr: "Face aux autres", es: "Frente a otros" },
+  "Reset this player": { de: "Diesen Spieler zurücksetzen", it: "Reimposta questo giocatore", fr: "Réinitialiser ce joueur", es: "Reiniciar este jugador" },
+  "correct overall": { de: "richtig insgesamt", it: "corrette in totale", fr: "correctes au total", es: "correctas en total" },
+  "Needs the most work": { de: "Braucht am meisten Übung", it: "Da rivedere di più", fr: "À travailler en priorité", es: "Lo que más hay que trabajar" },
+  "Every species": { de: "Alle Arten", it: "Tutte le specie", fr: "Toutes les espèces", es: "Todas las especies" },
+  "Tap ▶ on any row to train just that one.": { de: "Tippe auf ▶ in einer Zeile, um nur diese zu üben.", it: "Tocca ▶ su una riga per esercitarti solo su quella.", fr: "Appuie sur ▶ sur une ligne pour réviser uniquement celle-ci.", es: "Toca ▶ en cualquier fila para practicar solo esa." },
+  "Family": { de: "Familie", it: "Famiglia", fr: "Famille", es: "Familia" },
+  "Genus": { de: "Gattung", it: "Genere", fr: "Genre", es: "Género" },
+  "Species": { de: "Art", it: "Specie", fr: "Espèce", es: "Especie" },
+  "Learning": { de: "Am Lernen", it: "In apprendimento", fr: "En cours", es: "Aprendiendo" },
+  "Familiar": { de: "Vertraut", it: "Familiare", fr: "Familière", es: "Familiar" },
+  "Mastered": { de: "Beherrscht", it: "Padroneggiata", fr: "Maîtrisée", es: "Dominada" },
+  "Save milestone now": { de: "Meilenstein jetzt speichern", it: "Salva ora un traguardo", fr: "Enregistrer un jalon maintenant", es: "Guardar un hito ahora" },
+  "Your practice": { de: "Deine Übungen", it: "I tuoi esercizi", fr: "Ta pratique", es: "Tu práctica" },
+  "Less": { de: "Weniger", it: "Meno", fr: "Moins", es: "Menos" },
+  "More": { de: "Mehr", it: "Più", fr: "Plus", es: "Más" },
+  "Accuracy over time": { de: "Genauigkeit im Zeitverlauf", it: "Precisione nel tempo", fr: "Précision dans le temps", es: "Precisión con el tiempo" },
+  "Now": { de: "Jetzt", it: "Ora", fr: "Maintenant", es: "Ahora" },
+  "No server, no login. Share your code, paste a friend's — everyone lines up below. Other players on this device appear automatically.": { de: "Kein Server, kein Login. Teile deinen Code, füge den eines Freundes ein – alle erscheinen unten. Andere Spieler auf diesem Gerät werden automatisch angezeigt.", it: "Nessun server, nessun accesso. Condividi il tuo codice, incolla quello di un amico: tutti compaiono qui sotto. Gli altri giocatori su questo dispositivo appaiono in automatico.", fr: "Pas de serveur, pas de connexion. Partage ton code, colle celui d'un ami — tout le monde s'aligne ci-dessous. Les autres joueurs de cet appareil apparaissent automatiquement.", es: "Sin servidor, sin inicio de sesión. Comparte tu código, pega el de un amigo: todos aparecen abajo. Los demás jugadores de este dispositivo se muestran automáticamente." },
+  "Your share-code": { de: "Dein Teilen-Code", it: "Il tuo codice", fr: "Ton code de partage", es: "Tu código para compartir" },
+  "Copy": { de: "Kopieren", it: "Copia", fr: "Copier", es: "Copiar" },
+  "Copied": { de: "Kopiert", it: "Copiato", fr: "Copié", es: "Copiado" },
+  "Add someone's code": { de: "Code von jemandem hinzufügen", it: "Aggiungi il codice di qualcuno", fr: "Ajouter le code de quelqu'un", es: "Añadir el código de alguien" },
+  "Add": { de: "Hinzufügen", it: "Aggiungi", fr: "Ajouter", es: "Añadir" },
+  "Leaderboard": { de: "Rangliste", it: "Classifica", fr: "Classement", es: "Clasificación" },
+  "By family": { de: "Nach Familie", it: "Per famiglia", fr: "Par famille", es: "Por familia" },
+  "By genus": { de: "Nach Gattung", it: "Per genere", fr: "Par genre", es: "Por género" },
+  "That code didn't look right — paste the whole DET1:… code.": { de: "Der Code sah nicht richtig aus – füge den ganzen DET1:…-Code ein.", it: "Il codice non sembrava giusto: incolla l'intero codice DET1:…", fr: "Ce code semblait incorrect — colle le code DET1:… en entier.", es: "Ese código no parecía correcto: pega el código DET1:… completo." },
+  // Feedback — the cow's quips
+  "Three in a row — nice rhythm!": { de: "Drei in Folge – schöner Rhythmus!", it: "Tre di fila: che ritmo!", fr: "Trois d'affilée — quel rythme !", es: "¡Tres seguidas, qué ritmo!" },
+  "You're rolling now.": { de: "Jetzt läuft's.", it: "Ora sei lanciato.", fr: "Tu es lancé.", es: "Ahora sí que vas." },
+  "Keep it going!": { de: "Weiter so!", it: "Continua così!", fr: "Continue comme ça !", es: "¡Sigue así!" },
+  "On fire! 🔥": { de: "Du brennst! 🔥", it: "Sei in fiamme! 🔥", fr: "Tu es en feu ! 🔥", es: "¡Estás que ardes! 🔥" },
+  "The cow is in awe.": { de: "Die Kuh staunt.", it: "La mucca è a bocca aperta.", fr: "La vache est bluffée.", es: "La vaca está alucinando." },
+  "Unstoppable!": { de: "Unaufhaltsam!", it: "Inarrestabile!", fr: "Imparable !", es: "¡Imparable!" },
+  "LEGENDARY. The whole herd is mooing.": { de: "LEGENDÄR. Die ganze Herde muht.", it: "LEGGENDARIO. Tutta la mandria muggisce.", fr: "LÉGENDAIRE. Tout le troupeau meugle.", es: "LEGENDARIO. Todo el rebaño mugiendo." },
+  "Bow before the botanist.": { de: "Verneig dich vor dem Botaniker.", it: "Inchinatevi al botanico.", fr: "Inclinez-vous devant le botaniste.", es: "Inclínense ante el botánico." },
+  "You've made this cow's day.": { de: "Du hast den Tag dieser Kuh gerettet.", it: "Hai rallegrato la giornata di questa mucca.", fr: "Tu as illuminé la journée de cette vache.", es: "Le has alegrado el día a esta vaca." },
+  "So close — you had the right genus!": { de: "So knapp – die Gattung stimmte!", it: "Quasi: il genere era giusto!", fr: "Si près — le genre était bon !", es: "¡Casi! El género era correcto." },
+  "Nearly! The genus was spot on.": { de: "Fast! Die Gattung war goldrichtig.", it: "Quasi! Il genere era perfetto.", fr: "Presque ! Le genre était pile bon.", es: "¡Casi! El género era exacto." },
+  "Right neighbourhood, wrong house.": { de: "Richtige Gegend, falsches Haus.", it: "Quartiere giusto, casa sbagliata.", fr: "Bon quartier, mauvaise maison.", es: "Barrio correcto, casa equivocada." },
+  "No stress — you'll know it next time.": { de: "Kein Stress – nächstes Mal weisst du's.", it: "Niente stress: la prossima volta la saprai.", fr: "Pas de stress — tu la sauras la prochaine fois.", es: "Sin estrés: la próxima vez la sabrás." },
+  "Let's lock this one in.": { de: "Merken wir uns die.", it: "Fissiamola bene.", fr: "Retenons bien celle-ci.", es: "Vamos a fijar esta." },
+  "Every miss is one you'll remember.": { de: "Jeder Fehler ist einer, den du dir merkst.", it: "Ogni errore è uno che ricorderai.", fr: "Chaque erreur est une leçon retenue.", es: "Cada fallo es uno que recordarás." },
+  "The cow believes in you.": { de: "Die Kuh glaubt an dich.", it: "La mucca crede in te.", fr: "La vache croit en toi.", es: "La vaca cree en ti." },
+  "No guess, no worries — onward.": { de: "Kein Tipp, kein Problem – weiter geht's.", it: "Nessuna risposta, nessun problema: avanti.", fr: "Pas de réponse, pas grave — on avance.", es: "Sin respuesta, sin problema: seguimos." },
+  "We'll come back to this one.": { de: "Wir kommen darauf zurück.", it: "Ci torneremo su.", fr: "On y reviendra.", es: "Volveremos a esta." },
+  // GBIF top-up toggle
+  "Top up thin species with GBIF photos": { de: "Fotoarme Arten mit GBIF-Fotos auffüllen", it: "Integra le specie con poche foto con GBIF", fr: "Compléter les espèces peu illustrées avec GBIF", es: "Completar especies con pocas fotos con GBIF" },
+  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.": { de: "Für Arten mit weniger als 50 iNaturalist-Fotos werden weitere von GBIF ergänzt (Museen, Herbarien und andere Plattformen) – Lebendfotos werden bevorzugt, Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig aktiv; gelegentlich Bilder von geringerer Qualität oder falsch beschriftet. Funktioniert mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder Arten der Region.", it: "Per le specie con meno di 50 foto su iNaturalist, ne aggiunge altre da GBIF (musei, erbari e altre piattaforme): foto dal vivo preferite, esemplari d'erbario solo quando una specie ha davvero poche immagini. Attivo per impostazione predefinita; a volte immagini di qualità inferiore o etichettate male. Funziona con una lista di specie: un certificato, la tua lista o le specie della regione.", fr: "Pour les espèces ayant moins de 50 photos sur iNaturalist, en ajoute d'autres depuis GBIF (musées, herbiers et autres plateformes) — photos sur le vif préférées, spécimens d'herbier seulement quand une espèce est vraiment peu illustrée. Activé par défaut ; parfois des images de moindre qualité ou mal étiquetées. Fonctionne avec une liste d'espèces — un certificat, ta propre liste ou les espèces de la région.", es: "Para las especies con menos de 50 fotos en iNaturalist, añade más desde GBIF (museos, herbarios y otras plataformas): fotos en vivo preferidas, ejemplares de herbario solo cuando una especie tiene realmente pocas imágenes. Activado de forma predeterminada; de vez en cuando imágenes de menor calidad o mal etiquetadas. Funciona con una lista de especies: un certificado, tu propia lista o las especies de la región." },
+};
+// The exact-string translation for a manual language, or undefined to fall
+// through to Google.
+const manualTranslation = (text, lang) => (MANUAL_I18N[text] || {})[lang];
+
+// Translate one English string to `lang`. Our own translations win; otherwise
+// Google's endpoint fills in, cached. On any failure it just returns the
+// original, so a hiccup leaves that bit in English rather than breaking the page.
 async function i18nTranslate(text, lang) {
   const key = lang + "␟" + text;
   if (i18nCache.has(key)) return i18nCache.get(key);
+  const mine = manualTranslation(text, lang);
+  if (mine) { i18nCache.set(key, mine); return mine; }
   try {
     const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=" +
       encodeURIComponent(lang) + "&dt=t&q=" + encodeURIComponent(text);
@@ -2975,7 +3198,6 @@ async function startSession() {
   game.placeId  = game.regions.map((r) => r.id).filter((id) => id !== null).join(",");
   game.label    = game.taxa.map((t) => t.name).join(" + ") + " · " + game.regions.map((r) => r.name).join(" + ");
   game.assist         = el("assistToggle").checked;
-  game.useCommonNames = el("commonNamesToggle").checked;
   game.learnMore      = el("learnMoreToggle").checked;
   game.allowRepeats   = el("repeatToggle").checked;
   game.roundSize      = roundSizeChoice;
@@ -2983,6 +3205,8 @@ async function startSession() {
   game.answerMode     = answerModeChoice;
   game.choiceCount    = choiceCountChoice;
   game.commonOnly     = el("commonToggle").checked;
+  game.regionGlobal   = el("regionGlobalToggle").checked;
+  game.webImages      = el("webImagesToggle").checked;
   game.reverseQuiz    = el("reverseToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
@@ -2993,6 +3217,8 @@ async function startSession() {
   game.queue = []; game.seen = new Set(); game.checklist = [];
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
   game.counts = true;   // ordinary play always counts
+  game.covered = new Set(); game.gbifTried = new Set(); game.gapFilling = false;   // GBIF gap-fill bookkeeping
+  game.obsCount = new Map();   // taxonId -> iNat photo count for the pool (drives GBIF top-up)
 
   // Certificate mode: quiz a fixed, taxonomy-harmonised species list instead of
   // a group. It overrides the group / common-species choice; region still
@@ -3027,6 +3253,25 @@ async function startSession() {
     : game.commonOnly ? "Finding the most common species…" : "Loading " + mediaWord(true) + "…");
 
   try {
+    // "Region's species, photos from anywhere": take the species that actually
+    // occur in the chosen region (species_counts, which is place-filtered), then
+    // drop the place filter so their photos are pulled worldwide — a far bigger
+    // sample than the region alone can offer. Only meaningful with a real region
+    // (World is already global) and outside certificate / custom-list mode.
+    if (game.regionGlobal && game.placeId && !game.pool) {
+      const regional = await fetchTopSpecies(game.taxonIds, game.placeId);
+      const list = regional.filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2);
+      if (list.length) {
+        game.pool = list.map((s) => s.id);
+        game.checklist = list.map((s) => ({ id: s.id, scientificName: s.scientificName, commonName: s.commonName, iconic: "", count: s.count }));
+        game.label += " · " + list.length + " regional species · global photos";
+        game.placeId = "";        // observations now come from everywhere
+        game.commonOnly = false;  // this mode supersedes the common-species on-ramp
+      } else {
+        game.regionGlobal = false;   // region has no species list — fall back to normal
+      }
+    }
+
     // "Common species" on-ramp: narrow the whole session to the most-observed
     // species of the chosen group + region (iNaturalist's species_counts is
     // already sorted commonest-first), so a beginner drills the handful they'll
@@ -3047,6 +3292,12 @@ async function startSession() {
       }
     }
 
+    // GBIF top-up needs to know which pool species are thin, so grab each pool
+    // species' iNaturalist photo-count up front (same place filter as the quiz).
+    if (game.webImages && game.pool && game.media === "photo") {
+      game.obsCount = await fetchObsCounts(game.pool, game.placeId);
+    }
+
     // First request tells us how many observations exist (so we know the page
     // range). In certificate mode each fetch pulls a fresh random chunk of the
     // list, so we keep the page range small rather than measuring one chunk.
@@ -3061,16 +3312,22 @@ async function startSession() {
       batch = data.results || batch;
     }
     const candidates = shuffle(toQuestions(batch));
-    candidates.forEach((q) => game.seen.add(q.observationId));
+    candidates.forEach((q) => { game.seen.add(q.observationId); game.covered.add(q.taxonId); });
     game.queue = filterUnique(candidates);
     growChecklist(candidates);
 
+    // If iNat gave us nothing but GBIF gap-fill is on, let GBIF supply the first
+    // images before we give up (e.g. a list entirely of species iNat lacks).
+    if (game.queue.length === 0 && game.webImages && game.pool) {
+      for (let i = 0; i < 5 && game.queue.length === 0; i++) await gapFillGbif();
+    }
     if (game.queue.length === 0) { showEmpty(); return; }
 
     // In common / certificate mode the checklist is already the focus set;
     // otherwise enrich name suggestions with the region's top species.
     if (!game.commonOnly && !game.pool) loadTopSpeciesInBackground();
     startRound("normal");
+    gapFillGbif();   // start surfacing iNat-less species alongside the common ones
   } catch (err) {
     showError(err);
   }
@@ -3131,6 +3388,7 @@ function startReview(useFreshPhotos) {
   const entries = shuffle([...game.missed.values()]);
   if (entries.length === 0) return;
   game.mode = "review";
+  game.pool = null; game.obsCount = new Map();   // the end-of-round pile isn't a fixed-list session
   game.counts = false;   // you saw these answers seconds ago — they'd flatter the stats
   game.round = { size: entries.length, index: 0, correct: 0 };
   game.roundLog = [];
@@ -3166,16 +3424,17 @@ function startHistoryReview(species, answerMode, label) {
   game.answerMode     = answerMode;
   game.choiceCount    = choiceCountChoice;
   game.assist         = el("assistToggle").checked;
-  game.useCommonNames = el("commonNamesToggle").checked;
   game.learnMore      = el("learnMoreToggle").checked;
   game.selfRate       = el("selfRateToggle").checked;
   game.mnemonics      = el("mnemonicToggle").checked;
   game.revealObs      = el("revealObsToggle").checked;
   game.locationHint   = el("locationHintToggle").checked;
+  game.webImages      = el("webImagesToggle").checked;
   game.difficultThreshold = difficultThresholdChoice;
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
   game.allowRepeats   = true;
   game.mode           = "review";
+  game.pool = null; game.obsCount = new Map();   // a review isn't a fixed-list session — no GBIF top-up / stale pool
   // These are genuine cross-session retrieval (you haven't just been shown the
   // answer), so unlike the end-of-round pile they DO count — otherwise training
   // your weak spots could never actually improve them.
@@ -3294,6 +3553,122 @@ function questionFromSavedMedia(base, media) {
   return q;
 }
 
+// -- topping up thin species with GBIF ---------------------------------------
+//  On by default. A species with few (or no) iNaturalist photos barely comes up
+//  and is hard to learn. GBIF federates hundreds of datasets (museums, herbaria,
+//  other platforms) — no API key, CORS enabled — so it can top up the image pool
+//  for exactly those species. iNat photos are always preferred; we only reach
+//  for GBIF when a species has FEWER THAN 50 iNat photos (see GBIF_TARGET), and
+//  we prefer live field photos, only allowing pressed herbarium / preserved-
+//  specimen shots when a species is so image-poor that live sources (iNat +
+//  GBIF-live) still can't reach the target. Quality control is looser
+//  (occasional mislabelling) — the accepted trade-off.
+const GBIF_LIVE_BASIS = new Set(["HUMAN_OBSERVATION", "MACHINE_OBSERVATION", "OBSERVATION", "LIVING_SPECIMEN"]);
+const GBIF_TARGET = 50;        // a species with this many iNat photos is "well covered"
+const GBIF_STRIP_MAX = 8;      // how many GBIF images to actually put on the strip
+
+// How many iNaturalist photos a pool species has (0 if none / unknown), from the
+// species_counts fetched at session start.
+const iNatCount = (taxonId) => (game.obsCount && game.obsCount.get(taxonId)) || 0;
+
+// GBIF images for a species, split into live field photos vs pressed specimens.
+async function fetchGbifSplit(name) {
+  if (!name) return { live: [], specimen: [] };
+  try {
+    const url = "https://api.gbif.org/v1/occurrence/search?" + new URLSearchParams({
+      scientificName: name, mediaType: "StillImage", limit: 100 });
+    const res = await fetch(url);
+    if (!res.ok) return { live: [], specimen: [] };
+    const data = await res.json();
+    const live = [], specimen = [];
+    (data.results || []).forEach((r) => {
+      const bucket = GBIF_LIVE_BASIS.has(r.basisOfRecord) ? live : specimen;
+      (r.media || []).forEach((m) => {
+        if (m.type === "StillImage" && m.identifier && /^https?:\/\//.test(m.identifier)) {
+          bucket.push({ url: m.identifier, attribution: (m.rightsHolder || m.creator || "Unknown") + " · GBIF", web: true });
+        }
+      });
+    });
+    return { live: shuffle(live), specimen: shuffle(specimen) };
+  } catch (err) { return { live: [], specimen: [] }; }
+}
+
+// Pick up to `want` GBIF images for a species that already has `iNatN` iNat
+// photos: live photos preferred, and herbarium specimens allowed ONLY if live
+// sources together still fall short of the target — so image-poor species get
+// filled, well-served ones stay specimen-free.
+function chooseGbif(split, iNatN, want) {
+  const liveReachesTarget = iNatN + split.live.length >= GBIF_TARGET;
+  const pool = liveReachesTarget ? split.live : split.live.concat(split.specimen);
+  return pool.slice(0, want);
+}
+
+// Build a playable question straight from GBIF images, for a species iNat has
+// nothing for (so it would otherwise never appear at all).
+async function buildGbifQuestion(sp) {
+  const imgs = chooseGbif(await fetchGbifSplit(sp.scientificName), 0, GBIF_STRIP_MAX);
+  if (!imgs.length) return null;
+  return { taxonId: sp.id, scientificName: sp.scientificName,
+    iconic: sp.iconic || iconicFor(sp.id),
+    photos: imgs, photoUrl: imgs[0].url, attribution: imgs[0].attribution,
+    gbif: true, observationId: null };
+}
+
+// Fetch iNaturalist photo-counts for the whole pool at once (chunked), so we
+// know which species are thin. Same place filter as the observation fetch, so
+// the count matches what the quiz can actually draw on.
+async function fetchObsCounts(ids, placeId) {
+  const counts = new Map();
+  for (let i = 0; i < ids.length; i += 60) {
+    try {
+      const data = await apiGet("/observations/species_counts",
+        { taxon_id: ids.slice(i, i + 60).join(","), place_id: placeId, quality_grade: "research", per_page: 500, page: 1 });
+      (data.results || []).forEach((row) => counts.set(row.taxon.id, row.count || 0));
+    } catch (err) { /* leave those uncounted (treated as 0) */ }
+  }
+  return counts;
+}
+
+// Pool species with ZERO iNat photos never come through the batch, so build them
+// GBIF-first questions, a few at a time.
+async function gapFillGbif() {
+  if (!game.webImages || !game.pool || game.media !== "photo" || game.gapFilling) return;
+  game.gapFilling = true;
+  try {
+    const byId = new Map(game.checklist.map((s) => [s.id, s]));
+    const todo = game.pool.filter((id) => byId.has(id) && iNatCount(id) === 0 &&
+      !game.covered.has(id) && !game.gbifTried.has(id));
+    for (const id of shuffle(todo).slice(0, 3)) {
+      game.gbifTried.add(id);
+      const q = await buildGbifQuestion(byId.get(id));
+      if (q) { game.queue.push(q); game.covered.add(id); }
+    }
+  } catch (err) { /* best-effort */ }
+  finally { game.gapFilling = false; }
+}
+
+// For a thin iNat species (1..49 photos), append GBIF images to the strip so it
+// has more to look at. Guarded on `question` so a slow response never lands on a
+// newer one.
+async function appendWebImages(question) {
+  if (!game.webImages || game.media !== "photo" || !game.pool || question.gbif) return;
+  const c = iNatCount(question.taxonId);
+  if (c <= 0 || c >= GBIF_TARGET) return;   // 0 handled by gap-fill; >=50 well covered
+  const imgs = chooseGbif(await fetchGbifSplit(question.scientificName), c, GBIF_STRIP_MAX);
+  if (game.current !== question || !imgs.length) return;
+  const strip = el("photoStrip");
+  if (!strip) return;
+  const have = new Set((game.currentMedia || []).map((m) => m.url));
+  const add = imgs.filter((m) => !have.has(m.url));
+  if (!add.length) return;
+  game.currentMedia = (game.currentMedia || []).concat(add);
+  add.forEach((m) => { const img = document.createElement("img"); img.src = m.url; img.alt = "Species to identify"; strip.appendChild(img); });
+  el("photoPrev").classList.remove("hidden");
+  el("photoNext").classList.remove("hidden");
+  el("photoCount").classList.remove("hidden");
+  updatePhotoIndicator();
+}
+
 // -- keeping the question queue topped up ---------------------------------
 // The taxon ids to fetch this round: a fresh random chunk of the certificate's
 // species in certificate mode, otherwise the fixed group/region selection.
@@ -3306,13 +3681,14 @@ async function topUpQueue() {
   try {
     const data = await fetchObservations(currentFetchIds(), game.placeId, randomInt(1, game.maxPage || 1));
     const candidates = shuffle(toQuestions(data.results)).filter((q) => !game.seen.has(q.observationId));
-    candidates.forEach((q) => game.seen.add(q.observationId));
+    candidates.forEach((q) => { game.seen.add(q.observationId); if (game.covered) game.covered.add(q.taxonId); });
     const fresh = filterUnique(candidates);
     game.queue.push(...fresh);
     growChecklist(candidates);
     if (game.seen.size > 4000) game.seen = new Set([...game.seen].slice(-1000));
   } catch (err) { /* nextQuestion() surfaces a message if truly empty */ }
   finally { game.fetching = false; }
+  gapFillGbif();   // species iNat had nothing for get a GBIF image (opt-in, pool mode)
 }
 const topUpIfLow = () => { if (game.queue.length <= TOP_UP_AT && !game.fetching) topUpQueue(); };
 
@@ -3499,8 +3875,12 @@ function updatePhotoIndicator() {
   // Copyright attribution is always shown (it's a licence requirement and never
   // names the species). The LINK to the observation would give the answer away,
   // so it only appears once you've answered — and only if you've opted in.
-  const attribution = photos[index].attribution;
-  const obsId = game.current && game.current.observationId;
+  const media = photos[index];
+  const attribution = media.attribution;
+  // The iNaturalist observation link belongs only to the iNat lead photos, not
+  // to an appended GBIF image (which carries its own attribution and isn't tied
+  // to this observation).
+  const obsId = !media.web && game.current && game.current.observationId;
   const showLink = game.answered && game.revealObs && obsId;
   const link = showLink
     ? "<a href='https://www.inaturalist.org/observations/" + obsId +
@@ -3666,7 +4046,7 @@ function presentQuestion() {
   if (game.reverseThis) { presentReverse(); return; }
 
   if (game.media === "sound") showSoundGallery(questionSounds(game.current));
-  else showPhotoGallery(questionPhotos(game.current));
+  else { showPhotoGallery(questionPhotos(game.current)); appendWebImages(game.current); }
 
   let mode = game.answerMode;
   // A Choose question needs at least one distractor to sit beside the answer;
@@ -3727,9 +4107,7 @@ function presentType() {
   el("promptText").textContent = game.media === "sound" ? "What species is calling?" : "What species is this?";
   const input = el("answerInput");
   input.value = ""; input.disabled = false;
-  input.placeholder = game.useCommonNames
-    ? "Type the common name"
-    : (game.assist ? "Type a name — e.g. dro rot" : "Type the full scientific name");
+  input.placeholder = game.assist ? "Type a name — e.g. dro rot" : "Type the full scientific name";
   hideSuggest("answerSuggest");
   el("checkBtn").disabled = true;
   resetHints();   // fresh hint scaffold for this species
@@ -3831,7 +4209,6 @@ function presentStudy() {
   const note = game.mnemonics ? noteFor(q.taxonId) : "";
   el("studyAnswer").innerHTML = "<span class='tag'>This is</span>" +
     "<span class='sci notranslate'>" + escapeHtml(q.scientificName) + "</span>" +
-    (q.commonName ? "<span class='common'>" + escapeHtml(q.commonName) + "</span>" : "") +
     (note ? "<div class='note-saved notranslate' style='margin-top:10px;text-align:left;'>📝 " + escapeHtml(note) + "</div>" : "");
 }
 
@@ -3861,10 +4238,8 @@ function onPrimaryAction() {
 }
 
 // Check the typed answer (Enter or the Check button).
-// Whichever name a suggestion should display/insert as — the common name
-// when that mode is on and this species actually has one, else the
-// scientific name (the only thing every species is guaranteed to have).
-const answerLabelFor = (sp) => (game.useCommonNames && sp.commonName) ? sp.commonName : sp.scientificName;
+// Species are always answered and shown by their scientific name.
+const answerLabelFor = (sp) => sp.scientificName;
 
 function submitAnswer() {
   if (game.answered) return;
@@ -3887,13 +4262,11 @@ function submitAnswer() {
   finishAnswer(wasCorrect, typed);
 }
 
-// Match typed text to a known species on the checklist (by scientific binomial
-// or exact common name), or null if it doesn't clearly name a real one.
+// Match typed text to a known species on the checklist by its scientific
+// binomial, or null if it doesn't clearly name a real one.
 function resolveTypedSpecies(typed) {
-  const q = normalize(typed);
   const target = genusAndEpithet(typed);
-  const found = game.checklist.find((s) =>
-    genusAndEpithet(s.scientificName) === target || (s.commonName && normalize(s.commonName) === q));
+  const found = game.checklist.find((s) => genusAndEpithet(s.scientificName) === target);
   return (found && found.id !== game.current.taxonId)
     ? { taxonId: found.id, scientificName: found.scientificName, commonName: found.commonName } : null;
 }
@@ -3940,22 +4313,12 @@ function buildHints(q) {
     hints.push("It was observed at: " + escapeHtml(q.location) + ".");
   }
 
-  // Gentle context first: the "other" name and, if we happen to know it, the
-  // family — placement without giving the spelling away.
-  if (game.useCommonNames && q.commonName) {
-    hints.push("Its scientific name is <i>" + escapeHtml(q.scientificName) + "</i>.");
-  } else if (q.commonName) {
-    hints.push("Its common name is “" + escapeHtml(q.commonName) + "”.");
-  }
+  // Gentle context first: the family, if we happen to know it — placement
+  // without giving the spelling away.
   if (fam && fam.isFamily && fam.familyName) hints.push("It's in the family " + escapeHtml(fam.familyName) + ".");
 
   // Then the strongest nudge, aimed at the exact thing you have to type.
-  if (game.useCommonNames && q.commonName) {
-    const cn = q.commonName.trim();
-    hints.push(cn.length > 3
-      ? "It begins “<i>" + escapeHtml(cn.slice(0, 3)) + "…</i>”."
-      : "The answer is “<i>" + escapeHtml(cn) + "</i>”.");
-  } else if (epithet) {
+  if (epithet) {
     // The genus alone gets you halfway; then reveal the start of the species word.
     hints.push("The genus is <i>" + escapeHtml(genus) + "</i>.");
     const ep = epithet.replace(/\s+/g, "");
@@ -4517,7 +4880,6 @@ async function showFacts(etymologyBox, ecologyBox, question, token) {
 function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
   const mood = pickMood(wasCorrect, typed);
   const badge = wasCorrect ? "ok" : (mood === "skip" ? "" : "bad");   // shape cue, colour-blind safe
-  const common = question.commonName ? " <span class='fb-common'>· " + escapeHtml(question.commonName) + "</span>" : "";
   const title = wasCorrect ? pickPraise() : "Correct answer:";
   const answerVerb = game.answerMode === "choose" ? "picked" : "wrote";
   const you = (!wasCorrect && typed) ? "<span class='fb-you'>You " + answerVerb + " “" + escapeHtml(typed) + "”</span>" : "";
@@ -4532,7 +4894,7 @@ function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
     : "";
   return "<div class='fb-head'><div class='fb-icon " + mood + " " + badge + "'>" + cowMascot(mood) + "</div>" +
     "<div><div class='fb-title'>" + title + "</div>" + combo +
-    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span>" + common + "</div>" + alt + you + quip +
+    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span></div>" + alt + you + quip +
     (extraHtml ? "<div>" + extraHtml + "</div>" : "") + "</div></div>";
 }
 
@@ -4625,7 +4987,6 @@ function compareBlockHtml(correct, guess) {
       "</div>" +
       "<div class='cmp-body'>" +
         "<div class='cmp-name notranslate'>" + escapeHtml(sp.scientificName) + "</div>" +
-        (sp.commonName ? "<div class='cmp-common notranslate'>" + escapeHtml(sp.commonName) + "</div>" : "") +
       "</div></div>";
   // In photo mode the correct answer's photo is already on screen; otherwise
   // (sound mode) it's fetched like the guess photo.
@@ -5043,17 +5404,9 @@ function renderAnswerSuggestions() {
   const list = answerSuggestions(el("answerInput").value);
   const box = el("answerSuggest");
   if (list.length === 0) return hideSuggest("answerSuggest");
-  box.innerHTML = list.map((sp, i) => {
-    // In common-names mode, lead with the common name and demote the
-    // scientific one to the secondary slot — but only when this species
-    // actually has one; otherwise there's nothing to lead with but the
-    // scientific name anyway.
-    const useCommon = game.useCommonNames && sp.commonName;
-    const secondary = useCommon ? sp.scientificName : sp.commonName;
-    return "<div class='suggest-item" + (i === activeAnswerSuggestion ? " active" : "") + "' data-answer='" + escapeHtml(answerLabelFor(sp)) + "'>" +
-      "<span class='" + (useCommon ? "" : "sci") + "'>" + escapeHtml(answerLabelFor(sp)) + "</span>" +
-      (secondary ? "<span class='meta" + (useCommon ? " sci" : "") + "'>" + escapeHtml(secondary) + "</span>" : "") + "</div>";
-  }).join("");
+  box.innerHTML = list.map((sp, i) =>
+    "<div class='suggest-item" + (i === activeAnswerSuggestion ? " active" : "") + "' data-answer='" + escapeHtml(sp.scientificName) + "'>" +
+      "<span class='sci'>" + escapeHtml(sp.scientificName) + "</span></div>").join("");
   box.classList.remove("hidden");
   box.querySelectorAll(".suggest-item").forEach((row) => {
     row.addEventListener("mousedown", (event) => {   // mousedown beats blur
@@ -5261,7 +5614,7 @@ function wireControls() {
   el("listDeleteBtn").addEventListener("click", deleteCustomList);
   el("listFileInput").addEventListener("change", (e) => { if (e.target.files[0]) loadListFile(e.target.files[0]); e.target.value = ""; });
   // Any option or practise toggle changing keeps the folded summaries honest.
-  Object.keys(OPTION_DEFAULTS).concat(["commonToggle"]).forEach((id) => {
+  Object.keys(OPTION_DEFAULTS).concat(["commonToggle", "regionGlobalToggle", "webImagesToggle"]).forEach((id) => {
     if (el(id)) el(id).addEventListener("change", renderFoldSummaries);
   });
 
