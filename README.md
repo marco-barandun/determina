@@ -62,8 +62,8 @@ grep -n "^// == " index.html
 | 6 | Weak spots, milestones & share-codes | Family/genus/species rollups, accuracy maths, export/import codes |
 | 7 | Autocomplete | Setup pickers, the `"dro rot"` abbreviation matcher, typo-tolerant answer checking |
 | 8 | Setup screen | Taxon/region/certificate/custom-list pickers, first-run intro, page translation (i18n) |
-| 9 | Playing a lesson | Question queue, GBIF gap-filling, all three answer modes, hints, review pile |
-| 10 | Rendering | Screens, photo gallery, lightbox, feedback banner, cow mascot, results, progress panel |
+| 9 | Playing a lesson | Question queue, GBIF gap-filling, all four answer modes, hints, review pile |
+| 10 | Rendering | Screens, photo gallery, lightbox, range maps, feedback banner, cow mascot, results, progress panel |
 | 11 | Wiring up the controls | All `addEventListener` calls, in one place |
 | 12 | Start-up | Nine calls, in order — this is the whole boot sequence |
 
@@ -109,7 +109,7 @@ No API key is needed for any of these. Everything is a plain browser `GET`.
 | Host | Used for | Where |
 |---|---|---|
 | `api.inaturalist.org` | Observations, photos, sounds, taxon & place autocomplete, species counts | Section 2 |
-| `api.gbif.org` | Extra photos for image-poor species; distribution maps | Section 9 (`gapFillGbif`), section 10 |
+| `api.gbif.org` | Extra photos for image-poor species; distribution maps; per-country record counts for "Where?" mode | Section 9 (`gapFillGbif`, `gbifCountryCounts`), section 10 |
 | `tile.gbif.org` | Basemap tiles for both maps | Section 10 |
 | `en.wikipedia.org` | Species summary, etymology and ecology text | Section 10 |
 | `translate.googleapis.com` | Whole-page translation | Section 8 (i18n) |
@@ -153,6 +153,33 @@ hard-coded arrays in section 4, mapped to iNaturalist taxon ids. Each certificat
 carries its own checklist taxonomy alongside the iNaturalist name, and
 `game.taxonomy` selects which one is shown and accepted. They are queried in
 chunks of `CERT_CHUNK` (60) to keep URLs short.
+
+**Choose mode's hint ladder is deliberately shorter than Type's.** `buildHints`
+takes the mode and stops after the family and locality tiers for Choose: the
+genus tier and the "species word begins…" tier would hand over a question whose
+answer is already on screen. Because the bulk `resolveFamilies()` only covers
+species you already have stats for, `resetHints` fetches the family for a
+first-time species on its own (`resolveFamilyFor`) so the ladder is never empty.
+
+**"Where?" mode asks for a region, not a country.** A widespread species has
+thirty countries and no single right one, so `GEO_REGIONS` maps ISO country
+codes to about twenty coarse regions and `buildWhereQuestion` rolls GBIF's
+country facets up into them. The answer is the region holding the most records;
+distractors are regions where GBIF has *none*, so a wrong option is verifiably
+wrong. A species too cosmopolitan to have one honest answer (no region reaches
+`GEO_MIN_SHARE`) hands the question back to Choose rather than asking it badly.
+
+**Every map box needs `z-index: 0`.** Leaflet gives its own panes z-index
+400–700. Without a stacking context on the containing box those paint over the
+answer input's suggestion dropdown (z-index 20) while you are typing. `.obs-map`,
+`.study-map` and `.where-map` all pin themselves to 0 for this reason.
+
+**The setup screen's stats panel has no family count on purpose.** iNaturalist
+has no endpoint for "distinct families recorded in a place", and deriving one
+means resolving the ancestry of every species in the list — a dozen-plus extra
+requests per keystroke. Genera are free (a genus is the first word of the
+scientific name) and are marked `+` when the 500-species page is a floor rather
+than the whole list.
 
 **Multiple-choice distractors and look-alike pairs must stay within one iconic
 group.** Every question carries `iconic` (`"Plantae"`, `"Aves"`, …) precisely so
@@ -202,7 +229,9 @@ There is no automated test suite. Verification is manual, in a browser:
 
 - Start a round on the default (Plantae · World) and answer a few questions.
 - Check the browser console for errors and the network tab for failed calls.
-- Exercise the mode you touched: Type / Choose / Study, photo vs sound, a
-  certificate, a custom list, the review pile, and the progress panel's three tabs.
+- Exercise the mode you touched: Type / Choose / Study / Where?, photo vs sound,
+  a certificate, a custom list, the review pile, and the progress panel's three tabs.
+- For anything touching maps, check both the small inert one and the enlarged
+  pop-up, and confirm the suggestion dropdown still covers the map while typing.
 - Test with `localStorage` cleared to confirm first-run behaviour (the intro
   walkthrough and empty-profile paths).

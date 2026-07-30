@@ -465,8 +465,25 @@
   .credit a { color: var(--faint); }
   .prompt { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin: 10px 2px 8px; flex: none; }
   /* The answer controls keep their natural height — only the photo flexes. */
-  .search.answer, .hint-area, .choice-area, .study-answer { flex: none; }
+  .search.answer, .hint-area, .choice-area, .study-answer, .where-area { flex: none; }
   .answer-input { font-size: 20px; font-style: italic; padding: 14px; }
+
+  /* What the chosen group and place actually hold — sizing up a selection
+     before committing a round to it. Three numbers and one sentence; the
+     temptation to add a fourth and a fifth is the thing to resist. */
+  .sel-stats { margin-top: 14px; border-top: 1.5px solid var(--line); padding-top: 12px; }
+  .ss-row { display: flex; gap: 8px; }
+  .ss-cell { flex: 1; text-align: center; background: var(--bg-2); border: 1.5px solid var(--line);
+    border-radius: 10px; padding: 8px 4px; }
+  .ss-cell b { display: block; font-size: 17px; font-weight: 900; color: var(--green-dark); }
+  .ss-cell span { font-size: 11px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--faint); }
+  /* One bar per species, commonest first — the shape of the drop-off says more
+     about what a round will feel like than any single number does. */
+  .ss-bars { display: flex; align-items: flex-end; gap: 2px; height: 34px; margin-top: 10px; }
+  .ss-bars i { flex: 1; background: var(--green); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .75; }
+  .ss-note { font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.45; margin-top: 8px; }
+  .ss-loading { font-size: 12px; font-weight: 700; color: var(--faint); }
 
   /* Progressive hints — a graded scaffold so a learner can work toward the
      answer instead of just failing (and then has it reinforced in review). */
@@ -576,6 +593,15 @@
   .map-big { width: 100%; height: min(62vh, 460px); border-radius: 10px; overflow: hidden;
     background: #f1eee3; border: 2px solid var(--line); }
   .map-legend { font-size: 11.5px; color: var(--faint); font-weight: 700; margin-top: 8px; }
+
+  /* "Where?" mode — the name is given, the region is the answer. One column,
+     not the two Choose uses: region names are sentences, not binomials. */
+  .where-area { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .where-area .choice { text-align: left; font-style: normal; font-size: 14.5px; padding: 12px 14px; }
+  .where-name { font-family: var(--font-display); font-style: italic; font-size: 20px;
+    font-weight: 600; color: var(--green-dark); text-align: center; margin-bottom: 4px; }
+  .where-map { height: 190px; position: relative; z-index: 0; cursor: pointer; margin-top: 10px;
+    border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: #f1eee3; }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
   .reverse-active .photo-card, .reverse-active #credit { display: none; }
@@ -901,6 +927,10 @@
         <div id="regionChips" class="chips"></div>
       </div>
 
+      <!-- What that group-and-place actually contains, filled by
+           renderSelectionStats(). Hidden until there is something to say. -->
+      <div id="selectionStats" class="sel-stats hidden"></div>
+
       <!-- Certificates + your own lists: a specialist path, folded away until
            wanted. Opens automatically when one is already selected. -->
       <details class="subfold" id="fixedListFold">
@@ -1147,6 +1177,7 @@
       <div id="hintArea" class="hint-area"></div>
       <div id="choiceArea" class="choice-area hidden"></div>
       <div id="studyAnswer" class="study-answer hidden"></div>
+      <div id="whereArea" class="where-area hidden"></div>
       <div id="reverseArea" class="reverse-area hidden"></div>
     </main>
 
@@ -1362,16 +1393,61 @@ const ICON_CHOOSE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' 
   "<polyline points='9 11 12 14 22 4'/><path d='M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'/></svg>";
 const ICON_STUDY = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
   "<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/><path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/></svg>";
+const ICON_WHERE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>";
 const ANSWER_MODES = [
   { label: "Type", value: "type", icon: ICON_TYPE },
   { label: "Choose", value: "choose", icon: ICON_CHOOSE },
   { label: "Study", value: "study", icon: ICON_STUDY },
+  { label: "Where?", value: "where", icon: ICON_WHERE },
 ];
 const ANSWER_MODE_HINTS = {
   type:   "Type the name from memory. Stuck? Use a hint, or Reveal to see it.",
   choose: "Pick from a set of names — recognition is an easier way in for a new group. Choose how many options below.",
   study:  "Just look and learn: each species is shown with its name, no quiz. Switch to Type or Choose when you're ready to test yourself.",
+  where:  "The name is given — say roughly where in the world it lives. Answer, then see its real range on a map.",
 };
+
+// The regions "Where?" mode asks about. A widespread species has no single
+// country, so the answer is a coarse region instead — one big enough that most
+// species sit clearly inside one or two of them, and small enough that naming
+// it means something. Countries are ISO 3166-1 alpha-2, which is what GBIF's
+// occurrence facets return, so the rollup is a plain lookup.
+//
+// Europe is at finer grain than the rest on purpose: that is where most of
+// this app's learners are keying out plants. Russia sits with eastern Europe
+// even though it reaches the Pacific — the alternative was splitting a country
+// GBIF reports as one, and "roughly" is the promise this mode makes.
+const GEO_REGIONS = [
+  { name: "Scandinavia & the Baltics", codes: "NO SE FI DK IS EE LV LT FO AX SJ" },
+  { name: "The British Isles", codes: "GB IE IM JE GG" },
+  { name: "Western Europe", codes: "FR BE NL LU MC" },
+  { name: "Central Europe & the Alps", codes: "DE CH AT LI PL CZ SK HU SI" },
+  { name: "Iberia", codes: "ES PT AD GI" },
+  { name: "Italy & the Balkans", codes: "IT HR BA RS ME MK AL GR BG RO MT SM VA XK" },
+  { name: "Eastern Europe & Russia", codes: "UA BY RU MD GE AM AZ" },
+  { name: "The Mediterranean coast of Africa & the Near East", codes: "MA DZ TN LY EG TR CY IL PS JO LB SY IQ" },
+  { name: "Arabia & Iran", codes: "SA AE OM YE KW QA BH IR" },
+  { name: "Tropical Africa", codes: "SN ML NE NG GH CI BF GN SL LR TG BJ CM TD CF SD SS ET ER DJ SO KE UG TZ RW BI CD CG GA GQ ST CV GM GW MR" },
+  { name: "Southern Africa & Madagascar", codes: "ZA NA BW ZW MZ ZM MW AO LS SZ MG MU RE SC KM" },
+  { name: "Central & northern Asia", codes: "KZ UZ TM KG TJ MN AF" },
+  { name: "South Asia", codes: "IN PK NP BT BD LK MV" },
+  { name: "East Asia", codes: "CN JP KR KP TW HK MO" },
+  { name: "South-East Asia", codes: "TH VN LA KH MM MY SG ID PH BN TL" },
+  { name: "Australia & New Zealand", codes: "AU NZ NF" },
+  { name: "The Pacific islands", codes: "PG FJ NC SB VU WS TO PF GU FM MH KI NR PW TV CK NU AS MP" },
+  { name: "North America", codes: "US CA GL PM BM" },
+  { name: "Mexico, Central America & the Caribbean", codes: "MX GT BZ HN SV NI CR PA CU DO HT JM PR TT BS BB LC GD VC AG DM KN AW CW SX TC KY VG VI" },
+  { name: "The Andes & northern South America", codes: "CO VE EC PE BO GY SR GF" },
+  { name: "Brazil & the Southern Cone", codes: "BR AR CL UY PY FK GS" },
+];
+// country code -> region name, built once.
+const GEO_BY_COUNTRY = new Map();
+GEO_REGIONS.forEach((r) => r.codes.split(" ").forEach((c) => GEO_BY_COUNTRY.set(c, r.name)));
+// A species scattered thinly over half the planet has no honest answer, so a
+// region must hold at least this share of its records to be asked about.
+const GEO_MIN_SHARE = 0.35;
+const GEO_OPTIONS = 4;
 const DEFAULT_ANSWER_MODE = "type";
 // How many options to show in Choose mode (and the reverse photo-pick). Fewer
 // is a gentler on-ramp; more is a harder test.
@@ -1557,7 +1633,7 @@ function toQuestions(observations) {
 
 const game = {
   // Chosen on the setup screen:
-  taxa: [{ id: PLANTAE_ID, name: "Plantae" }],   // one or more groups (with real ids)
+  taxa: [{ id: PLANTAE_ID, name: "Plantae", rank: "kingdom" }],   // one or more groups (with real ids)
   taxaTouched: false,   // becomes true on your first deliberate pick — see addTaxon()
   regions: [{ id: null, name: "World" }],   // one or more places — "World" means no place filter at all
   regionsTouched: false,   // becomes true on your first deliberate pick — see addRegion()
@@ -2329,6 +2405,7 @@ function renderTaxonChips() {
     .join("");
 
   el("taxonChips").innerHTML = presetChips + extraChips;
+  scheduleSelectionStats();
 }
 
 function addTaxon(taxon) {
@@ -2339,7 +2416,9 @@ function addTaxon(taxon) {
   // so "Poaceae" then "Rosaceae" gives you both.
   if (!game.taxaTouched) { game.taxa = []; game.taxaTouched = true; }
   if (game.taxa.some((t) => t.id === taxon.id)) return;   // no duplicates
-  game.taxa.push({ id: taxon.id, name: taxon.name });
+  // rank comes along so the stats panel below knows not to tell you how many
+  // families a family contains.
+  game.taxa.push({ id: taxon.id, name: taxon.name, rank: taxon.rank || "" });
   renderTaxonChips();
 }
 
@@ -2392,6 +2471,7 @@ function renderRegionChips() {
     .join("");
 
   el("regionChips").innerHTML = presetChips + extraChips;
+  scheduleSelectionStats();
 }
 
 function addRegion(place) {
@@ -2413,6 +2493,120 @@ function removeRegion(id) {
   game.regions = game.regions.filter((r) => r.id !== Number(id));
   if (game.regions.length === 0) { game.regions = [{ id: null, name: "World" }]; game.regionsTouched = false; }
   renderRegionChips();
+}
+
+// -- sizing up a selection -------------------------------------------------
+//  "Poaceae in Graubünden" is a very different round from "Plantae in the
+//  world", and until you start one there is nothing on screen that says so.
+//  This panel answers the two questions worth asking before committing: how
+//  much is in here, and how evenly is it spread. Deliberately three numbers
+//  and one sentence — an inviting summary, not a dashboard.
+//
+//  Everything comes from the same two calls a round would make anyway, so it
+//  costs nothing new conceptually. Note what is NOT here: a family count.
+//  iNaturalist has no endpoint for "distinct families recorded in a place",
+//  and deriving one means resolving the ancestry of every species in the list
+//  — a dozen-plus extra requests on every keystroke. Genera are free, because
+//  a genus IS the first word of the scientific name.
+
+// iNaturalist's own rank_level scale, for the ranks that turn up in practice.
+// Used only to compare "is this rank above genus?", so gaps don't matter.
+const RANK_LEVEL = { kingdom: 70, phylum: 60, subphylum: 57, class: 50, subclass: 47, order: 40,
+  suborder: 37, superfamily: 33, family: 30, subfamily: 27, tribe: 25, genus: 20,
+  subgenus: 15, species: 10, subspecies: 5 };
+const rankLevelOf = (t) => RANK_LEVEL[t.rank] !== undefined ? RANK_LEVEL[t.rank] : 100;
+
+const compactNumber = (n) =>
+  n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"
+  : n >= 1e4 ? Math.round(n / 1e3) + "k"
+  : n.toLocaleString("en-US");
+
+let selectionStatsToken = 0;
+
+// Debounced, because it fires on every chip click and every picked suggestion.
+const scheduleSelectionStats = debounce(() => { renderSelectionStats(); }, 350);
+
+async function renderSelectionStats() {
+  const box = el("selectionStats");
+  if (!box) return;
+  // A certificate or a custom list overrides the group and place entirely, so
+  // describing them would be describing something you aren't about to study.
+  if (certChoice !== "none" || listChoice !== "none" || !game.taxa.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  selectionStatsToken += 1;
+  const token = selectionStatsToken;
+  const taxonIds = game.taxa.map((t) => t.id).join(",");
+  const placeIds = game.regions.map((r) => r.id).filter((id) => id !== null).join(",");
+  box.classList.remove("hidden");
+  box.innerHTML = "<div class='ss-loading'>Counting what's in there…</div>";
+
+  let species, observations;
+  try {
+    [species, observations] = await Promise.all([
+      apiGet("/observations/species_counts", { taxon_id: taxonIds, place_id: placeIds,
+        quality_grade: "research", per_page: 500, page: 1 }),
+      apiGet("/observations", { taxon_id: taxonIds, place_id: placeIds,
+        quality_grade: "research", per_page: 0 }),
+    ]);
+  } catch (err) {
+    if (token === selectionStatsToken) box.innerHTML = "<div class='ss-loading'>Couldn't reach iNaturalist just now.</div>";
+    return;
+  }
+  if (token !== selectionStatsToken) return;   // you changed the selection while this was in flight
+
+  const rows = (species.results || []).filter((r) => r.taxon && r.taxon.name);
+  const speciesTotal = species.total_results || rows.length;
+  const obsTotal = observations.total_results || 0;
+  if (!speciesTotal) {
+    box.innerHTML = "<div class='ss-note'>No research-grade observations match this selection yet. " +
+      "Try a broader group or a larger region.</div>";
+    return;
+  }
+  box.innerHTML = selectionStatsHtml(rows, speciesTotal, obsTotal);
+  if (uiLang !== "en") i18nApplyTo(box, uiLang);   // this markup arrived after the page was translated
+}
+
+function selectionStatsHtml(rows, speciesTotal, obsTotal) {
+  // The species page tops out at 500 (see fetchTopSpecies), so anything derived
+  // from the rows is a floor once we hit that, and says so with a "≥".
+  const partial = rows.length < speciesTotal;
+  const genera = new Set(rows.map((r) => r.taxon.name.split(" ")[0]));
+  // Only offer a count that the selection doesn't already answer: telling you
+  // Carex holds one genus, or Poaceae so many families, is noise.
+  const finest = Math.min(...game.taxa.map(rankLevelOf));
+  const cells = [];
+  if (finest > 20) cells.push([compactNumber(genera.size) + (partial ? "+" : ""), "genera"]);
+  if (finest > 10) cells.push([compactNumber(speciesTotal), "species"]);
+  cells.push([compactNumber(obsTotal), "observations"]);
+
+  const counts = rows.map((r) => r.count || 0);
+  const top = counts.slice(0, 24);
+  const max = Math.max(1, ...top);
+  // Linear, with a floor so the tail stays visible. A softening curve would
+  // flatter the data: the steepness IS the finding, and it is what tells you
+  // whether a round will keep serving the same dozen species.
+  const bars = top.map((c) => "<i style='height:" + Math.max(6, Math.round(100 * c / max)) + "%'></i>").join("");
+
+  // "Half the observations come from N species" says more than any percentage:
+  // N is roughly how many species a round will actually keep serving you.
+  let running = 0, half = 0;
+  for (let i = 0; i < counts.length && !half; i++) {
+    running += counts[i];
+    if (running >= obsTotal / 2) half = i + 1;
+  }
+  const note = half
+    ? "Half of all these observations come from just " + half + " species — those are the ones " +
+      "a round will keep bringing back, with the rest much rarer."
+    : "Observations are spread widely across these species, with no small group dominating.";
+
+  return "<div class='ss-row'>" +
+      cells.map(([value, label]) =>
+        "<div class='ss-cell'><b class='notranslate'>" + value + "</b><span>" + label + "</span></div>").join("") +
+    "</div>" +
+    (counts.length > 3 ? "<div class='ss-bars' aria-hidden='true'>" + bars + "</div>" : "") +
+    "<div class='ss-note'>" + note + "</div>";
 }
 
 // Resolve a place name and add it — used by the preset chips and by typing
@@ -2535,6 +2729,7 @@ function renderCertChips() {
 // The group picker is dimmed while a certificate or a custom list overrides it.
 function updateSubjectDim() {
   el("taxonField").classList.toggle("dim", certChoice !== "none" || listChoice !== "none");
+  scheduleSelectionStats();   // a fixed list overrides the group, so the panel hides itself
 }
 
 // The certificate species-list viewer. Lists every species with the exam
@@ -3092,6 +3287,21 @@ const MANUAL_I18N = {
   "Pick from a set of names — a gentler way into a new group.": { de: "Wähle aus einer Reihe von Namen – ein sanfterer Einstieg in eine neue Gruppe.", it: "Scegli tra un insieme di nomi: un modo più semplice per entrare in un nuovo gruppo.", fr: "Choisis parmi un ensemble de noms — une entrée en douceur dans un nouveau groupe.", es: "Elige entre un conjunto de nombres: una entrada más suave a un grupo nuevo." },
   "Just look and learn, no quiz, for a first pass.": { de: "Einfach anschauen und lernen, ohne Abfrage, für einen ersten Durchgang.", it: "Solo guarda e impara, senza quiz, per una prima passata.", fr: "Observe et apprends simplement, sans quiz, pour un premier passage.", es: "Solo mira y aprende, sin cuestionario, para una primera pasada." },
   "It remembers what's hard": { de: "Es merkt sich, was dir schwerfällt", it: "Ricorda ciò che è difficile", fr: "Il retient ce qui est difficile", es: "Recuerda lo que te cuesta" },
+  // "Where?" mode, the range maps and the selection-stats panel.
+  "The name is given — say roughly where in the world it lives. Answer, then see its real range on a map.": { de: "Der Name steht da – sag ungefähr, wo auf der Welt die Art vorkommt. Nach der Antwort siehst du ihr echtes Areal auf der Karte.", it: "Il nome è dato: dì all'incirca dove vive la specie. Dopo la risposta ne vedi l'areale reale sulla mappa.", fr: "Le nom est donné : dis à peu près où vit l'espèce. Après ta réponse, tu vois son aire réelle sur la carte.", es: "El nombre ya está: di aproximadamente dónde vive la especie. Tras responder verás su área real en el mapa." },
+  "Where would you find this species?": { de: "Wo würdest du diese Art finden?", it: "Dove troveresti questa specie?", fr: "Où trouverais-tu cette espèce ?", es: "¿Dónde encontrarías esta especie?" },
+  "Looking up its range…": { de: "Areal wird nachgeschlagen…", it: "Ricerca dell'areale…", fr: "Recherche de l'aire de répartition…", es: "Buscando su área de distribución…" },
+  "Loading map…": { de: "Karte wird geladen…", it: "Caricamento della mappa…", fr: "Chargement de la carte…", es: "Cargando el mapa…" },
+  "Couldn't load the map.": { de: "Karte konnte nicht geladen werden.", it: "Impossibile caricare la mappa.", fr: "Impossible de charger la carte.", es: "No se pudo cargar el mapa." },
+  "No map for this species.": { de: "Für diese Art gibt es keine Karte.", it: "Nessuna mappa per questa specie.", fr: "Pas de carte pour cette espèce.", es: "No hay mapa para esta especie." },
+  "Shaded cells are GBIF occurrence records; the dot is where this photo was taken.": { de: "Die gefärbten Felder sind GBIF-Fundmeldungen; der Punkt zeigt, wo dieses Foto entstand.", it: "Le celle colorate sono segnalazioni GBIF; il punto indica dove è stata scattata questa foto.", fr: "Les cellules colorées sont des signalements GBIF ; le point marque le lieu de cette photo.", es: "Las celdas sombreadas son registros de GBIF; el punto marca dónde se tomó esta foto." },
+  "Counting what's in there…": { de: "Wird gezählt…", it: "Conteggio in corso…", fr: "Comptage en cours…", es: "Contando…" },
+  "Couldn't reach iNaturalist just now.": { de: "iNaturalist ist gerade nicht erreichbar.", it: "iNaturalist non è raggiungibile al momento.", fr: "iNaturalist est injoignable pour le moment.", es: "No se puede conectar con iNaturalist ahora mismo." },
+  "No research-grade observations match this selection yet. Try a broader group or a larger region.": { de: "Für diese Auswahl gibt es noch keine Beobachtungen in Forschungsqualität. Versuch eine breitere Gruppe oder eine grössere Region.", it: "Nessuna osservazione di qualità di ricerca per questa selezione. Prova un gruppo più ampio o una regione più grande.", fr: "Aucune observation de qualité recherche pour cette sélection. Essaie un groupe plus large ou une région plus grande.", es: "Todavía no hay observaciones de grado investigación para esta selección. Prueba un grupo más amplio o una región mayor." },
+  "Observations are spread widely across these species, with no small group dominating.": { de: "Die Beobachtungen verteilen sich breit auf diese Arten; keine kleine Gruppe dominiert.", it: "Le osservazioni sono distribuite ampiamente tra queste specie, senza che un piccolo gruppo domini.", fr: "Les observations se répartissent largement entre ces espèces, sans qu'un petit groupe domine.", es: "Las observaciones se reparten ampliamente entre estas especies, sin que domine un grupo pequeño." },
+  "genera": { de: "Gattungen", it: "generi", fr: "genres", es: "géneros" },
+  "species": { de: "Arten", it: "specie", fr: "espèces", es: "especies" },
+  "observations": { de: "Beobachtungen", it: "osservazioni", fr: "observations", es: "observaciones" },
   "Spaced repetition": { de: "Verteiltes Wiederholen", it: "Ripetizione dilazionata", fr: "Répétition espacée", es: "Repetición espaciada" },
   // The three setup-screen drills — what actually distinguishes them.
   "Species you already got right, coming back just before you'd forget them. Keeping up with these is what makes them stick.": { de: "Arten, die du schon richtig hattest – sie kommen zurück, kurz bevor du sie vergessen würdest. Dranbleiben ist das, was sie sitzen lässt.", it: "Specie che avevi già indovinato: tornano poco prima che tu le dimentichi. È questo ritmo a fissarle.", fr: "Des espèces que tu avais déjà trouvées : elles reviennent juste avant que tu ne les oublies. C'est ce rythme qui les ancre.", es: "Especies que ya acertaste: vuelven justo antes de que las olvides. Mantener este ritmo es lo que las fija." },
@@ -4198,7 +4408,8 @@ function reverseDistractorPool() {
   return ranked.length ? ranked : g.other;
 }
 function shouldReverse() {
-  return game.reverseQuiz && game.media === "photo" && game.answerMode !== "study" &&
+  return game.reverseQuiz && game.media === "photo" &&
+    game.answerMode !== "study" && game.answerMode !== "where" &&
     !game.current.reinforced && reverseDistractorPool().length >= (game.choiceCount || DEFAULT_CHOICE_COUNT) - 1 &&
     Math.random() < 0.4;
 }
@@ -4242,21 +4453,34 @@ function presentQuestion() {
   // with none available (e.g. a one-species custom list) a "multiple choice"
   // would just hand over the answer, so fall back to Study for this one question.
   if (mode === "choose" && pickDistractors(game.current.taxonId, 1).length === 0) mode = "study";
+
+  enterMode(mode);
+  showActionRow();
+}
+
+// Switch the play area over to one answer mode: show that mode's controls,
+// hide the others, and present the question in it. Kept in one place because
+// two modes can decide mid-question that they can't be asked after all —
+// Choose with no distractors, "Where?" with no usable range — and both need to
+// hand over to another mode cleanly rather than half-switching.
+function enterMode(mode) {
   game.modeThis = mode;
-  // Show only the answer region for the current mode. Hints belong to both of
-  // the tested modes — Choose gets a shorter ladder (see buildHints).
+  // Hints belong to the two modes where the name is still hidden and you are
+  // trying to recall it. "Where?" gives the name away in the question, and its
+  // locality hint would be the answer.
   el("answerInput").closest(".search.answer").classList.toggle("hidden", mode !== "type");
-  el("hintArea").classList.toggle("hidden", mode === "study");
+  el("hintArea").classList.toggle("hidden", mode !== "type" && mode !== "choose");
   el("choiceArea").classList.toggle("hidden", mode !== "choose");
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
+  el("whereArea").classList.toggle("hidden", mode !== "where");
   el("reverseArea").classList.add("hidden");
-  renderObsLocation();   // the "where was this seen?" button (Type mode, if we have coords)
+  renderObsLocation();   // the "where was this seen?" button, where it isn't a spoiler
 
   if (mode === "study") presentStudy();
   else if (mode === "choose") presentChoose();
+  else if (mode === "where") presentWhere();
   else presentType();
 
-  showActionRow();
   configureActionRow(mode);
 }
 
@@ -4409,10 +4633,122 @@ function presentStudy() {
     "</div>" +
     "<div id='studyMap' class='study-map' title='Tap to enlarge'><div class='map-note'>Loading map…</div></div>";
   el("studyMap").addEventListener("click", openMapPopup);
-  renderStudyMap(q).catch(() => {
+  renderRangeMap(el("studyMap"), q).catch(() => {
     const box = el("studyMap");
     if (box) box.innerHTML = "<div class='map-note'>Couldn't load the map.</div>";
   });
+}
+
+// -- "Where?" mode: the name is given, the region is the answer -----------
+//  A different kind of knowledge from the rest of the app: not "which species
+//  is this" but "where does it live", which is half of what tells two similar
+//  species apart in the field.
+//
+//  The answer is a coarse region rather than a country because a widespread
+//  species has thirty countries and no single right one, while it usually has
+//  one clear region. GBIF's country facets give the record counts; rolling
+//  them up into GEO_REGIONS turns "1,204 in CH, 890 in AT, 640 in DE" into one
+//  answer. Distractors are regions where GBIF has NO records at all for the
+//  species, so a wrong option is verifiably wrong rather than merely unlikely.
+//
+//  Two ways a species can have no fair question: GBIF doesn't know it, or it
+//  is genuinely cosmopolitan (no region holds GEO_MIN_SHARE of its records).
+//  Both hand the question back to Choose, which is always answerable.
+
+// GBIF record counts per ISO country code for a species, as a plain object.
+async function gbifCountryCounts(taxonKey) {
+  const res = await fetch("https://api.gbif.org/v1/occurrence/search?limit=0&facet=country&facetLimit=200&taxonKey=" + taxonKey);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const facet = (data.facets || []).find((f) => f.field === "COUNTRY");
+  if (!facet || !facet.counts || !facet.counts.length) return null;
+  const out = {};
+  facet.counts.forEach((c) => { out[c.name] = c.count; });
+  return out;
+}
+
+// Roll country counts up to regions and decide whether there's a fair question
+// in there. Returns { answer, options, share } or null.
+function buildWhereQuestion(countryCounts) {
+  const totals = new Map();
+  let grand = 0;
+  Object.entries(countryCounts).forEach(([code, n]) => {
+    const region = GEO_BY_COUNTRY.get(code);
+    if (!region) return;   // a code we don't map (Antarctica, high seas) is simply ignored
+    totals.set(region, (totals.get(region) || 0) + n);
+    grand += n;
+  });
+  if (!grand) return null;
+
+  const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+  const [answer, topCount] = ranked[0];
+  const share = topCount / grand;
+  if (share < GEO_MIN_SHARE) return null;   // too widely spread to have one honest answer
+
+  // Regions with nothing at all, preferred as distractors. If the species is
+  // recorded almost everywhere there may not be enough, so fall back to the
+  // thinnest ones — still wrong, just less starkly.
+  const empty = GEO_REGIONS.map((r) => r.name).filter((n) => !totals.has(n));
+  const thin = ranked.slice(1).reverse().map(([name]) => name);
+  const distractors = shuffle(empty).concat(thin).slice(0, GEO_OPTIONS - 1);
+  if (distractors.length < 1) return null;
+  return { answer, options: shuffle([answer].concat(distractors)), share: Math.round(share * 100) };
+}
+
+let whereToken = 0;
+async function presentWhere() {
+  whereToken += 1;
+  const token = whereToken;
+  const q = game.current;
+  el("promptText").textContent = "Where would you find this species?";
+  const area = el("whereArea");
+  area.innerHTML = "<div class='where-name notranslate'>" + escapeHtml(q.scientificName) + "</div>" +
+    "<div class='ss-loading'>Looking up its range…</div>";
+
+  let built = null;
+  try {
+    const key = await cachedGbifKey(q.scientificName);
+    if (token !== whereToken) return;
+    if (key) {
+      const counts = await gbifCountryCounts(key);
+      if (token !== whereToken) return;
+      if (counts) built = buildWhereQuestion(counts);
+    }
+  } catch (err) { built = null; }
+  if (token !== whereToken) return;
+  // No GBIF match, or nowhere clear enough to ask about — ask it the normal way
+  // instead, rather than showing a question with no honest answer.
+  if (!built) return enterMode(pickDistractors(q.taxonId, 1).length ? "choose" : "study");
+
+  currentWhere = built;
+  area.innerHTML = "<div class='where-name notranslate'>" + escapeHtml(q.scientificName) + "</div>" +
+    built.options.map((name) =>
+      "<button type='button' class='choice' data-region='" + escapeHtml(name) + "'>" +
+        escapeHtml(name) + "</button>").join("");
+  area.querySelectorAll(".choice").forEach((btn) => {
+    btn.addEventListener("click", () => { if (!game.answered) answerWhere(btn.dataset.region); });
+  });
+}
+
+let currentWhere = null;   // the region question on screen, for marking it
+
+function answerWhere(picked) {
+  const wasCorrect = picked === currentWhere.answer;
+  el("whereArea").querySelectorAll(".choice").forEach((b) => {
+    if (b.dataset.region === currentWhere.answer) b.classList.add("right");
+    else if (b.dataset.region === picked) b.classList.add("wrong");
+    b.disabled = true;
+  });
+  // Close the loop while the guess is still fresh: the real range, on a map,
+  // right under the options. This is the part that teaches.
+  const map = document.createElement("div");
+  map.className = "where-map";
+  map.title = "Tap to enlarge";
+  map.innerHTML = "<div class='map-note'>Loading map…</div>";
+  map.addEventListener("click", openMapPopup);
+  el("whereArea").appendChild(map);
+  renderRangeMap(map, game.current).catch(() => { map.innerHTML = "<div class='map-note'>Couldn't load the map.</div>"; });
+  finishAnswer(wasCorrect, picked);
 }
 
 // Study cards aren't scored — just advance, counting toward the round total so
@@ -4426,7 +4762,7 @@ function studyNext() {
 // Show the right controls for the current answer mode ("reverse" is a
 // per-question override of whatever answer mode is active).
 function configureActionRow(mode) {
-  const tapToAnswer = mode === "choose" || mode === "reverse";   // no Check button; tapping submits
+  const tapToAnswer = mode === "choose" || mode === "reverse" || mode === "where";   // no Check button; tapping submits
   el("skipBtn").classList.toggle("hidden", mode === "study");
   el("revealBtn").classList.toggle("hidden", mode !== "type");   // Reveal only makes sense when typing
   el("checkBtn").classList.toggle("hidden", tapToAnswer);
@@ -4666,6 +5002,7 @@ function clearBusy() {
     "<div id='hintArea' class='hint-area'></div>" +
     "<div id='choiceArea' class='choice-area hidden'></div>" +
     "<div id='studyAnswer' class='study-answer hidden'></div>" +
+    "<div id='whereArea' class='where-area hidden'></div>" +
     "<div id='reverseArea' class='reverse-area hidden'></div>";
   wireAnswerInput();   // re-attach listeners to the fresh input
   wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
@@ -4829,6 +5166,9 @@ const correctMood = (streak) =>
 function pickMood(wasCorrect, typed) {
   if (wasCorrect) return correctMood(game.streak);
   if (!typed) return "skip";
+  // "Where?" answers are region names, so the near-miss grade below — which
+  // asks whether you at least got the genus right — has nothing to measure.
+  if (game.modeThis === "where") return "miss";
   const givenGenus  = normalize(typed).split(" ")[0];
   const targetGenus = normalize(game.current.scientificName).split(" ")[0];
   const rightGenus = givenGenus && levenshtein(givenGenus, targetGenus) <= 1;
@@ -5015,21 +5355,23 @@ function fitRange(map, bounds, latlng, maxZoom) {
   else map.setView([15, 10], 1);
 }
 
-let studyMiniMap = null;   // the small map inside the study card
-let studyBigMap = null;    // the enlarged one in the pop-up
-let studyMapToken = 0;     // bumped per species, so a late GBIF lookup knows it is stale
-let studyMapData = null;   // { name, taxonKey, bounds, latlng } for the species on screen
+let miniRangeMap = null;   // the small map on the card
+let bigRangeMap = null;    // the enlarged one in the pop-up
+let rangeMapToken = 0;     // bumped per species, so a late GBIF lookup knows it is stale
+let rangeMapData = null;   // { name, taxonKey, bounds, latlng } for the species on screen
+let mapCanvasSeq = 0;      // Leaflet needs a container it has never seen before
 
 function destroyStudyMaps() {
-  if (studyMiniMap) { studyMiniMap.remove(); studyMiniMap = null; }
-  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
-  studyMapData = null;
+  if (miniRangeMap) { miniRangeMap.remove(); miniRangeMap = null; }
+  if (bigRangeMap) { bigRangeMap.remove(); bigRangeMap = null; }
+  rangeMapData = null;
 }
 
-async function renderStudyMap(question) {
-  studyMapToken += 1;
-  const token = studyMapToken;
-  const box = el("studyMap");
+// Draw the species' range into `box` — the study card's slot, or the one
+// "Where?" mode appends under the options once you've answered.
+async function renderRangeMap(box, question) {
+  rangeMapToken += 1;
+  const token = rangeMapToken;
   if (!box) return;
   const latlng = parseCoords(question.coords);
   let taxonKey = null, bounds = null;
@@ -5037,41 +5379,42 @@ async function renderStudyMap(question) {
   // alone still tells you something, so only give up if there's nothing at all.
   try {
     taxonKey = await cachedGbifKey(question.scientificName);
-    if (token !== studyMapToken) return;
+    if (token !== rangeMapToken) return;
     if (taxonKey) bounds = await gbifOccurrenceBounds(taxonKey);
-    if (token !== studyMapToken) return;
+    if (token !== rangeMapToken) return;
   } catch (err) { taxonKey = null; }
   if (!taxonKey && !latlng) { box.innerHTML = "<div class='map-note'>No map for this species.</div>"; return; }
 
-  studyMapData = { name: question.scientificName, taxonKey, bounds, latlng };
-  box.innerHTML = "<div id='studyMapCanvas' class='map-canvas'></div><div class='map-expand'>⤢</div>";
-  if (studyMiniMap) { studyMiniMap.remove(); studyMiniMap = null; }
-  studyMiniMap = L.map("studyMapCanvas", INERT_MAP);
-  addRangeLayers(studyMiniMap, taxonKey, 6);
-  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(studyMiniMap);
-  fitRange(studyMiniMap, bounds, latlng, 3);
-  studyMiniMap.invalidateSize();
+  rangeMapData = { name: question.scientificName, taxonKey, bounds, latlng };
+  const canvasId = "rangeCanvas" + (++mapCanvasSeq);
+  box.innerHTML = "<div id='" + canvasId + "' class='map-canvas'></div><div class='map-expand'>⤢</div>";
+  if (miniRangeMap) { miniRangeMap.remove(); miniRangeMap = null; }
+  miniRangeMap = L.map(canvasId, INERT_MAP);
+  addRangeLayers(miniRangeMap, taxonKey, 6);
+  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(miniRangeMap);
+  fitRange(miniRangeMap, bounds, latlng, 3);
+  miniRangeMap.invalidateSize();
 }
 
 // The enlarged map. Nothing is refetched — it redraws the same tile layers the
 // small one already resolved, so opening it is instant and free.
 function openMapPopup() {
-  if (!studyMapData) return;
-  const { name, taxonKey, bounds, latlng } = studyMapData;
+  if (!rangeMapData) return;
+  const { name, taxonKey, bounds, latlng } = rangeMapData;
   el("mapPopupTitle").textContent = name;
   el("mapPopup").classList.remove("hidden");
-  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
+  if (bigRangeMap) { bigRangeMap.remove(); bigRangeMap = null; }
   el("mapBig").innerHTML = "";
-  studyBigMap = L.map("mapBig", { attributionControl: true, zoomControl: true, worldCopyJump: true });
-  addRangeLayers(studyBigMap, taxonKey, 6);
-  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(studyBigMap);
-  fitRange(studyBigMap, bounds, latlng, 5);
-  studyBigMap.invalidateSize();   // the container was display:none until a moment ago
+  bigRangeMap = L.map("mapBig", { attributionControl: true, zoomControl: true, worldCopyJump: true });
+  addRangeLayers(bigRangeMap, taxonKey, 6);
+  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(bigRangeMap);
+  fitRange(bigRangeMap, bounds, latlng, 5);
+  bigRangeMap.invalidateSize();   // the container was display:none until a moment ago
 }
 
 function closeMapPopup() {
   el("mapPopup").classList.add("hidden");
-  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
+  if (bigRangeMap) { bigRangeMap.remove(); bigRangeMap = null; }
 }
 
 // A short, plain-language summary of the species from Wikipedia. Used both
@@ -5254,11 +5597,22 @@ async function showFacts(etymologyBox, ecologyBox, question, token) {
 // rather than leaving the user to peek at what's underneath. `extraHtml` is
 // appended inside the same text column (the banner uses it for the "learn
 // more" link; the pop-up has no need for it).
+// What "the answer" was. Every mode but one is asking for the species name;
+// "Where?" asked for a region, so echoing the binomial there would answer a
+// question nobody was asked. Region names are ordinary words, so unlike a
+// binomial they are left translatable.
+function answerLineHtml(question) {
+  if (game.modeThis === "where" && currentWhere) {
+    return "<span class='fb-name'>" + escapeHtml(currentWhere.answer) + "</span>";
+  }
+  return "<span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span>";
+}
+
 function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
   const mood = pickMood(wasCorrect, typed);
   const badge = wasCorrect ? "ok" : (mood === "skip" ? "" : "bad");   // shape cue, colour-blind safe
   const title = wasCorrect ? pickPraise() : "Correct answer:";
-  const answerVerb = game.answerMode === "choose" ? "picked" : "wrote";
+  const answerVerb = (game.modeThis === "choose" || game.modeThis === "where") ? "picked" : "wrote";
   const you = (!wasCorrect && typed) ? "<span class='fb-you'>You " + answerVerb + " “" + escapeHtml(typed) + "”</span>" : "";
   const combo = (mood === "combo" || mood === "ecstatic" || mood === "legendary")
     ? "<div class='fb-combo'>🔥 " + game.streak + " in a row!</div>" : "";
@@ -5271,7 +5625,7 @@ function resultHeaderHtml(question, wasCorrect, typed, extraHtml) {
     : "";
   return "<div class='fb-head'><div class='fb-icon " + mood + " " + badge + "'>" + cowMascot(mood) + "</div>" +
     "<div><div class='fb-title'>" + title + "</div>" + combo +
-    "<div><span class='fb-name notranslate'>" + escapeHtml(question.scientificName) + "</span></div>" + alt + you + quip +
+    "<div>" + answerLineHtml(question) + "</div>" + alt + you + quip +
     (extraHtml ? "<div>" + extraHtml + "</div>" : "") + "</div></div>";
 }
 
