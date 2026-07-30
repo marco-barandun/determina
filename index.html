@@ -2747,24 +2747,32 @@ function renderSetupStatus() {
         today + " / " + DAILY_GOAL + " species today</span></span>" +
       "<span class='goal-ring'>" + goalRing(today / DAILY_GOAL) + "</span></div>";
   }
+  // The three drills below look alike, but each answers a different question,
+  // so the sub-lines say what makes them different rather than restating the
+  // title. "Due" is about TIMING — species you already know, resurfacing on a
+  // schedule. "Replay" is about a QUESTION — this photo and these options,
+  // which caught you out. "Focus" is about a SPECIES — one that keeps beating
+  // you whatever the mode. Each sub-line is one static string with no counts
+  // in it, so it can be hand-translated (see MANUAL_I18N); the counts stay in
+  // the titles, which Google handles.
   if (due > 0) {
     html += "<button type='button' class='prompt-banner due' data-action='due'>" +
       "<span class='pb-emoji'>🔁</span><span class='pb-text'>Review " + due + " species due today" +
-      "<small>Spaced repetition — the ones you're about to forget</small></span>" +
+      "<small>Species you already got right, coming back just before you'd forget them. Keeping up with these is what makes them stick.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   const missed = game.wrongQ ? game.wrongQ.size : 0;
   if (missed > 0) {
     html += "<button type='button' class='prompt-banner drill' data-action='replay'>" +
       "<span class='pb-emoji'>👀</span><span class='pb-text'>Replay " + missed + " question" + (missed === 1 ? "" : "s") + " you missed" +
-      "<small>The exact same photo and choices — until you nail them</small></span>" +
+      "<small>Not just the species — the same photo and the same options, so you meet each confusion again exactly as it caught you.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   const hard = game.difficult.size;
   if (hard > 0) {
     html += "<button type='button' class='prompt-banner focus' data-action='focus'>" +
       "<span class='pb-emoji'>🎯</span><span class='pb-text'>Focus on " + hard + " difficult " + (hard === 1 ? "species" : "species") +
-      "<small>The ones that trip you up — " + game.difficultThreshold + " in a row to clear each</small></span>" +
+      "<small>Species you keep getting wrong, whatever the mode or the photo. Answer one right enough times in a row and it leaves the list.</small></span>" +
       "<span class='pb-go'>→</span></button>";
   }
   box.innerHTML = html;
@@ -2956,9 +2964,9 @@ function i18nTextNodes(root) {
 const MANUAL_I18N = {
   "Determinare": { de: "Determinare", it: "Determinare", fr: "Determinare", es: "Determinare" },
   "Learn to name species from real photos and sounds.": { de: "Lerne, Arten anhand echter Fotos und Geräusche zu bestimmen.", it: "Impara a riconoscere le specie da foto e suoni reali.", fr: "Apprenez à nommer les espèces à partir de vraies photos et de vrais sons.", es: "Aprende a nombrar especies con fotos y sonidos reales." },
-  "Playing as": { de: "Spielt als", it: "Giochi come", fr: "Vous jouez en tant que", es: "Jugando como" },
-  "+ New player…": { de: "+ Neue:r Spieler:in…", it: "+ Nuovo giocatore…", fr: "+ Nouveau joueur…", es: "+ Nuevo jugador…" },
-  "What to learn": { de: "Was lernen", it: "Cosa imparare", fr: "Que veux-tu apprendre", es: "Qué aprender" },
+  "Playing as": { de: "Du spielst als", it: "Giochi come", fr: "Vous jouez en tant que", es: "Jugando como" },
+  "+ New player…": { de: "+ Neues Profil…", it: "+ Nuovo giocatore…", fr: "+ Nouveau joueur…", es: "+ Nuevo jugador…" },
+  "What to learn": { de: "Was du lernst", it: "Cosa imparare", fr: "Que veux-tu apprendre", es: "Qué aprender" },
   "Pick a group and a place — that's enough to start.": { de: "Wähle eine Gruppe und einen Ort – das genügt, um zu starten.", it: "Scegli un gruppo e un luogo: basta questo per iniziare.", fr: "Choisis un groupe et un lieu — c'est tout ce qu'il faut pour commencer.", es: "Elige un grupo y un lugar: es suficiente para empezar." },
   "Group of species": { de: "Artengruppe", it: "Gruppo di specie", fr: "Groupe d'espèces", es: "Grupo de especies" },
   "Where?": { de: "Wo?", it: "Dove?", fr: "Où ?", es: "¿Dónde?" },
@@ -2967,7 +2975,7 @@ const MANUAL_I18N = {
   "…or your own list": { de: "…oder deine eigene Liste", it: "…o la tua lista", fr: "…ou ta propre liste", es: "…o tu propia lista" },
   "＋ New list": { de: "＋ Neue Liste", it: "＋ Nuova lista", fr: "＋ Nouvelle liste", es: "＋ Nueva lista" },
   "New list": { de: "Neue Liste", it: "Nuova lista", fr: "Nouvelle liste", es: "Nueva lista" },
-  "How to practise": { de: "Wie üben", it: "Come esercitarsi", fr: "Comment s'entraîner", es: "Cómo practicar" },
+  "How to practise": { de: "Wie du übst", it: "Come esercitarsi", fr: "Comment s'entraîner", es: "Cómo practicar" },
   "Identify by": { de: "Bestimmen nach", it: "Identifica tramite", fr: "Identifier par", es: "Identificar por" },
   "By photo": { de: "Foto", it: "Foto", fr: "Photo", es: "Foto" },
   "By sound": { de: "Ton", it: "Suono", fr: "Son", es: "Sonido" },
@@ -2975,7 +2983,7 @@ const MANUAL_I18N = {
   "Type": { de: "Tippen", it: "Scrivi", fr: "Saisir", es: "Escribir" },
   "Choose": { de: "Wählen", it: "Scegli", fr: "Choisir", es: "Elegir" },
   "Study": { de: "Lernen", it: "Studia", fr: "Étudier", es: "Estudiar" },
-  "Type the name from memory. Stuck? Use a hint, or Reveal to see it.": { de: "Tippe den Namen aus dem Gedächtnis. Nicht weiter? Nutze einen Hinweis oder „Aufdecken“, um ihn zu sehen.", it: "Scrivi il nome a memoria. Bloccato? Usa un aiuto o „Rivela“ per vederlo.", fr: "Saisis le nom de mémoire. Bloqué ? Prends un indice, ou « Révéler » pour le voir.", es: "Escribe el nombre de memoria. ¿Atascado? Usa una pista o «Revelar» para verlo." },
+  "Type the name from memory. Stuck? Use a hint, or Reveal to see it.": { de: "Tippe den Namen aus dem Gedächtnis. Steckst du fest? Nutze einen Hinweis oder „Aufdecken“, um ihn zu sehen.", it: "Scrivi il nome a memoria. Bloccato? Usa un aiuto o „Rivela“ per vederlo.", fr: "Saisis le nom de mémoire. Bloqué ? Prends un indice, ou « Révéler » pour le voir.", es: "Escribe el nombre de memoria. ¿Atascado? Usa una pista o «Revelar» para verlo." },
   "How many choices?": { de: "Wie viele Optionen?", it: "Quante opzioni?", fr: "Combien d'options ?", es: "¿Cuántas opciones?" },
   "How many species per round?": { de: "Wie viele Arten pro Runde?", it: "Quante specie per turno?", fr: "Combien d'espèces par tour ?", es: "¿Cuántas especies por ronda?" },
   "No limit": { de: "Kein Limit", it: "Nessun limite", fr: "Sans limite", es: "Sin límite" },
@@ -2989,17 +2997,17 @@ const MANUAL_I18N = {
   "Repeat species": { de: "Arten wiederholen", it: "Ripeti le specie", fr: "Répéter les espèces", es: "Repetir especies" },
   "On: the same species can come up more than once. Off: every species appears at most once per round.": { de: "Ein: dieselbe Art kann mehrmals vorkommen. Aus: jede Art erscheint höchstens einmal pro Runde.", it: "Attivo: la stessa specie può comparire più volte. Disattivo: ogni specie compare al massimo una volta per turno.", fr: "Activé : une même espèce peut revenir plusieurs fois. Désactivé : chaque espèce apparaît au plus une fois par tour.", es: "Activado: la misma especie puede salir más de una vez. Desactivado: cada especie aparece como máximo una vez por ronda." },
   "Suggest names as I type": { de: "Namen beim Tippen vorschlagen", it: "Suggerisci i nomi mentre scrivo", fr: "Suggérer les noms pendant la saisie", es: "Sugerir nombres mientras escribo" },
-  "→ pick": { de: "→ wähle", it: "→ scegli", fr: "→ choisis", es: "→ elige" },
+  "→ pick": { de: "→ findet", it: "→ scegli", fr: "→ choisis", es: "→ elige" },
   ". Turn off to type every name in full.": { de: ". Ausschalten, um jeden Namen vollständig zu tippen.", it: ". Disattiva per scrivere ogni nome per intero.", fr: ". Désactive pour saisir chaque nom en entier.", es: ". Desactívalo para escribir cada nombre completo." },
   "Show distribution & facts after each answer": { de: "Verbreitung & Fakten nach jeder Antwort zeigen", it: "Mostra distribuzione e informazioni dopo ogni risposta", fr: "Afficher la répartition et des infos après chaque réponse", es: "Mostrar distribución y datos tras cada respuesta" },
-  "See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.": { de: "Sieh eine kontinentweite GBIF-Verbreitungskarte und eine kurze Wikipedia-Zusammenfassung zu jeder abgefragten Art.", it: "Vedi una mappa di distribuzione GBIF su scala continentale e un breve riassunto da Wikipedia per ogni specie richiesta.", fr: "Vois une carte de répartition GBIF à l'échelle continentale et un court résumé Wikipédia pour chaque espèce demandée.", es: "Consulta un mapa de distribución de GBIF a escala continental y un breve resumen de Wikipedia para cada especie preguntada." },
+  "See a continental-scale GBIF distribution map and a quick Wikipedia summary for every species you're asked about.": { de: "Zeigt eine kontinentweite GBIF-Verbreitungskarte und eine kurze Wikipedia-Zusammenfassung zu jeder abgefragten Art.", it: "Vedi una mappa di distribuzione GBIF su scala continentale e un breve riassunto da Wikipedia per ogni specie richiesta.", fr: "Vois une carte de répartition GBIF à l'échelle continentale et un court résumé Wikipédia pour chaque espèce demandée.", es: "Consulta un mapa de distribución de GBIF a escala continental y un breve resumen de Wikipedia para cada especie preguntada." },
   "Reveal the iNaturalist observation link after answering": { de: "iNaturalist-Beobachtungslink nach dem Antworten anzeigen", it: "Mostra il link all'osservazione iNaturalist dopo la risposta", fr: "Afficher le lien vers l'observation iNaturalist après la réponse", es: "Mostrar el enlace a la observación de iNaturalist tras responder" },
-  "The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.": { de: "Der Link ist beim Bestimmen immer verborgen (damit du nicht spickst). Aktiviere ihn, um ihn nach dem Antworten zu zeigen.", it: "Il link è sempre nascosto mentre identifichi (così non puoi sbirciare la risposta). Attivalo per mostrarlo dopo aver risposto.", fr: "Le lien est toujours masqué pendant l'identification (pour ne pas voir la réponse). Active-le pour l'afficher une fois que tu as répondu.", es: "El enlace está siempre oculto mientras identificas (para que no veas la respuesta). Actívalo para mostrarlo una vez que hayas respondido." },
+  "The link is always hidden while you're identifying (so you can't peek at the answer). Turn on to show it once you've answered.": { de: "Der Link ist beim Bestimmen immer verborgen (damit du nicht spicken kannst). Einschalten, um ihn nach dem Antworten zu zeigen.", it: "Il link è sempre nascosto mentre identifichi (così non puoi sbirciare la risposta). Attivalo per mostrarlo dopo aver risposto.", fr: "Le lien est toujours masqué pendant l'identification (pour ne pas voir la réponse). Active-le pour l'afficher une fois que tu as répondu.", es: "El enlace está siempre oculto mientras identificas (para que no veas la respuesta). Actívalo para mostrarlo una vez que hayas respondido." },
   "Clear a difficult species after…": { de: "Schwierige Art entfernen nach…", it: "Rimuovi una specie difficile dopo…", fr: "Retirer une espèce difficile après…", es: "Quitar una especie difícil tras…" },
   "2 in a row": { de: "2 in Folge", it: "2 di fila", fr: "2 d'affilée", es: "2 seguidas" },
   "3 in a row": { de: "3 in Folge", it: "3 di fila", fr: "3 d'affilée", es: "3 seguidas" },
   "5 in a row": { de: "5 in Folge", it: "5 di fila", fr: "5 d'affilée", es: "5 seguidas" },
-  "Correct answers in a row before a species drops off your difficult list.": { de: "Richtige Antworten in Folge, bis eine Art von deiner Schwierig-Liste verschwindet.", it: "Risposte corrette di fila prima che una specie esca dalla tua lista dei difficili.", fr: "Bonnes réponses d'affilée avant qu'une espèce quitte ta liste des difficiles.", es: "Respuestas correctas seguidas antes de que una especie salga de tu lista de difíciles." },
+  "Correct answers in a row before a species drops off your difficult list.": { de: "Richtige Antworten in Folge, bis eine Art von deiner Liste der schwierigen Arten verschwindet.", it: "Risposte corrette di fila prima che una specie esca dalla tua lista dei difficili.", fr: "Bonnes réponses d'affilée avant qu'une espèce quitte ta liste des difficiles.", es: "Respuestas correctas seguidas antes de que una especie salga de tu lista de difíciles." },
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
   "Show the welcome walkthrough again": { de: "Willkommens-Tour erneut anzeigen", it: "Mostra di nuovo l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Ver de nuevo la introducción" },
   "Translate this page": { de: "Diese Seite übersetzen", it: "Traduci questa pagina", fr: "Traduire cette page", es: "Traducir esta página" },
@@ -3007,20 +3015,20 @@ const MANUAL_I18N = {
   "Backup & restore": { de: "Sichern & wiederherstellen", it: "Backup e ripristino", fr: "Sauvegarde et restauration", es: "Copia y restauración" },
   "Export my data": { de: "Meine Daten exportieren", it: "Esporta i miei dati", fr: "Exporter mes données", es: "Exportar mis datos" },
   "Import data": { de: "Daten importieren", it: "Importa dati", fr: "Importer des données", es: "Importar datos" },
-  "Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.": { de: "Deine Spieler und Fortschritte liegen nur in diesem Browser. Exportiere sie in eine Datei als Sicherung oder um sie auf ein anderes Gerät zu übertragen, und importiere sie zum Wiederherstellen.", it: "I tuoi giocatori e i progressi vivono solo in questo browser. Esportali in un file per fare un backup o passare a un altro dispositivo, e importali per ripristinarli.", fr: "Tes joueurs et ta progression n'existent que dans ce navigateur. Exporte-les dans un fichier pour garder une sauvegarde ou passer à un autre appareil, et importe-les pour les restaurer.", es: "Tus jugadores y tu progreso solo existen en este navegador. Expórtalos a un archivo para tener una copia o pasar a otro dispositivo, e impórtalos para restaurar." },
+  "Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.": { de: "Deine Profile und Fortschritte werden nur in diesem Browser gespeichert. Exportiere sie in eine Datei, um sie zu sichern oder auf ein anderes Gerät zu übertragen, und importiere sie zum Wiederherstellen.", it: "I tuoi giocatori e i progressi vivono solo in questo browser. Esportali in un file per fare un backup o passare a un altro dispositivo, e importali per ripristinarli.", fr: "Tes joueurs et ta progression n'existent que dans ce navigateur. Exporte-les dans un fichier pour garder une sauvegarde ou passer à un autre appareil, et importe-les pour les restaurer.", es: "Tus jugadores y tu progreso solo existen en este navegador. Expórtalos a un archivo para tener una copia o pasar a otro dispositivo, e impórtalos para restaurar." },
   "Learning aids": { de: "Lernhilfen", it: "Aiuti all'apprendimento", fr: "Aides à l'apprentissage", es: "Ayudas de aprendizaje" },
   "Also ask in reverse": { de: "Auch umgekehrt fragen", it: "Chiedi anche al contrario", fr: "Demander aussi à l'envers", es: "Preguntar también al revés" },
   "Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).": { de: "Zeigt manchmal den Namen und vier Fotos – wähle das richtige. Trainiert die andere Richtung (nur Fotos).", it: "A volte mostra il nome e quattro foto: scegli quella giusta. Allena la direzione opposta (solo foto).", fr: "Montre parfois le nom et quatre photos — choisis la bonne. Entraîne le sens inverse (photos uniquement).", es: "A veces muestra el nombre y cuatro fotos: elige la correcta. Entrena el sentido inverso (solo fotos)." },
-  "Rate how well you knew it": { de: "Bewerte, wie gut du es wusstest", it: "Valuta quanto la sapevi", fr: "Évalue à quel point tu la connaissais", es: "Valora cuánto la sabías" },
-  "After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).": { de: "Tippe nach jeder Antwort auf Nochmal / Schwer / Gut / Leicht, um zu steuern, wann sie wiederkommt (Anki-Stil).", it: "Dopo ogni risposta tocca Di nuovo / Difficile / Buono / Facile per decidere quando riproporla (stile Anki).", fr: "Après chaque réponse, appuie sur Encore / Difficile / Correct / Facile pour régler son retour (façon Anki).", es: "Tras cada respuesta, toca Otra vez / Difícil / Bien / Fácil para decidir cuándo vuelve (estilo Anki)." },
-  "Let me add memory notes": { de: "Eigene Merknotizen erlauben", it: "Permetti note mnemoniche", fr: "Autoriser des notes mémo", es: "Permitir notas para recordar" },
+  "Rate how well you knew it": { de: "Bewerte, wie gut du die Art kanntest", it: "Valuta quanto la sapevi", fr: "Évalue à quel point tu la connaissais", es: "Valora cuánto la sabías" },
+  "After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).": { de: "Tippe nach jeder Antwort auf Nochmal / Schwer / Gut / Einfach, um zu steuern, wann sie wiederkommt (Anki-Stil).", it: "Dopo ogni risposta tocca Di nuovo / Difficile / Buono / Facile per decidere quando riproporla (stile Anki).", fr: "Après chaque réponse, appuie sur Encore / Difficile / Correct / Facile pour régler son retour (façon Anki).", es: "Tras cada respuesta, toca Otra vez / Difícil / Bien / Fácil para decidir cuándo vuelve (estilo Anki)." },
+  "Let me add memory notes": { de: "Eigene Merknotizen schreiben", it: "Permetti note mnemoniche", fr: "Autoriser des notes mémo", es: "Permitir notas para recordar" },
   "Offer the observation's location as a hint": { de: "Fundort der Beobachtung als Hinweis anbieten", it: "Offri il luogo dell'osservazione come aiuto", fr: "Proposer le lieu de l'observation comme indice", es: "Ofrecer el lugar de la observación como pista" },
   "My progress": { de: "Mein Fortschritt", it: "I miei progressi", fr: "Ma progression", es: "Mi progreso" },
   "Grasshoppers": { de: "Heuschrecken", it: "Cavallette", fr: "Sauterelles", es: "Saltamontes" },
   "Butterflies": { de: "Schmetterlinge", it: "Farfalle", fr: "Papillons", es: "Mariposas" },
   "Birds": { de: "Vögel", it: "Uccelli", fr: "Oiseaux", es: "Aves" },
   "Plants": { de: "Pflanzen", it: "Piante", fr: "Plantes", es: "Plantas" },
-  "None": { de: "Keins", it: "Nessuno", fr: "Aucun", es: "Ninguno" },
+  "None": { de: "Keines", it: "Nessuno", fr: "Aucun", es: "Ninguno" },
   "🌿 Botany 200": { de: "🌿 Botanik 200", it: "🌿 Botanica 200", fr: "🌿 Botanique 200", es: "🌿 Botánica 200" },
   "🌿 Botany 400": { de: "🌿 Botanik 400", it: "🌿 Botanica 400", fr: "🌿 Botanique 400", es: "🌿 Botánica 400" },
   "🌿 Botany 600": { de: "🌿 Botanik 600", it: "🌿 Botanica 600", fr: "🌿 Botanique 600", es: "🌿 Botánica 600" },
@@ -3034,7 +3042,7 @@ const MANUAL_I18N = {
   "What species is this?": { de: "Welche Art ist das?", it: "Che specie è?", fr: "Quelle est cette espèce ?", es: "¿Qué especie es esta?" },
   "What species is calling?": { de: "Welche Art ruft?", it: "Che specie sta cantando?", fr: "Quelle espèce chante ?", es: "¿Qué especie canta?" },
   "Which species is this?": { de: "Welche Art ist das?", it: "Quale specie è?", fr: "Quelle est cette espèce ?", es: "¿Cuál es esta especie?" },
-  "Which one is calling?": { de: "Welche ruft?", it: "Quale sta cantando?", fr: "Laquelle chante ?", es: "¿Cuál canta?" },
+  "Which one is calling?": { de: "Welche Art ruft hier?", it: "Quale sta cantando?", fr: "Laquelle chante ?", es: "¿Cuál canta?" },
   "Look and learn": { de: "Anschauen und lernen", it: "Guarda e impara", fr: "Observe et apprends", es: "Mira y aprende" },
   "Listen and learn": { de: "Anhören und lernen", it: "Ascolta e impara", fr: "Écoute et apprends", es: "Escucha y aprende" },
   "This is": { de: "Das ist", it: "Questa è", fr: "C'est", es: "Es" },
@@ -3046,48 +3054,52 @@ const MANUAL_I18N = {
   "Next": { de: "Weiter", it: "Avanti", fr: "Suivant", es: "Siguiente" },
   "Continue": { de: "Weiter", it: "Continua", fr: "Continuer", es: "Continuar" },
   "💡 Need a hint?": { de: "💡 Brauchst du einen Hinweis?", it: "💡 Ti serve un aiuto?", fr: "💡 Besoin d'un indice ?", es: "💡 ¿Necesitas una pista?" },
-  "📍 Where was this seen?": { de: "📍 Wo wurde das gesehen?", it: "📍 Dove è stata vista?", fr: "📍 Où a-t-elle été vue ?", es: "📍 ¿Dónde se vio?" },
+  "📍 Where was this seen?": { de: "📍 Wo wurde das beobachtet?", it: "📍 Dove è stata vista?", fr: "📍 Où a-t-elle été vue ?", es: "📍 ¿Dónde se vio?" },
   "Show another hint": { de: "Weiteren Hinweis zeigen", it: "Mostra un altro aiuto", fr: "Afficher un autre indice", es: "Mostrar otra pista" },
   "Reviewing your misses": { de: "Deine Fehler wiederholen", it: "Ripasso degli errori", fr: "Révision de tes erreurs", es: "Repasando tus fallos" },
   "🔁 Seen it — try again": { de: "🔁 Schon gesehen – versuch's nochmal", it: "🔁 Già vista: riprova", fr: "🔁 Déjà vue — réessaie", es: "🔁 Ya vista: inténtalo otra vez" },
   // Feedback
   "Correct answer:": { de: "Richtige Antwort:", it: "Risposta corretta:", fr: "Bonne réponse :", es: "Respuesta correcta:" },
-  "Nice!": { de: "Schön!", it: "Bene!", fr: "Bien !", es: "¡Bien!" },
+  "Nice!": { de: "Stark!", it: "Bene!", fr: "Bien !", es: "¡Bien!" },
   "Correct!": { de: "Richtig!", it: "Corretto!", fr: "Correct !", es: "¡Correcto!" },
   "Well done!": { de: "Gut gemacht!", it: "Ben fatto!", fr: "Bravo !", es: "¡Bien hecho!" },
   "Exactly!": { de: "Genau!", it: "Esatto!", fr: "Exactement !", es: "¡Exacto!" },
-  "You got it!": { de: "Erwischt!", it: "Ci sei!", fr: "Tu l'as !", es: "¡Lo tienes!" },
-  "Spot on!": { de: "Punktgenau!", it: "Perfetto!", fr: "Pile ça !", es: "¡Justo!" },
+  "You got it!": { de: "Sitzt!", it: "Ci sei!", fr: "Tu l'as !", es: "¡Lo tienes!" },
+  "Spot on!": { de: "Volltreffer!", it: "Perfetto!", fr: "Pile ça !", es: "¡Justo!" },
   "Your pick": { de: "Deine Wahl", it: "La tua scelta", fr: "Ton choix", es: "Tu elección" },
   "Correct answer": { de: "Richtige Antwort", it: "Risposta corretta", fr: "Bonne réponse", es: "Respuesta correcta" },
   "Again": { de: "Nochmal", it: "Di nuovo", fr: "Encore", es: "Otra vez" },
   "Hard": { de: "Schwer", it: "Difficile", fr: "Difficile", es: "Difícil" },
   "Good": { de: "Gut", it: "Buono", fr: "Correct", es: "Bien" },
-  "Easy": { de: "Leicht", it: "Facile", fr: "Facile", es: "Fácil" },
+  "Easy": { de: "Einfach", it: "Facile", fr: "Facile", es: "Fácil" },
   // Distribution / facts pop-up
-  "Where in the world?": { de: "Wo auf der Welt?", it: "Dove nel mondo?", fr: "Où dans le monde ?", es: "¿Dónde en el mundo?" },
+  "Where in the world?": { de: "Wo kommt die Art vor?", it: "Dove nel mondo?", fr: "Où dans le monde ?", es: "¿Dónde en el mundo?" },
   "Etymology": { de: "Etymologie", it: "Etimologia", fr: "Étymologie", es: "Etimología" },
   "Ecology": { de: "Ökologie", it: "Ecologia", fr: "Écologie", es: "Ecología" },
   "Read more on Wikipedia →": { de: "Mehr auf Wikipedia →", it: "Leggi di più su Wikipedia →", fr: "En savoir plus sur Wikipédia →", es: "Leer más en Wikipedia →" },
   // First-run intro
   "Welcome to Determinare": { de: "Willkommen bei Determinare", it: "Benvenuto in Determinare", fr: "Bienvenue sur Determinare", es: "Bienvenido a Determinare" },
-  "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.": { de: "Lerne, Arten anhand echter Fotos und Geräusche zu erkennen – jedes eine echte iNaturalist-Beobachtung, keine geschönte Lehrbuchtafel.", it: "Impara a riconoscere le specie da foto e suoni reali: ognuno è una vera osservazione iNaturalist, non un'illustrazione da manuale.", fr: "Apprends à reconnaître les espèces à partir de vraies photos et de vrais sons — chacun est une véritable observation iNaturalist, pas une planche de manuel idéalisée.", es: "Aprende a reconocer especies con fotos y sonidos reales: cada uno es una observación auténtica de iNaturalist, no una lámina de libro de texto." },
+  "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.": { de: "Lerne, Arten anhand echter Fotos und Geräusche zu bestimmen – alles echte iNaturalist-Beobachtungen, keine geschönten Lehrbuchtafeln.", it: "Impara a riconoscere le specie da foto e suoni reali: ognuno è una vera osservazione iNaturalist, non un'illustrazione da manuale.", fr: "Apprends à reconnaître les espèces à partir de vraies photos et de vrais sons — chacun est une véritable observation iNaturalist, pas une planche de manuel idéalisée.", es: "Aprende a reconocer especies con fotos y sonidos reales: cada uno es una observación auténtica de iNaturalist, no una lámina de libro de texto." },
   "Pick what to learn": { de: "Wähle, was du lernst", it: "Scegli cosa imparare", fr: "Choisis quoi apprendre", es: "Elige qué aprender" },
   "A group and a place is all you need to start.": { de: "Eine Gruppe und ein Ort genügen zum Start.", it: "Un gruppo e un luogo bastano per iniziare.", fr: "Un groupe et un lieu suffisent pour commencer.", es: "Un grupo y un lugar bastan para empezar." },
   "A group of species": { de: "Eine Artengruppe", it: "Un gruppo di specie", fr: "Un groupe d'espèces", es: "Un grupo de especies" },
   "Plants, birds, butterflies — or search any family or genus.": { de: "Pflanzen, Vögel, Schmetterlinge – oder suche eine beliebige Familie oder Gattung.", it: "Piante, uccelli, farfalle: o cerca qualsiasi famiglia o genere.", fr: "Plantes, oiseaux, papillons — ou cherche n'importe quelle famille ou genre.", es: "Plantas, aves, mariposas: o busca cualquier familia o género." },
   "…or a certificate": { de: "…oder ein Zertifikat", it: "…o un certificato", fr: "…ou un certificat", es: "…o un certificado" },
   "Real exam lists: botany, butterflies, mosses, lichens, birds.": { de: "Echte Prüfungslisten: Botanik, Schmetterlinge, Moose, Flechten, Vögel.", it: "Liste d'esame reali: botanica, farfalle, muschi, licheni, uccelli.", fr: "De vraies listes d'examen : botanique, papillons, mousses, lichens, oiseaux.", es: "Listas de examen reales: botánica, mariposas, musgos, líquenes, aves." },
-  "Paste or upload species names and quiz exactly those.": { de: "Füge Artennamen ein oder lade sie hoch und übe genau diese.", it: "Incolla o carica nomi di specie ed esercitati esattamente su quelli.", fr: "Colle ou importe des noms d'espèces et révise exactement ceux-là.", es: "Pega o sube nombres de especies y practica justo esos." },
+  "Paste or upload species names and quiz exactly those.": { de: "Füge Artnamen ein oder lade sie hoch und übe genau diese.", it: "Incolla o carica nomi di specie ed esercitati esattamente su quelli.", fr: "Colle ou importe des noms d'espèces et révise exactement ceux-là.", es: "Pega o sube nombres de especies y practica justo esos." },
   "Answer your way": { de: "Antworte auf deine Art", it: "Rispondi a modo tuo", fr: "Réponds à ta façon", es: "Responde a tu manera" },
-  "Recall the name yourself. Stuck? Take a hint, or reveal it.": { de: "Erinnere den Namen selbst. Nicht weiter? Nimm einen Hinweis oder decke ihn auf.", it: "Ricorda il nome da solo. Bloccato? Prendi un aiuto o rivelalo.", fr: "Retrouve le nom toi-même. Bloqué ? Prends un indice ou révèle-le.", es: "Recuerda el nombre tú mismo. ¿Atascado? Toma una pista o revélalo." },
+  "Recall the name yourself. Stuck? Take a hint, or reveal it.": { de: "Ruf den Namen selbst ab. Steckst du fest? Nimm einen Hinweis oder deck ihn auf.", it: "Ricorda il nome da solo. Bloccato? Prendi un aiuto o rivelalo.", fr: "Retrouve le nom toi-même. Bloqué ? Prends un indice ou révèle-le.", es: "Recuerda el nombre tú mismo. ¿Atascado? Toma una pista o revélalo." },
   "Pick from a set of names — a gentler way into a new group.": { de: "Wähle aus einer Reihe von Namen – ein sanfterer Einstieg in eine neue Gruppe.", it: "Scegli tra un insieme di nomi: un modo più semplice per entrare in un nuovo gruppo.", fr: "Choisis parmi un ensemble de noms — une entrée en douceur dans un nouveau groupe.", es: "Elige entre un conjunto de nombres: una entrada más suave a un grupo nuevo." },
   "Just look and learn, no quiz, for a first pass.": { de: "Einfach anschauen und lernen, ohne Abfrage, für einen ersten Durchgang.", it: "Solo guarda e impara, senza quiz, per una prima passata.", fr: "Observe et apprends simplement, sans quiz, pour un premier passage.", es: "Solo mira y aprende, sin cuestionario, para una primera pasada." },
-  "It remembers what's hard": { de: "Es merkt sich, was schwerfällt", it: "Ricorda ciò che è difficile", fr: "Il retient ce qui est difficile", es: "Recuerda lo que te cuesta" },
+  "It remembers what's hard": { de: "Es merkt sich, was dir schwerfällt", it: "Ricorda ciò che è difficile", fr: "Il retient ce qui est difficile", es: "Recuerda lo que te cuesta" },
   "Spaced repetition": { de: "Verteiltes Wiederholen", it: "Ripetizione dilazionata", fr: "Répétition espacée", es: "Repetición espaciada" },
-  "Species come back just before you'd forget them.": { de: "Arten kommen kurz zurück, bevor du sie vergisst.", it: "Le specie ritornano poco prima che tu le dimentichi.", fr: "Les espèces reviennent juste avant que tu les oublies.", es: "Las especies vuelven justo antes de que las olvides." },
+  // The three setup-screen drills — what actually distinguishes them.
+  "Species you already got right, coming back just before you'd forget them. Keeping up with these is what makes them stick.": { de: "Arten, die du schon richtig hattest – sie kommen zurück, kurz bevor du sie vergessen würdest. Dranbleiben ist das, was sie sitzen lässt.", it: "Specie che avevi già indovinato: tornano poco prima che tu le dimentichi. È questo ritmo a fissarle.", fr: "Des espèces que tu avais déjà trouvées : elles reviennent juste avant que tu ne les oublies. C'est ce rythme qui les ancre.", es: "Especies que ya acertaste: vuelven justo antes de que las olvides. Mantener este ritmo es lo que las fija." },
+  "Not just the species — the same photo and the same options, so you meet each confusion again exactly as it caught you.": { de: "Nicht nur die Art – dasselbe Foto und dieselben Optionen, damit dir jede Verwechslung genau so wieder begegnet, wie sie dich erwischt hat.", it: "Non solo la specie: la stessa foto e le stesse opzioni, così ritrovi ogni confusione esattamente come ti aveva colto.", fr: "Pas seulement l'espèce : la même photo et les mêmes propositions, pour retrouver chaque confusion exactement comme elle t'a piégé.", es: "No solo la especie: la misma foto y las mismas opciones, para reencontrar cada confusión tal como te pilló." },
+  "Species you keep getting wrong, whatever the mode or the photo. Answer one right enough times in a row and it leaves the list.": { de: "Arten, die du immer wieder falsch hast – egal in welchem Modus oder auf welchem Foto. Hast du eine oft genug hintereinander richtig, verschwindet sie von der Liste.", it: "Specie che sbagli di continuo, in qualsiasi modalità e con qualsiasi foto. Indovinane una abbastanza volte di fila e sparisce dalla lista.", fr: "Des espèces que tu rates sans cesse, quel que soit le mode ou la photo. Trouve-en une assez de fois d'affilée et elle quitte la liste.", es: "Especies que fallas una y otra vez, sea cual sea el modo o la foto. Acierta una suficientes veces seguidas y sale de la lista." },
+  "Species come back just before you'd forget them.": { de: "Arten kommen zurück, kurz bevor du sie vergessen würdest.", it: "Le specie ritornano poco prima che tu le dimentichi.", fr: "Les espèces reviennent juste avant que tu les oublies.", es: "Las especies vuelven justo antes de que las olvides." },
   "Your weak spots": { de: "Deine Schwachstellen", it: "I tuoi punti deboli", fr: "Tes points faibles", es: "Tus puntos débiles" },
-  "Whatever you miss is tracked — and you can drill just those.": { de: "Was du verfehlst, wird erfasst – und du kannst gezielt genau das üben.", it: "Ciò che sbagli viene registrato e puoi esercitarti solo su quello.", fr: "Ce que tu rates est suivi — et tu peux réviser uniquement ça.", es: "Lo que fallas queda registrado y puedes practicar solo eso." },
+  "Whatever you miss is tracked — and you can drill just those.": { de: "Jeder Fehler wird erfasst – und du kannst gezielt genau diese Arten üben.", it: "Ciò che sbagli viene registrato e puoi esercitarti solo su quello.", fr: "Ce que tu rates est suivi — et tu peux réviser uniquement ça.", es: "Lo que fallas queda registrado y puedes practicar solo eso." },
   "A daily streak": { de: "Eine tägliche Serie", it: "Una serie giornaliera", fr: "Une série quotidienne", es: "Una racha diaria" },
   "A small daily goal, to keep the habit going.": { de: "Ein kleines Tagesziel, um die Gewohnheit zu halten.", it: "Un piccolo obiettivo quotidiano, per mantenere l'abitudine.", fr: "Un petit objectif quotidien, pour garder l'habitude.", es: "Una pequeña meta diaria para mantener el hábito." },
   "Start exploring": { de: "Los geht's", it: "Inizia a esplorare", fr: "Commencer à explorer", es: "Empezar a explorar" },
@@ -3095,13 +3107,13 @@ const MANUAL_I18N = {
   // Input placeholders (kept in the same informal voice as the rest)
   "Search a group — Plantae, Poaceae, Carex…": { de: "Eine Gruppe suchen – Plantae, Poaceae, Carex…", it: "Cerca un gruppo – Plantae, Poaceae, Carex…", fr: "Cherche un groupe — Plantae, Poaceae, Carex…", es: "Busca un grupo: Plantae, Poaceae, Carex…" },
   "Search a place — pick more than one if you like": { de: "Einen Ort suchen – gern auch mehrere", it: "Cerca un luogo – anche più di uno", fr: "Cherche un lieu — plusieurs possibles", es: "Busca un lugar: puedes elegir varios" },
-  "Type the species": { de: "Art eingeben", it: "Scrivi la specie", fr: "Saisis l'espèce", es: "Escribe la especie" },
+  "Type the species": { de: "Artnamen eingeben", it: "Scrivi la specie", fr: "Saisis l'espèce", es: "Escribe la especie" },
   // Progress panel
   "Close": { de: "Schliessen", it: "Chiudi", fr: "Fermer", es: "Cerrar" },
   "Weak spots": { de: "Schwachstellen", it: "Punti deboli", fr: "Points faibles", es: "Puntos débiles" },
   "Over time": { de: "Im Zeitverlauf", it: "Nel tempo", fr: "Dans le temps", es: "Con el tiempo" },
   "Vs others": { de: "Im Vergleich", it: "Con altri", fr: "Face aux autres", es: "Frente a otros" },
-  "Reset this player": { de: "Diesen Spieler zurücksetzen", it: "Reimposta questo giocatore", fr: "Réinitialiser ce joueur", es: "Reiniciar este jugador" },
+  "Reset this player": { de: "Dieses Profil zurücksetzen", it: "Reimposta questo giocatore", fr: "Réinitialiser ce joueur", es: "Reiniciar este jugador" },
   "correct overall": { de: "richtig insgesamt", it: "corrette in totale", fr: "correctes au total", es: "correctas en total" },
   "Needs the most work": { de: "Braucht am meisten Übung", it: "Da rivedere di più", fr: "À travailler en priorité", es: "Lo que más hay que trabajar" },
   "Every species": { de: "Alle Arten", it: "Tutte le specie", fr: "Toutes les espèces", es: "Todas las especies" },
@@ -3109,7 +3121,7 @@ const MANUAL_I18N = {
   "Family": { de: "Familie", it: "Famiglia", fr: "Famille", es: "Familia" },
   "Genus": { de: "Gattung", it: "Genere", fr: "Genre", es: "Género" },
   "Species": { de: "Art", it: "Specie", fr: "Espèce", es: "Especie" },
-  "Learning": { de: "Am Lernen", it: "In apprendimento", fr: "En cours", es: "Aprendiendo" },
+  "Learning": { de: "Lernphase", it: "In apprendimento", fr: "En cours", es: "Aprendiendo" },
   "Familiar": { de: "Vertraut", it: "Familiare", fr: "Familière", es: "Familiar" },
   "Mastered": { de: "Beherrscht", it: "Padroneggiata", fr: "Maîtrisée", es: "Dominada" },
   "Save milestone now": { de: "Meilenstein jetzt speichern", it: "Salva ora un traguardo", fr: "Enregistrer un jalon maintenant", es: "Guardar un hito ahora" },
@@ -3118,11 +3130,11 @@ const MANUAL_I18N = {
   "More": { de: "Mehr", it: "Più", fr: "Plus", es: "Más" },
   "Accuracy over time": { de: "Genauigkeit im Zeitverlauf", it: "Precisione nel tempo", fr: "Précision dans le temps", es: "Precisión con el tiempo" },
   "Now": { de: "Jetzt", it: "Ora", fr: "Maintenant", es: "Ahora" },
-  "No server, no login. Share your code, paste a friend's — everyone lines up below. Other players on this device appear automatically.": { de: "Kein Server, kein Login. Teile deinen Code, füge den eines Freundes ein – alle erscheinen unten. Andere Spieler auf diesem Gerät werden automatisch angezeigt.", it: "Nessun server, nessun accesso. Condividi il tuo codice, incolla quello di un amico: tutti compaiono qui sotto. Gli altri giocatori su questo dispositivo appaiono in automatico.", fr: "Pas de serveur, pas de connexion. Partage ton code, colle celui d'un ami — tout le monde s'aligne ci-dessous. Les autres joueurs de cet appareil apparaissent automatiquement.", es: "Sin servidor, sin inicio de sesión. Comparte tu código, pega el de un amigo: todos aparecen abajo. Los demás jugadores de este dispositivo se muestran automáticamente." },
-  "Your share-code": { de: "Dein Teilen-Code", it: "Il tuo codice", fr: "Ton code de partage", es: "Tu código para compartir" },
+  "No server, no login. Share your code, paste a friend's — everyone lines up below. Other players on this device appear automatically.": { de: "Kein Server, kein Login. Teile deinen Code, füge den Code von jemand anderem ein – alle erscheinen unten. Andere Profile auf diesem Gerät werden automatisch angezeigt.", it: "Nessun server, nessun accesso. Condividi il tuo codice, incolla quello di un amico: tutti compaiono qui sotto. Gli altri giocatori su questo dispositivo appaiono in automatico.", fr: "Pas de serveur, pas de connexion. Partage ton code, colle celui d'un ami — tout le monde s'aligne ci-dessous. Les autres joueurs de cet appareil apparaissent automatiquement.", es: "Sin servidor, sin inicio de sesión. Comparte tu código, pega el de un amigo: todos aparecen abajo. Los demás jugadores de este dispositivo se muestran automáticamente." },
+  "Your share-code": { de: "Dein Freigabe-Code", it: "Il tuo codice", fr: "Ton code de partage", es: "Tu código para compartir" },
   "Copy": { de: "Kopieren", it: "Copia", fr: "Copier", es: "Copiar" },
   "Copied": { de: "Kopiert", it: "Copiato", fr: "Copié", es: "Copiado" },
-  "Add someone's code": { de: "Code von jemandem hinzufügen", it: "Aggiungi il codice di qualcuno", fr: "Ajouter le code de quelqu'un", es: "Añadir el código de alguien" },
+  "Add someone's code": { de: "Code von jemand anderem hinzufügen", it: "Aggiungi il codice di qualcuno", fr: "Ajouter le code de quelqu'un", es: "Añadir el código de alguien" },
   "Add": { de: "Hinzufügen", it: "Aggiungi", fr: "Ajouter", es: "Añadir" },
   "Leaderboard": { de: "Rangliste", it: "Classifica", fr: "Classement", es: "Clasificación" },
   "By family": { de: "Nach Familie", it: "Per famiglia", fr: "Par famille", es: "Por familia" },
@@ -3132,7 +3144,7 @@ const MANUAL_I18N = {
   "Three in a row — nice rhythm!": { de: "Drei in Folge – schöner Rhythmus!", it: "Tre di fila: che ritmo!", fr: "Trois d'affilée — quel rythme !", es: "¡Tres seguidas, qué ritmo!" },
   "You're rolling now.": { de: "Jetzt läuft's.", it: "Ora sei lanciato.", fr: "Tu es lancé.", es: "Ahora sí que vas." },
   "Keep it going!": { de: "Weiter so!", it: "Continua così!", fr: "Continue comme ça !", es: "¡Sigue así!" },
-  "On fire! 🔥": { de: "Du brennst! 🔥", it: "Sei in fiamme! 🔥", fr: "Tu es en feu ! 🔥", es: "¡Estás que ardes! 🔥" },
+  "On fire! 🔥": { de: "Du bist in Fahrt! 🔥", it: "Sei in fiamme! 🔥", fr: "Tu es en feu ! 🔥", es: "¡Estás que ardes! 🔥" },
   "The cow is in awe.": { de: "Die Kuh staunt.", it: "La mucca è a bocca aperta.", fr: "La vache est bluffée.", es: "La vaca está alucinando." },
   "Unstoppable!": { de: "Unaufhaltsam!", it: "Inarrestabile!", fr: "Imparable !", es: "¡Imparable!" },
   "LEGENDARY. The whole herd is mooing.": { de: "LEGENDÄR. Die ganze Herde muht.", it: "LEGGENDARIO. Tutta la mandria muggisce.", fr: "LÉGENDAIRE. Tout le troupeau meugle.", es: "LEGENDARIO. Todo el rebaño mugiendo." },
@@ -3142,14 +3154,14 @@ const MANUAL_I18N = {
   "Nearly! The genus was spot on.": { de: "Fast! Die Gattung war goldrichtig.", it: "Quasi! Il genere era perfetto.", fr: "Presque ! Le genre était pile bon.", es: "¡Casi! El género era exacto." },
   "Right neighbourhood, wrong house.": { de: "Richtige Gegend, falsches Haus.", it: "Quartiere giusto, casa sbagliata.", fr: "Bon quartier, mauvaise maison.", es: "Barrio correcto, casa equivocada." },
   "No stress — you'll know it next time.": { de: "Kein Stress – nächstes Mal weisst du's.", it: "Niente stress: la prossima volta la saprai.", fr: "Pas de stress — tu la sauras la prochaine fois.", es: "Sin estrés: la próxima vez la sabrás." },
-  "Let's lock this one in.": { de: "Merken wir uns die.", it: "Fissiamola bene.", fr: "Retenons bien celle-ci.", es: "Vamos a fijar esta." },
+  "Let's lock this one in.": { de: "Die merken wir uns.", it: "Fissiamola bene.", fr: "Retenons bien celle-ci.", es: "Vamos a fijar esta." },
   "Every miss is one you'll remember.": { de: "Jeder Fehler ist einer, den du dir merkst.", it: "Ogni errore è uno che ricorderai.", fr: "Chaque erreur est une leçon retenue.", es: "Cada fallo es uno que recordarás." },
   "The cow believes in you.": { de: "Die Kuh glaubt an dich.", it: "La mucca crede in te.", fr: "La vache croit en toi.", es: "La vaca cree en ti." },
-  "No guess, no worries — onward.": { de: "Kein Tipp, kein Problem – weiter geht's.", it: "Nessuna risposta, nessun problema: avanti.", fr: "Pas de réponse, pas grave — on avance.", es: "Sin respuesta, sin problema: seguimos." },
+  "No guess, no worries — onward.": { de: "Nicht geraten, kein Problem – weiter geht's.", it: "Nessuna risposta, nessun problema: avanti.", fr: "Pas de réponse, pas grave — on avance.", es: "Sin respuesta, sin problema: seguimos." },
   "We'll come back to this one.": { de: "Wir kommen darauf zurück.", it: "Ci torneremo su.", fr: "On y reviendra.", es: "Volveremos a esta." },
   // GBIF top-up toggle
   "Top up thin species with GBIF photos": { de: "Fotoarme Arten mit GBIF-Fotos auffüllen", it: "Integra le specie con poche foto con GBIF", fr: "Compléter les espèces peu illustrées avec GBIF", es: "Completar especies con pocas fotos con GBIF" },
-  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.": { de: "Für Arten mit weniger als 50 iNaturalist-Fotos werden weitere von GBIF ergänzt (Museen, Herbarien und andere Plattformen) – Lebendfotos werden bevorzugt, Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig aktiv; gelegentlich Bilder von geringerer Qualität oder falsch beschriftet. Funktioniert mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder Arten der Region.", it: "Per le specie con meno di 50 foto su iNaturalist, ne aggiunge altre da GBIF (musei, erbari e altre piattaforme): foto dal vivo preferite, esemplari d'erbario solo quando una specie ha davvero poche immagini. Attivo per impostazione predefinita; a volte immagini di qualità inferiore o etichettate male. Funziona con una lista di specie: un certificato, la tua lista o le specie della regione.", fr: "Pour les espèces ayant moins de 50 photos sur iNaturalist, en ajoute d'autres depuis GBIF (musées, herbiers et autres plateformes) — photos sur le vif préférées, spécimens d'herbier seulement quand une espèce est vraiment peu illustrée. Activé par défaut ; parfois des images de moindre qualité ou mal étiquetées. Fonctionne avec une liste d'espèces — un certificat, ta propre liste ou les espèces de la région.", es: "Para las especies con menos de 50 fotos en iNaturalist, añade más desde GBIF (museos, herbarios y otras plataformas): fotos en vivo preferidas, ejemplares de herbario solo cuando una especie tiene realmente pocas imágenes. Activado de forma predeterminada; de vez en cuando imágenes de menor calidad o mal etiquetadas. Funciona con una lista de especies: un certificado, tu propia lista o las especies de la región." },
+  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.": { de: "Für Arten mit weniger als 50 iNaturalist-Fotos werden weitere von GBIF ergänzt (Museen, Herbarien und andere Plattformen) – Lebendfotos werden bevorzugt, Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig aktiv; gelegentlich Bilder von geringerer Qualität oder mit falscher Bestimmung. Funktioniert mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder Arten der Region.", it: "Per le specie con meno di 50 foto su iNaturalist, ne aggiunge altre da GBIF (musei, erbari e altre piattaforme): foto dal vivo preferite, esemplari d'erbario solo quando una specie ha davvero poche immagini. Attivo per impostazione predefinita; a volte immagini di qualità inferiore o etichettate male. Funziona con una lista di specie: un certificato, la tua lista o le specie della regione.", fr: "Pour les espèces ayant moins de 50 photos sur iNaturalist, en ajoute d'autres depuis GBIF (musées, herbiers et autres plateformes) — photos sur le vif préférées, spécimens d'herbier seulement quand une espèce est vraiment peu illustrée. Activé par défaut ; parfois des images de moindre qualité ou mal étiquetées. Fonctionne avec une liste d'espèces — un certificat, ta propre liste ou les espèces de la région.", es: "Para las especies con menos de 50 fotos en iNaturalist, añade más desde GBIF (museos, herbarios y otras plataformas): fotos en vivo preferidas, ejemplares de herbario solo cuando una especie tiene realmente pocas imágenes. Activado de forma predeterminada; de vez en cuando imágenes de menor calidad o mal etiquetadas. Funciona con una lista de especies: un certificado, tu propia lista o las especies de la región." },
 };
 // The exact-string translation for a manual language, or undefined to fall
 // through to Google.
@@ -3597,7 +3609,7 @@ function startWrongReplay() {
   if (!items.length) return;
   const species = items.map((w) => ({ taxonId: w.taxonId, scientificName: w.scientificName,
     commonName: w.commonName, iconic: w.iconic, fixedOptions: w.options }));
-  startHistoryReview(species, "choose", "🔁 Questions you missed");
+  startHistoryReview(species, "choose", "👀 Questions you missed");
 }
 
 // "Focus on difficult species" — a round over exactly your difficult list, in
