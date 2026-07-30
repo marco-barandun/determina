@@ -494,8 +494,13 @@
     font-size: 13px; cursor: pointer;
   }
   .obs-btn:hover { background: var(--bg-2); color: var(--ink); }
+  /* z-index: 0 on every map box is load-bearing, not decoration. Leaflet gives
+     its own panes z-index 400–700, and without a stacking context here those
+     would sit in the page's root context and paint straight over the answer
+     input's suggestion dropdown (z-index 20). Pinning the box to 0 traps them
+     inside it, so the dropdown always covers the map while you're typing. */
   .obs-map { height: 190px; border-radius: 12px; overflow: hidden; margin-top: 10px;
-    border: 2px solid var(--line); }
+    border: 2px solid var(--line); position: relative; z-index: 0; }
   .obs-map .leaflet-container { height: 100%; background: var(--bg-2); }
 
   /* Multiple-choice ("Choose") answer grid — recognition instead of recall. */
@@ -518,13 +523,59 @@
   .choice.wrong::after { content: "✕"; color: var(--red); }
   @media (max-width: 360px) { .choice-area { grid-template-columns: 1fr; } }
 
-  /* Study ("flashcard") mode — the answer shown with the photo, no test. */
+  /* Study ("flashcard") mode — the answer shown with the photo, no test.
+     The card is a row: the name (and any note) on the left, a small range map
+     on the right. Beside rather than below, because the photo above already
+     fills most of the screen and a full-width map strip would push the Next
+     button off a phone. Below ~420px it stacks, where the width isn't there. */
   .study-answer {
-    margin-top: 16px; text-align: center; background: var(--bg-2);
+    margin-top: 16px; background: var(--bg-2); display: flex; align-items: center; gap: 14px;
     border: 2px solid var(--line); border-radius: var(--radius); padding: 16px;
   }
+  .study-text { flex: 1 1 auto; min-width: 0; }
   .study-answer .sci { font-family: var(--font-display); font-style: italic; font-size: 22px; font-weight: 600; color: var(--green-dark); display: block; }
   .study-answer .tag { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); display: block; margin-bottom: 8px; }
+
+  /* The study card's range map. Deliberately inert — dragging and zooming are
+     off, so a stray swipe on a phone doesn't fight the page scroll — and a tap
+     opens the same layers full-size in #mapPopup, where they are interactive. */
+  .study-map {
+    flex: 0 0 148px; height: 112px; position: relative; z-index: 0; cursor: pointer;
+    border-radius: 10px; overflow: hidden; border: 2px solid var(--line); background: #f1eee3;
+  }
+  .map-canvas { position: absolute; inset: 0; }
+  .map-canvas.leaflet-container { background: #f1eee3; }
+  .map-expand {
+    position: absolute; z-index: 500; right: 5px; bottom: 5px; pointer-events: none;
+    background: rgba(255,255,255,.9); border-radius: 6px; padding: 1px 6px;
+    font-size: 13px; font-weight: 800; color: var(--ink);
+  }
+  .map-note {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 700; color: var(--muted); text-align: center; padding: 8px;
+  }
+  @media (max-width: 420px) {
+    .study-answer { flex-direction: column; align-items: stretch; }
+    .study-map { flex: none; width: 100%; height: 150px; }
+  }
+
+  /* The enlarged version of that map, opened by tapping it. */
+  .map-popup {
+    position: fixed; inset: 0; z-index: 60; background: rgba(58,53,46,.55);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .map-popup-card {
+    position: relative; background: var(--bg); border-radius: var(--radius);
+    max-width: 640px; width: 100%; padding: 18px; box-shadow: 0 24px 60px rgba(58,53,46,.28);
+  }
+  .map-popup-close { position: absolute; top: 8px; right: 8px; }
+  .map-popup-card h3 {
+    font-family: var(--font-display); font-style: italic; font-size: 19px; font-weight: 600;
+    color: var(--green-dark); margin: 0 0 10px; padding-right: 34px;
+  }
+  .map-big { width: 100%; height: min(62vh, 460px); border-radius: 10px; overflow: hidden;
+    background: #f1eee3; border: 2px solid var(--line); }
+  .map-legend { font-size: 11.5px; color: var(--faint); font-weight: 700; margin-top: 8px; }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
   .reverse-active .photo-card, .reverse-active #credit { display: none; }
@@ -1231,6 +1282,21 @@
   </div>
 </div>
 
+<!-- ========================= ENLARGED RANGE MAP ============================
+     Study mode carries a small, inert range map beside the species name;
+     tapping it opens the same GBIF layers here, full-size and interactive.
+     Static markup like the lightbox — refilled each time it opens. -->
+<div id="mapPopup" class="map-popup hidden">
+  <div class="map-popup-card">
+    <button id="mapPopupClose" class="icon-btn map-popup-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h3 id="mapPopupTitle" class="notranslate"></h3>
+    <div id="mapBig" class="map-big"></div>
+    <div class="map-legend">Shaded cells are GBIF occurrence records; the dot is where this photo was taken.</div>
+  </div>
+</div>
+
 <script>
 // ==========================================================================
 //  DETERMINARE
@@ -1497,6 +1563,9 @@ const game = {
   regionsTouched: false,   // becomes true on your first deliberate pick — see addRegion()
   media: DEFAULT_MEDIA,    // "photo" or "sound" — which iNaturalist media type to quiz on
   answerMode: DEFAULT_ANSWER_MODE,   // "type" | "choose" | "study"
+  modeThis: DEFAULT_ANSWER_MODE,     // the mode actually used for the question on screen — a
+                                     // Choose question with no distractors available falls back
+                                     // to Study, and everything downstream must follow that
   commonOnly: false,       // restrict the session to the group's most-observed species (on-ramp)
   pool: null,              // when set, a fixed list of taxon ids to quiz (certificate mode)
   taxonomy: "checklist",   // in certificate mode: which naming to show/accept ("checklist" | "inat")
@@ -2011,6 +2080,22 @@ async function resolveFamilies() {
       });
     } catch (err) { /* leave unresolved; they group under "Unknown" */ }
   }
+  saveStore();
+}
+
+// The same lookup for a single species, on demand. Used by Choose mode's hint
+// ladder, which has only the family and the locality to work with and so needs
+// the family even for a species you've never been asked before.
+async function resolveFamilyFor(taxonId) {
+  if (game.familyCache.has(taxonId)) return;
+  const data = await apiGet("/taxa/" + taxonId, { per_page: 1 });
+  const taxon = (data.results || [])[0];
+  if (!taxon) return;
+  const family = (taxon.ancestors || []).find((a) => a.rank === "family");
+  const genus = (taxon.name || "").split(" ")[0];
+  game.familyCache.set(taxon.id, { taxonId: taxon.id,
+    familyName: family ? family.name : (genus || "Other"), isFamily: Boolean(family),
+    iconic: taxon.iconic_taxon_name || "" });
   saveStore();
 }
 
@@ -4134,6 +4219,7 @@ function presentQuestion() {
   // Reverse (aid C) hides the photo card entirely and shows a grid of photos to
   // pick from, so it gets its own branch before the normal media gallery.
   el("playMain").classList.toggle("reverse-active", game.reverseThis);
+  destroyStudyMaps(); closeMapPopup();   // the previous card's maps, whatever mode it was
   if (game.reverseThis) { destroyObsMap(); if (el("obsLocation")) el("obsLocation").innerHTML = ""; presentReverse(); return; }
 
   if (game.media === "sound") showSoundGallery(questionSounds(game.current));
@@ -4144,9 +4230,11 @@ function presentQuestion() {
   // with none available (e.g. a one-species custom list) a "multiple choice"
   // would just hand over the answer, so fall back to Study for this one question.
   if (mode === "choose" && pickDistractors(game.current.taxonId, 1).length === 0) mode = "study";
-  // Show only the answer region for the current mode.
+  game.modeThis = mode;
+  // Show only the answer region for the current mode. Hints belong to both of
+  // the tested modes — Choose gets a shorter ladder (see buildHints).
   el("answerInput").closest(".search.answer").classList.toggle("hidden", mode !== "type");
-  el("hintArea").classList.toggle("hidden", mode !== "type");
+  el("hintArea").classList.toggle("hidden", mode === "study");
   el("choiceArea").classList.toggle("hidden", mode !== "choose");
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
   el("reverseArea").classList.add("hidden");
@@ -4215,6 +4303,7 @@ function presentType() {
 // -- "Choose" mode: multiple choice (recognition) -------------------------
 function presentChoose() {
   el("promptText").textContent = game.media === "sound" ? "Which one is calling?" : "Which species is this?";
+  resetHints();   // the shorter, non-spoiling ladder — see buildHints
   renderChoices();
 }
 
@@ -4299,9 +4388,19 @@ function presentStudy() {
   el("promptText").textContent = game.media === "sound" ? "Listen and learn" : "Look and learn";
   const q = game.current;
   const note = game.mnemonics ? noteFor(q.taxonId) : "";
-  el("studyAnswer").innerHTML = "<span class='tag'>This is</span>" +
-    "<span class='sci notranslate'>" + escapeHtml(q.scientificName) + "</span>" +
-    (note ? "<div class='note-saved notranslate' style='margin-top:10px;text-align:left;'>📝 " + escapeHtml(note) + "</div>" : "");
+  destroyStudyMaps();
+  el("studyAnswer").innerHTML =
+    "<div class='study-text'>" +
+      "<span class='tag'>This is</span>" +
+      "<span class='sci notranslate'>" + escapeHtml(q.scientificName) + "</span>" +
+      (note ? "<div class='note-saved notranslate' style='margin-top:10px;text-align:left;'>📝 " + escapeHtml(note) + "</div>" : "") +
+    "</div>" +
+    "<div id='studyMap' class='study-map' title='Tap to enlarge'><div class='map-note'>Loading map…</div></div>";
+  el("studyMap").addEventListener("click", openMapPopup);
+  renderStudyMap(q).catch(() => {
+    const box = el("studyMap");
+    if (box) box.innerHTML = "<div class='map-note'>Couldn't load the map.</div>";
+  });
 }
 
 // Study cards aren't scored — just advance, counting toward the round total so
@@ -4325,7 +4424,7 @@ function configureActionRow(mode) {
 
 // The primary button is "Check" in Type mode and "Next" in Study mode.
 function onPrimaryAction() {
-  if (game.answerMode === "study") studyNext();
+  if (game.modeThis === "study") studyNext();
   else submitAnswer();
 }
 
@@ -4393,7 +4492,7 @@ function revealAnswer() {
 let currentHints = [];        // the hint tiers for the current question
 let hintsShown = 0;           // how many the player has revealed this question
 
-function buildHints(q) {
+function buildHints(q, mode) {
   const words = q.scientificName.split(" ");
   const genus = words[0];
   const epithet = words.slice(1).join(" ");
@@ -4409,6 +4508,13 @@ function buildHints(q) {
   // without giving the spelling away.
   if (fam && fam.isFamily && fam.familyName) hints.push("It's in the family " + escapeHtml(fam.familyName) + ".");
 
+  // Choose mode's ladder stops here. The tiers below name the genus and spell
+  // out the start of the species word, which with the answer already on screen
+  // among four options isn't a nudge — it hands the question over. Family and
+  // locality still narrow things down while leaving you to tell the look-alikes
+  // apart yourself, which is the whole skill Choose mode trains.
+  if (mode === "choose") return hints;
+
   // Then the strongest nudge, aimed at the exact thing you have to type.
   if (epithet) {
     // The genus alone gets you halfway; then reveal the start of the species word.
@@ -4422,9 +4528,24 @@ function buildHints(q) {
 }
 
 function resetHints() {
-  currentHints = game.current ? buildHints(game.current) : [];
+  currentHints = game.current ? buildHints(game.current, game.modeThis) : [];
   hintsShown = 0;
   renderHintControl();
+  // Choose mode's ladder is family-and-locality only, and the family is
+  // normally filled in by the bulk lookup in resolveFamilies() — which covers
+  // species you already have stats for. On one you're meeting for the first
+  // time that leaves nothing to offer, so fetch this one species' family in
+  // the background and rebuild the ladder if it lands while it's still useful.
+  if (game.modeThis === "choose" && game.current && !game.familyCache.has(game.current.taxonId)) {
+    const taxonId = game.current.taxonId;
+    resolveFamilyFor(taxonId)
+      .then(() => {
+        if (!game.current || game.current.taxonId !== taxonId || game.answered) return;
+        currentHints = buildHints(game.current, game.modeThis);
+        renderHintControl();
+      })
+      .catch(() => { /* no family to offer — the ladder just stays as short as it is */ });
+  }
 }
 
 function renderHintControl() {
@@ -4798,28 +4919,147 @@ async function showDistributionMap(mapBox, scientificName, token) {
 let obsMap = null;
 function destroyObsMap() { if (obsMap) { obsMap.remove(); obsMap = null; } }
 
+// "lat,lng" as iNaturalist gives it -> [lat, lng], or null if it isn't usable.
+function parseCoords(coords) {
+  const parts = String(coords || "").split(",").map(Number);
+  return (parts.length === 2 && parts.every((n) => !isNaN(n))) ? [parts[0], parts[1]] : null;
+}
+
+const OBS_DOT = { radius: 7, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 };
+
 function renderObsLocation() {
   const box = el("obsLocation");
   destroyObsMap();
   if (!box) return;
   const coords = game.current && game.current.coords;
-  // Only when we actually have coordinates and we're typing (before the hint button).
-  if (!coords || game.answerMode !== "type") { box.innerHTML = ""; return; }
+  // Only when we have coordinates and the mode is one where the answer is
+  // still hidden. Study mode has its own, always-visible map in the card, and
+  // reverse questions show no single observation to locate.
+  if (!coords || (game.modeThis !== "type" && game.modeThis !== "choose")) { box.innerHTML = ""; return; }
   box.innerHTML = "<button type='button' id='obsMapBtn' class='obs-btn'>📍 Where was this seen?</button>";
   el("obsMapBtn").addEventListener("click", () => showObsMap(coords));
 }
 
 function showObsMap(coords) {
-  const parts = String(coords).split(",").map(Number);
-  if (parts.length !== 2 || parts.some(isNaN)) return;
-  const [lat, lng] = parts;
+  const latlng = parseCoords(coords);
+  if (!latlng) return;
   const box = el("obsLocation");
   box.innerHTML = "<div id='obsMap' class='obs-map'></div>";
   destroyObsMap();
-  obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView([lat, lng], 4);
+  obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView(latlng, 4);
   L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural", { maxZoom: 8, attribution: "GBIF" }).addTo(obsMap);
-  L.circleMarker([lat, lng], { radius: 8, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 }).addTo(obsMap);
+  L.circleMarker(latlng, OBS_DOT).addTo(obsMap);
   obsMap.invalidateSize();
+}
+
+// -- Study mode's range map ------------------------------------------------
+//  A study card is a flashcard, and "where does it grow" is part of knowing a
+//  species — so the card carries a small map beside the name showing GBIF's
+//  occurrence density for it, with a dot on the observation you're looking at.
+//  It is always there, no toggle: unlike the learn-more pop-up it costs one
+//  cheap name lookup (cached) and two tile layers, and it is the whole point of
+//  the card rather than an optional extra shown after an answer.
+//
+//  The small map is inert and a tap opens the same layers full-size in
+//  #mapPopup. Both are rebuilt per species — Leaflet refuses to initialise
+//  twice in one container — and a token guards against a slow GBIF lookup
+//  landing after you have already moved on.
+
+const INERT_MAP = { attributionControl: false, zoomControl: false, dragging: false,
+  scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false };
+
+// GBIF ids don't change, and a round with repeats asks the same species more
+// than once, so the name -> id lookup is worth remembering for the session.
+// A failed request throws rather than caching null, so it retries next time.
+const gbifKeyCache = new Map();
+async function cachedGbifKey(scientificName) {
+  if (gbifKeyCache.has(scientificName)) return gbifKeyCache.get(scientificName);
+  const key = await gbifTaxonKey(scientificName);
+  gbifKeyCache.set(scientificName, key);
+  return key;
+}
+
+// GBIF's own light basemap, then hex-binned occurrence density for the species
+// on top. Hex bins read far better than raw points at these zoom levels, where
+// scattered records would otherwise be single invisible pixels.
+function addRangeLayers(map, taxonKey, maxZoom) {
+  L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural",
+    { maxZoom, attribution: "GBIF" }).addTo(map);
+  if (taxonKey) {
+    L.tileLayer("https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?style=classic.poly&bin=hex&hexPerTile=60&taxonKey=" + taxonKey,
+      { maxZoom, attribution: "GBIF" }).addTo(map);
+  }
+}
+
+// Point a range map at the species' own occurrence bounds, widened to include
+// this observation so its dot is never off screen. maxZoom keeps a narrowly
+// recorded species at a continental view rather than zooming into one valley.
+function fitRange(map, bounds, latlng, maxZoom) {
+  if (bounds) {
+    const box = L.latLngBounds(bounds);
+    if (latlng) box.extend(latlng);
+    map.fitBounds(box, { maxZoom, padding: [8, 8] });
+  } else if (latlng) map.setView(latlng, Math.min(3, maxZoom));
+  else map.setView([15, 10], 1);
+}
+
+let studyMiniMap = null;   // the small map inside the study card
+let studyBigMap = null;    // the enlarged one in the pop-up
+let studyMapToken = 0;     // bumped per species, so a late GBIF lookup knows it is stale
+let studyMapData = null;   // { name, taxonKey, bounds, latlng } for the species on screen
+
+function destroyStudyMaps() {
+  if (studyMiniMap) { studyMiniMap.remove(); studyMiniMap = null; }
+  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
+  studyMapData = null;
+}
+
+async function renderStudyMap(question) {
+  studyMapToken += 1;
+  const token = studyMapToken;
+  const box = el("studyMap");
+  if (!box) return;
+  const latlng = parseCoords(question.coords);
+  let taxonKey = null, bounds = null;
+  // A missing GBIF match or a network hiccup isn't fatal — the observation dot
+  // alone still tells you something, so only give up if there's nothing at all.
+  try {
+    taxonKey = await cachedGbifKey(question.scientificName);
+    if (token !== studyMapToken) return;
+    if (taxonKey) bounds = await gbifOccurrenceBounds(taxonKey);
+    if (token !== studyMapToken) return;
+  } catch (err) { taxonKey = null; }
+  if (!taxonKey && !latlng) { box.innerHTML = "<div class='map-note'>No map for this species.</div>"; return; }
+
+  studyMapData = { name: question.scientificName, taxonKey, bounds, latlng };
+  box.innerHTML = "<div id='studyMapCanvas' class='map-canvas'></div><div class='map-expand'>⤢</div>";
+  if (studyMiniMap) { studyMiniMap.remove(); studyMiniMap = null; }
+  studyMiniMap = L.map("studyMapCanvas", INERT_MAP);
+  addRangeLayers(studyMiniMap, taxonKey, 6);
+  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(studyMiniMap);
+  fitRange(studyMiniMap, bounds, latlng, 3);
+  studyMiniMap.invalidateSize();
+}
+
+// The enlarged map. Nothing is refetched — it redraws the same tile layers the
+// small one already resolved, so opening it is instant and free.
+function openMapPopup() {
+  if (!studyMapData) return;
+  const { name, taxonKey, bounds, latlng } = studyMapData;
+  el("mapPopupTitle").textContent = name;
+  el("mapPopup").classList.remove("hidden");
+  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
+  el("mapBig").innerHTML = "";
+  studyBigMap = L.map("mapBig", { attributionControl: true, zoomControl: true, worldCopyJump: true });
+  addRangeLayers(studyBigMap, taxonKey, 6);
+  if (latlng) L.circleMarker(latlng, OBS_DOT).addTo(studyBigMap);
+  fitRange(studyBigMap, bounds, latlng, 5);
+  studyBigMap.invalidateSize();   // the container was display:none until a moment ago
+}
+
+function closeMapPopup() {
+  el("mapPopup").classList.add("hidden");
+  if (studyBigMap) { studyBigMap.remove(); studyBigMap = null; }
 }
 
 // A short, plain-language summary of the species from Wikipedia. Used both
@@ -5781,6 +6021,7 @@ function wireControls() {
   wirePhotoGallery();
   wireLightbox();
   wireLearnPopup();
+  wireMapPopup();
 
   // close dropdowns when clicking away
   document.addEventListener("click", (e) => {
@@ -5841,6 +6082,17 @@ function wireLearnPopup() {
     if (e.key === "Enter" && game.answered && e.target.tagName !== "BUTTON") {
       return popupOpen ? closeLearnPopupAndAdvance() : nextQuestion();
     }
+  });
+}
+
+// The enlarged range map. Also static markup, wired once. Closing it just
+// closes it — unlike the learn-more pop-up it isn't part of advancing, it's
+// something you opened deliberately to look at and are done looking at.
+function wireMapPopup() {
+  el("mapPopupClose").addEventListener("click", closeMapPopup);
+  el("mapPopup").addEventListener("click", (e) => { if (e.target.id === "mapPopup") closeMapPopup(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("mapPopup").classList.contains("hidden")) closeMapPopup();
   });
 }
 
