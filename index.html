@@ -1047,7 +1047,7 @@
         <label class="toggle field" style="margin-bottom:0;">
           <span>
             <b>Top up thin species with GBIF photos</b>
-            <span class="hint">For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.</span>
+            <span class="hint">For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or the “Region's species, photos from anywhere” mode.</span>
           </span>
           <input id="webImagesToggle" type="checkbox" checked>
           <span class="switch"></span>
@@ -1343,7 +1343,7 @@
       <label class="toggle field">
         <span>
           <b>Also ask in reverse</b>
-          <span class="hint">Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).</span>
+          <span class="hint">Sometimes show the name and a few photos — pick the right one. Trains the other direction (photos only).</span>
         </span>
         <input id="reverseToggle" type="checkbox">
         <span class="switch"></span>
@@ -1367,7 +1367,7 @@
       <label class="toggle field" style="margin-bottom:0;">
         <span>
           <b>Offer the observation's location as a hint</b>
-          <span class="hint">Adds “where it was seen” to the hint ladder in Type mode — a geographic nudge toward the answer.</span>
+          <span class="hint">Adds “where it was seen” to the hint ladder — a geographic nudge toward the answer.</span>
         </span>
         <input id="locationHintToggle" type="checkbox">
         <span class="switch"></span>
@@ -1973,7 +1973,7 @@ function importBackup(file) {
       toast("That file isn't a Determinare backup.");
       return;
     }
-    if (!window.confirm("Import this backup? It replaces the players and progress currently in this browser.")) return;
+    if (!window.confirm(tSync("Import this backup? It replaces the players and progress currently in this browser."))) return;
     try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
     catch (err) { toast("Couldn't save the imported data (storage blocked)."); return; }
     // Rebuild every in-memory structure from the freshly-imported store.
@@ -3281,7 +3281,7 @@ const MANUAL_I18N = {
   "Your players and progress live only in this browser. Export them to a file to keep a backup or move to another device, and import to restore.": { de: "Deine Profile und dein Fortschritt liegen nur in diesem Browser. Exportiere sie in eine Datei, um sie zu sichern oder auf ein anderes Gerät zu bringen – mit „Daten importieren“ holst du sie zurück.", it: "I tuoi giocatori e i tuoi progressi restano solo in questo browser. Esportali in un file per conservarne una copia o per passare a un altro dispositivo; con l'importazione li rimetti al loro posto.", fr: "Tes joueurs et ta progression n'existent que dans ce navigateur. Exporte-les dans un fichier pour en garder une copie ou passer à un autre appareil ; l'import les rétablit.", es: "Tus jugadores y tu progreso solo existen en este navegador. Expórtalos a un archivo para tener una copia de seguridad o llevártelos a otro dispositivo, e impórtalo cuando quieras restaurarlos." },
   "Learning aids": { de: "Lernhilfen", it: "Aiuti allo studio", fr: "Aides à l'apprentissage", es: "Ayudas de aprendizaje" },
   "Also ask in reverse": { de: "Auch umgekehrt abfragen", it: "Chiedi anche in senso inverso", fr: "Poser aussi la question dans l'autre sens", es: "Preguntar también al revés" },
-  "Sometimes show the name and four photos — pick the right one. Trains the other direction (photos only).": { de: "Manchmal siehst du den Namen und vier Fotos – wähle das passende. Das trainiert die Gegenrichtung (nur mit Fotos).", it: "Ogni tanto compare il nome insieme a quattro foto: scegli quella giusta. Allena il percorso inverso, dal nome all'immagine (solo con le foto).", fr: "De temps en temps, c'est le nom qui est donné, avec quatre photos : à toi de choisir la bonne. Entraîne le sens inverse (photos uniquement).", es: "De vez en cuando te da el nombre y cuatro fotos para que elijas la correcta: así entrenas también el sentido contrario (solo con fotos)." },
+  "Sometimes show the name and a few photos — pick the right one. Trains the other direction (photos only).": { de: "Manchmal siehst du den Namen und mehrere Fotos – wähle das passende. Das trainiert die Gegenrichtung (nur mit Fotos).", it: "Ogni tanto compare il nome insieme a più foto: scegli quella giusta. Allena il percorso inverso, dal nome all'immagine (solo con le foto).", fr: "De temps en temps, c'est le nom qui est donné, avec plusieurs photos : à toi de choisir la bonne. Entraîne le sens inverse (photos uniquement).", es: "De vez en cuando te da el nombre y varias fotos para que elijas la correcta: así entrenas también el sentido contrario (solo con fotos)." },
   "Rate how well you knew it": { de: "Bewerte, wie gut du die Art kanntest", it: "Valuta quanto bene la conoscevi", fr: "Évaluer à quel point je la connaissais", es: "Valora si te la sabías" },
   "After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).": { de: "Tippe nach jeder Antwort auf Nochmal / Schwer / Gut / Einfach – damit legst du fest, wann die Art wieder drankommt (wie bei Anki).", it: "Dopo ogni risposta tocca Di nuovo / Difficile / Buono / Facile: sei tu a decidere quando la specie tornerà (come in Anki).", fr: "Après chaque réponse, choisis Encore / Difficile / Correct / Facile : c'est toi qui décides quand l'espèce reviendra (comme dans Anki).", es: "Después de cada respuesta, pulsa Otra vez / Difícil / Bien / Fácil para decidir cuándo vuelve a aparecer la especie (como en Anki)." },
   "Let me add memory notes": { de: "Eigene Eselsbrücken notieren", it: "Aggiungi note mnemoniche", fr: "Ajouter mes propres notes mémo", es: "Escribir mis propias notas para memorizar" },
@@ -3442,11 +3442,87 @@ const MANUAL_I18N = {
   "We'll come back to this one.": { de: "Die Art kommt später nochmal.", it: "Ci torneremo su.", fr: "On y reviendra.", es: "Ya volveremos a esta." },
   // GBIF top-up toggle
   "Top up thin species with GBIF photos": { de: "Fotoarme Arten mit GBIF-Fotos auffüllen", it: "Più foto da GBIF per le specie con poche immagini", fr: "Compléter les espèces peu illustrées avec des photos GBIF", es: "Completar con GBIF las especies con pocas fotos" },
-  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or region species.": { de: "Hat eine Art auf iNaturalist weniger als 50 Fotos, kommen weitere von GBIF dazu (Museen, Herbarien und andere Plattformen) – bevorzugt Lebendaufnahmen, Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig eingeschaltet; gelegentlich sind Bilder von schlechterer Qualität oder mit falscher Bestimmung dabei. Funktioniert nur mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder den Arten einer Region.", it: "Per le specie con meno di 50 foto su iNaturalist ne aggiunge altre da GBIF (musei, erbari e altre piattaforme), preferendo le foto dal vivo e ricorrendo ai campioni d'erbario solo quando una specie ha davvero pochissime immagini. È attivo di default; ogni tanto può capitare qualche immagine di qualità scarsa o con il nome sbagliato. Funziona solo con una lista di specie: un certificato, una lista tua o le specie di una regione.", fr: "Pour les espèces qui ont moins de 50 photos sur iNaturalist, des images supplémentaires sont récupérées sur GBIF (musées, herbiers et autres plateformes) : photos sur le vif de préférence, parts d'herbier seulement quand une espèce est vraiment pauvre en images. Activé par défaut ; il arrive que certaines images soient de moindre qualité ou mal déterminées. Ne fonctionne qu'avec une liste d'espèces : un certificat, ta propre liste, ou les espèces d'une région.", es: "Si una especie tiene menos de 50 fotos en iNaturalist, se añaden más desde GBIF (museos, herbarios y otras plataformas): se prefieren las fotos de ejemplares vivos y solo se recurre a pliegos de herbario cuando la especie tiene de verdad muy pocas imágenes. Viene activado; alguna imagen puede ser de peor calidad o estar mal identificada. Solo funciona si hay una lista de especies: un certificado, tu propia lista o las especies de una región." },
+  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, herbaria and other platforms) — live photos preferred, herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or the “Region's species, photos from anywhere” mode.": { de: "Hat eine Art auf iNaturalist weniger als 50 Fotos, kommen weitere von GBIF dazu (Museen, Herbarien und andere Plattformen) – bevorzugt Lebendaufnahmen, Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig eingeschaltet; gelegentlich sind Bilder von schlechterer Qualität oder mit falscher Bestimmung dabei. Funktioniert nur mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder dem Modus „Arten deiner Region, Fotos aus aller Welt“.", it: "Per le specie con meno di 50 foto su iNaturalist ne aggiunge altre da GBIF (musei, erbari e altre piattaforme), preferendo le foto dal vivo e ricorrendo ai campioni d'erbario solo quando una specie ha davvero pochissime immagini. È attivo di default; ogni tanto può capitare qualche immagine di qualità scarsa o con il nome sbagliato. Funziona solo con una lista di specie: un certificato, una lista tua o la modalità «Specie della regione, foto da ovunque».", fr: "Pour les espèces qui ont moins de 50 photos sur iNaturalist, des images supplémentaires sont récupérées sur GBIF (musées, herbiers et autres plateformes) : photos sur le vif de préférence, parts d'herbier seulement quand une espèce est vraiment pauvre en images. Activé par défaut ; il arrive que certaines images soient de moindre qualité ou mal déterminées. Ne fonctionne qu'avec une liste d'espèces : un certificat, ta propre liste, ou le mode « Espèces de la région, photos de partout ».", es: "Si una especie tiene menos de 50 fotos en iNaturalist, se añaden más desde GBIF (museos, herbarios y otras plataformas): se prefieren las fotos de ejemplares vivos y solo se recurre a pliegos de herbario cuando la especie tiene de verdad muy pocas imágenes. Viene activado; alguna imagen puede ser de peor calidad o estar mal identificada. Solo funciona si hay una lista de especies: un certificado, tu propia lista o el modo «Especies de tu región, fotos de todo el mundo»." },
+  // Round results
+  "XP": { de: "XP", it: "XP", fr: "XP", es: "XP" },
+  "Accuracy": { de: "Trefferquote", it: "Precisione", fr: "Réussite", es: "Precisión" },
+  "Streak": { de: "Serie", it: "Serie", fr: "Série", es: "Racha" },
+  "Reviewed": { de: "Wiederholt", it: "Ripassate", fr: "Révisées", es: "Repasadas" },
+  "Still to go": { de: "Noch offen", it: "Ancora da fare", fr: "Encore à voir", es: "Aún pendientes" },
+  "🔁 Due for review": { de: "🔁 Zur Wiederholung fällig", it: "🔁 Da ripassare", fr: "🔁 À réviser", es: "🔁 Toca repasar" },
+  // Loading / status lines
+  "Loading…": { de: "Wird geladen…", it: "Caricamento…", fr: "Chargement…", es: "Cargando…" },
+  "Loading your species…": { de: "Deine Arten werden geladen…", it: "Caricamento delle tue specie…", fr: "Chargement de tes espèces…", es: "Cargando tus especies…" },
+  "Finding the most common species…": { de: "Die häufigsten Arten werden gesucht…", it: "Ricerca delle specie più comuni…", fr: "Recherche des espèces les plus communes…", es: "Buscando las especies más comunes…" },
+  "GBIF top-up": { de: "GBIF-Ergänzung", it: "Integrazione GBIF", fr: "Complément GBIF", es: "Refuerzo con GBIF" },
+  // Toasts and errors
+  "Couldn't reach iNaturalist. Try again.": { de: "iNaturalist ist nicht erreichbar. Versuch es nochmal.", it: "iNaturalist non risponde. Riprova.", fr: "iNaturalist est injoignable. Réessaie.", es: "No se pudo conectar con iNaturalist. Inténtalo otra vez." },
+  "Couldn't reach iNaturalist. Check your connection and try again.": { de: "iNaturalist ist nicht erreichbar. Prüf deine Verbindung und versuch es nochmal.", it: "iNaturalist non risponde. Controlla la connessione e riprova.", fr: "iNaturalist est injoignable. Vérifie ta connexion et réessaie.", es: "No se pudo conectar con iNaturalist. Comprueba tu conexión e inténtalo otra vez." },
+  "Couldn't read that file.": { de: "Die Datei konnte nicht gelesen werden.", it: "Non è stato possibile leggere il file.", fr: "Impossible de lire ce fichier.", es: "No se pudo leer el archivo." },
+  "Couldn't save the imported data (storage blocked).": { de: "Die importierten Daten konnten nicht gespeichert werden (Speicher blockiert).", it: "Non è stato possibile salvare i dati importati (archiviazione bloccata).", fr: "Impossible d'enregistrer les données importées (stockage bloqué).", es: "No se pudieron guardar los datos importados (almacenamiento bloqueado)." },
+  "That file isn't valid JSON.": { de: "Diese Datei ist kein gültiges JSON.", it: "Il file non è JSON valido.", fr: "Ce fichier n'est pas du JSON valide.", es: "Ese archivo no es JSON válido." },
+  "That file isn't a Determinare backup.": { de: "Diese Datei ist keine Determinare-Sicherung.", it: "Il file non è un backup di Determinare.", fr: "Ce fichier n'est pas une sauvegarde Determinare.", es: "Ese archivo no es una copia de seguridad de Determinare." },
+  "Backup downloaded.": { de: "Sicherung heruntergeladen.", it: "Backup scaricato.", fr: "Sauvegarde téléchargée.", es: "Copia de seguridad descargada." },
+  "Backup imported.": { de: "Sicherung importiert.", it: "Backup importato.", fr: "Sauvegarde importée.", es: "Copia de seguridad importada." },
+  "Import this backup? It replaces the players and progress currently in this browser.": { de: "Diese Sicherung importieren? Damit werden die Profile und der Fortschritt ersetzt, die gerade in diesem Browser liegen.", it: "Importare questo backup? Sostituirà i giocatori e i progressi che hai adesso in questo browser.", fr: "Importer cette sauvegarde ? Elle remplacera les joueurs et la progression actuellement dans ce navigateur.", es: "¿Importar esta copia de seguridad? Sustituirá los jugadores y el progreso que tienes ahora en este navegador." },
+  "Nothing to train there yet.": { de: "Dazu gibt es noch nichts zu üben.", it: "Qui non c'è ancora niente da esercitare.", fr: "Rien à travailler ici pour l'instant.", es: "Aquí todavía no hay nada que practicar." },
+  "Pick at least one group to learn.": { de: "Wähle mindestens eine Gruppe zum Lernen.", it: "Scegli almeno un gruppo da studiare.", fr: "Choisis au moins un groupe à apprendre.", es: "Elige al menos un grupo para aprender." },
+  "Type or upload some names first.": { de: "Tippe zuerst ein paar Namen ein oder lade sie hoch.", it: "Prima scrivi o carica qualche nome.", fr: "Commence par taper ou importer quelques noms.", es: "Primero escribe o sube algunos nombres." },
+  "No species resolved yet — tap “Resolve names”.": { de: "Noch keine Arten zugeordnet – tippe auf „Namen zuordnen“.", it: "Nessuna specie ancora riconosciuta: tocca «Riconosci i nomi».", fr: "Aucune espèce reconnue pour l'instant — appuie sur « Reconnaître les noms ».", es: "Todavía no se ha reconocido ninguna especie: toca «Reconocer nombres»." },
+  "Tap “Resolve names” to check these against iNaturalist.": { de: "Tippe auf „Namen zuordnen“, um sie mit iNaturalist abzugleichen.", it: "Tocca «Riconosci i nomi» per confrontarli con iNaturalist.", fr: "Appuie sur « Reconnaître les noms » pour les vérifier auprès d'iNaturalist.", es: "Toca «Reconocer nombres» para comprobarlos con iNaturalist." },
+  "We'll come back to this one later.": { de: "Die Art kommt später nochmal.", it: "Ci torneremo più tardi.", fr: "On y reviendra plus tard.", es: "Ya volveremos a esta más tarde." },
+  // Player, list editor and photo controls (buttons, tooltips, screen-reader labels)
+  "Your name": { de: "Dein Name", it: "Il tuo nome", fr: "Ton nom", es: "Tu nombre" },
+  "Rename this player": { de: "Dieses Profil umbenennen", it: "Rinomina questo giocatore", fr: "Renommer ce joueur", es: "Cambiar el nombre de este jugador" },
+  "Finish and see results": { de: "Beenden und Ergebnis ansehen", it: "Termina e vedi i risultati", fr: "Terminer et voir les résultats", es: "Terminar y ver los resultados" },
+  "View full-screen, with zoom": { de: "Vollbild mit Zoom", it: "A schermo intero, con zoom", fr: "Plein écran, avec zoom", es: "Pantalla completa, con zoom" },
+  "Previous photo": { de: "Vorheriges Foto", it: "Foto precedente", fr: "Photo précédente", es: "Foto anterior" },
+  "Next photo": { de: "Nächstes Foto", it: "Foto successiva", fr: "Photo suivante", es: "Foto siguiente" },
+  "Species to identify": { de: "Zu bestimmende Art", it: "Specie da determinare", fr: "Espèce à déterminer", es: "Especie que hay que determinar" },
+  "Species option": { de: "Antwortmöglichkeit", it: "Opzione di risposta", fr: "Proposition de réponse", es: "Opción de respuesta" },
+  "Species photo, zoomed in": { de: "Artfoto, vergrössert", it: "Foto della specie, ingrandita", fr: "Photo de l'espèce, agrandie", es: "Foto de la especie, ampliada" },
+  "Tap to enlarge": { de: "Zum Vergrössern tippen", it: "Tocca per ingrandire", fr: "Appuie pour agrandir", es: "Toca para ampliar" },
+  "Train this": { de: "Gezielt üben", it: "Esercitati su questa", fr: "S'entraîner sur celle-ci", es: "Practicar esta" },
+  "Resolve names": { de: "Namen zuordnen", it: "Riconosci i nomi", fr: "Reconnaître les noms", es: "Reconocer nombres" },
+  "Save list": { de: "Liste speichern", it: "Salva la lista", fr: "Enregistrer la liste", es: "Guardar la lista" },
+  "Delete list": { de: "Liste löschen", it: "Elimina la lista", fr: "Supprimer la liste", es: "Borrar la lista" },
+  "Upload a file": { de: "Datei hochladen", it: "Carica un file", fr: "Importer un fichier", es: "Subir un archivo" },
+  "List name — e.g. “Exam revision”": { de: "Listenname – z. B. „Prüfungsvorbereitung“", it: "Nome della lista – es. «Ripasso d'esame»", fr: "Nom de la liste — p. ex. « Révisions d'examen »", es: "Nombre de la lista: p. ej. «Repaso del examen»" },
+  "Jot a private cue on any species (“round leaves”). It reappears when that species comes back.": { de: "Notier dir zu jeder Art einen eigenen Merksatz („runde Blätter“). Er taucht wieder auf, sobald die Art erneut drankommt.", it: "Annota un promemoria tutto tuo su qualsiasi specie («foglie rotonde»). Ricompare quando quella specie ritorna.", fr: "Note ton propre repère sur n'importe quelle espèce (« feuilles rondes »). Il réapparaît quand l'espèce revient.", es: "Apunta tu propia pista para cualquier especie («hojas redondas»). Reaparece cuando esa especie vuelve a salir." },
+  "Adds “where it was seen” to the hint ladder — a geographic nudge toward the answer.": { de: "Ergänzt die Hinweise um „wo sie beobachtet wurde“ – ein geografischer Wink Richtung Lösung.", it: "Aggiunge «dove è stata osservata» alla scaletta degli indizi: una spinta geografica verso la risposta.", fr: "Ajoute « où elle a été observée » aux indices — un coup de pouce géographique vers la réponse.", es: "Añade «dónde se observó» a las pistas: un empujón geográfico hacia la respuesta." },
+  // World regions offered as answers in "Where?" mode
+  "Scandinavia & the Baltics": { de: "Skandinavien & Baltikum", it: "Scandinavia e Baltico", fr: "Scandinavie et pays baltes", es: "Escandinavia y el Báltico" },
+  "The British Isles": { de: "Britische Inseln", it: "Isole britanniche", fr: "Îles Britanniques", es: "Islas británicas" },
+  "Western Europe": { de: "Westeuropa", it: "Europa occidentale", fr: "Europe de l'Ouest", es: "Europa occidental" },
+  "Central Europe & the Alps": { de: "Mitteleuropa & Alpen", it: "Europa centrale e Alpi", fr: "Europe centrale et Alpes", es: "Europa central y los Alpes" },
+  "Iberia": { de: "Iberische Halbinsel", it: "Penisola iberica", fr: "Péninsule Ibérique", es: "Península ibérica" },
+  "Italy & the Balkans": { de: "Italien & Balkan", it: "Italia e Balcani", fr: "Italie et Balkans", es: "Italia y los Balcanes" },
+  "Eastern Europe & Russia": { de: "Osteuropa & Russland", it: "Europa orientale e Russia", fr: "Europe de l'Est et Russie", es: "Europa oriental y Rusia" },
+  "The Mediterranean coast of Africa & the Near East": { de: "Mittelmeerküste Afrikas & Naher Osten", it: "Costa mediterranea dell'Africa e Vicino Oriente", fr: "Côte méditerranéenne de l'Afrique et Proche-Orient", es: "Costa mediterránea de África y Próximo Oriente" },
+  "Arabia & Iran": { de: "Arabien & Iran", it: "Arabia e Iran", fr: "Arabie et Iran", es: "Arabia e Irán" },
+  "Tropical Africa": { de: "Tropisches Afrika", it: "Africa tropicale", fr: "Afrique tropicale", es: "África tropical" },
+  "Southern Africa & Madagascar": { de: "Südliches Afrika & Madagaskar", it: "Africa australe e Madagascar", fr: "Afrique australe et Madagascar", es: "África austral y Madagascar" },
+  "Central & northern Asia": { de: "Zentral- & Nordasien", it: "Asia centrale e settentrionale", fr: "Asie centrale et septentrionale", es: "Asia central y septentrional" },
+  "South Asia": { de: "Südasien", it: "Asia meridionale", fr: "Asie du Sud", es: "Asia meridional" },
+  "East Asia": { de: "Ostasien", it: "Asia orientale", fr: "Asie de l'Est", es: "Asia oriental" },
+  "South-East Asia": { de: "Südostasien", it: "Sud-est asiatico", fr: "Asie du Sud-Est", es: "Sudeste asiático" },
+  "Australia & New Zealand": { de: "Australien & Neuseeland", it: "Australia e Nuova Zelanda", fr: "Australie et Nouvelle-Zélande", es: "Australia y Nueva Zelanda" },
+  "The Pacific islands": { de: "Pazifische Inseln", it: "Isole del Pacifico", fr: "Îles du Pacifique", es: "Islas del Pacífico" },
+  "North America": { de: "Nordamerika", it: "America settentrionale", fr: "Amérique du Nord", es: "América del Norte" },
+  "Mexico, Central America & the Caribbean": { de: "Mexiko, Mittelamerika & Karibik", it: "Messico, America centrale e Caraibi", fr: "Mexique, Amérique centrale et Caraïbes", es: "México, Centroamérica y el Caribe" },
+  "The Andes & northern South America": { de: "Anden & nördliches Südamerika", it: "Ande e Sud America settentrionale", fr: "Andes et nord de l'Amérique du Sud", es: "Los Andes y el norte de Sudamérica" },
+  "Brazil & the Southern Cone": { de: "Brasilien & südliches Südamerika", it: "Brasile e Cono Sud", fr: "Brésil et Cône Sud", es: "Brasil y el Cono Sur" },
 };
 // The exact-string translation for a manual language, or undefined to fall
 // through to Google.
 const manualTranslation = (text, lang) => (MANUAL_I18N[text] || {})[lang];
+
+// Synchronous lookup for text that never reaches the DOM: native dialogs
+// (confirm/alert) are drawn by the browser, so the observer can't translate
+// them and there is no point at which we could await a fetch. Only the
+// hand-made strings resolve without a round-trip; the machine-translated
+// languages keep the English wording here rather than blocking the dialog.
+const tSync = (text) => manualTranslation(text, uiLang) || text;
 
 // Translate one English string to `lang`. Our own translations win; otherwise
 // Google's endpoint fills in, cached. On any failure it just returns the
@@ -3476,18 +3552,36 @@ async function mapLimit(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-// Translate (or, for "en", restore) every text node + placeholder under `root`.
+// Attributes carrying user-visible English. Tooltips (title) and the labels
+// screen readers announce (aria-label) were being left in English while the
+// visible text around them was translated, so they are handled here too.
+const I18N_ATTRS = ["placeholder", "title", "aria-label", "alt"];
+const I18N_ATTR_SEL = I18N_ATTRS.map((a) => "[" + a + "]").join(",");
+
+// Translate (or, for "en", restore) every text node + translatable attribute
+// under `root`. Each element's English originals are kept on first sight, so
+// switching back to English is exact and switching between languages never
+// translates an already-translated string.
 async function i18nApplyTo(root, lang) {
   const nodes = root.nodeType === 3 ? (i18nSkip(root) ? [] : [root]) : i18nTextNodes(root);
-  const phEls = root.nodeType === 1
-    ? [...root.querySelectorAll("[placeholder]")].filter((e) => !e.closest(I18N_SKIP_SEL))
+  // The observer hands us inserted nodes directly, so `root` itself can be the
+  // element carrying the attribute — querySelectorAll alone would miss it.
+  const attrEls = root.nodeType === 1
+    ? [...(root.matches(I18N_ATTR_SEL) ? [root] : []), ...root.querySelectorAll(I18N_ATTR_SEL)]
+        .filter((e) => !e.closest(I18N_SKIP_SEL))
     : [];
   nodes.forEach((n) => { if (n.__i18n == null) n.__i18n = n.nodeValue; });
-  phEls.forEach((e) => { if (e.__i18nPh == null) e.__i18nPh = e.getAttribute("placeholder"); });
+  attrEls.forEach((e) => {
+    if (e.__i18nAttr) return;
+    e.__i18nAttr = {};
+    I18N_ATTRS.forEach((a) => { if (e.hasAttribute(a)) e.__i18nAttr[a] = e.getAttribute(a); });
+  });
 
   if (lang === "en") {
     nodes.forEach((n) => { if (n.__i18n != null) n.nodeValue = n.__i18n; });
-    phEls.forEach((e) => { if (e.__i18nPh != null) e.setAttribute("placeholder", e.__i18nPh); });
+    attrEls.forEach((e) => {
+      Object.keys(e.__i18nAttr || {}).forEach((a) => e.setAttribute(a, e.__i18nAttr[a]));
+    });
     return;
   }
   await mapLimit(nodes, 6, async (n) => {
@@ -3496,9 +3590,11 @@ async function i18nApplyTo(root, lang) {
     const lead = n.__i18n.match(/^\s*/)[0], tail = n.__i18n.match(/\s*$/)[0];
     n.nodeValue = lead + await i18nTranslate(src, lang) + tail;
   });
-  await mapLimit(phEls, 6, async (e) => {
-    const src = (e.__i18nPh || "").trim();
-    if (src) e.setAttribute("placeholder", await i18nTranslate(src, lang));
+  await mapLimit(attrEls, 6, async (e) => {
+    for (const a of Object.keys(e.__i18nAttr || {})) {
+      const src = (e.__i18nAttr[a] || "").trim();
+      if (src) e.setAttribute(a, await i18nTranslate(src, lang));
+    }
   });
 }
 
