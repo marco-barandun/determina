@@ -1046,8 +1046,8 @@
 
         <label class="toggle field" style="margin-bottom:0;">
           <span>
-            <b>Top up species and photos from GBIF</b>
-            <span class="hint">GBIF gathers museums, herbaria and national surveys, so it usually knows more species — and more photos — than iNaturalist alone. Species it records for your group and area but iNaturalist's list missed are added, so there is more to learn; and species with fewer than 50 iNaturalist photos get extra images, live photos preferred and herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. A certificate or your own list is never added to — those stay exactly as you set them.</span>
+            <b>Top up thin species with GBIF photos</b>
+            <span class="hint">For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, national surveys and other platforms). Only photos of the living organism are used — never pressed herbarium sheets or preserved specimens. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or the “Region's species, photos from anywhere” mode.</span>
           </span>
           <input id="webImagesToggle" type="checkbox" checked>
           <span class="switch"></span>
@@ -1616,28 +1616,13 @@ async function searchTaxa(query, n = 8) {
   return (data.results || []).filter((t) => t.is_active !== false).map((t) => ({
     id: t.id, name: t.name, rank: t.rank || "",
     commonName: t.preferred_common_name || "",
-    iconic: t.iconic_taxon_name || "",   // breaks ties when GBIF matches a name
   }));
-}
-
-// A place's bounding box as [west, south, east, north]. iNaturalist ships one
-// with every place; GBIF has no notion of an iNaturalist place id, so this box
-// is the only thing the two can agree on when we ask GBIF "what lives here?"
-// (see gbifGeometry). Returns null when the place has no usable box, which the
-// caller treats as "can't constrain to this region".
-function placeBbox(p) {
-  const b = p && p.bounding_box_geojson;
-  const ring = b && b.coordinates && b.coordinates[0];
-  if (!ring || ring.length < 4) return null;
-  const lngs = ring.map((c) => c[0]), lats = ring.map((c) => c[1]);
-  const box = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-  return box.every((v) => Number.isFinite(v)) ? box : null;
 }
 
 // Live search for a place. "World" is represented by a null id (no filter).
 async function searchPlaces(query, n = 8) {
   const data = await apiGet("/places/autocomplete", { q: query, per_page: n });
-  return (data.results || []).map((p) => ({ id: p.id, name: p.display_name || p.name, bbox: placeBbox(p) }));
+  return (data.results || []).map((p) => ({ id: p.id, name: p.display_name || p.name }));
 }
 
 // The region's species list, most-observed first — powers the name suggestions.
@@ -2502,7 +2487,7 @@ function addTaxon(taxon) {
   if (game.taxa.some((t) => t.id === taxon.id)) return;   // no duplicates
   // rank comes along so the stats panel below knows not to tell you how many
   // families a family contains.
-  game.taxa.push({ id: taxon.id, name: taxon.name, rank: taxon.rank || "", iconic: taxon.iconic || "" });
+  game.taxa.push({ id: taxon.id, name: taxon.name, rank: taxon.rank || "" });
   renderTaxonChips();
 }
 
@@ -2566,7 +2551,7 @@ function addRegion(place) {
   // normally, so "Uri" then "Graubünden" gives you both together.
   if (!game.regionsTouched) { game.regions = []; game.regionsTouched = true; }
   if (game.regions.some((r) => r.id === place.id)) return;   // no duplicates
-  game.regions.push({ id: place.id, name: place.name, bbox: place.bbox || null });
+  game.regions.push({ id: place.id, name: place.name });
   renderRegionChips();
 }
 
@@ -3456,8 +3441,8 @@ const MANUAL_I18N = {
   "No guess, no worries — onward.": { de: "Nicht geraten, kein Problem – weiter geht's.", it: "Fa niente: si va avanti.", fr: "Pas de réponse ? Pas grave, on continue.", es: "No pasa nada por dejarla en blanco: seguimos." },
   "We'll come back to this one.": { de: "Die Art kommt später nochmal.", it: "Ci torneremo su.", fr: "On y reviendra.", es: "Ya volveremos a esta." },
   // GBIF top-up toggle
-  "Top up species and photos from GBIF": { de: "Arten und Fotos mit GBIF ergänzen", it: "Integra specie e foto da GBIF", fr: "Compléter les espèces et les photos avec GBIF", es: "Completar especies y fotos con GBIF" },
-  "GBIF gathers museums, herbaria and national surveys, so it usually knows more species — and more photos — than iNaturalist alone. Species it records for your group and area but iNaturalist's list missed are added, so there is more to learn; and species with fewer than 50 iNaturalist photos get extra images, live photos preferred and herbarium specimens only when a species is truly image-poor. On by default; occasional lower-quality or mislabelled images. A certificate or your own list is never added to — those stay exactly as you set them.": { de: "GBIF bündelt Museen, Herbarien und nationale Kartierungen und kennt darum meist mehr Arten – und mehr Fotos – als iNaturalist allein. Arten, die GBIF für deine Gruppe und dein Gebiet verzeichnet, die aber in der iNaturalist-Liste fehlten, kommen dazu, damit es mehr zu lernen gibt; und Arten mit weniger als 50 iNaturalist-Fotos bekommen zusätzliche Bilder, bevorzugt Lebendaufnahmen und Herbarbelege nur, wenn eine Art wirklich bildarm ist. Standardmässig eingeschaltet; gelegentlich sind Bilder von schlechterer Qualität oder mit falscher Bestimmung dabei. Ein Zertifikat oder deine eigene Liste wird nie ergänzt – die bleiben genau so, wie du sie festgelegt hast.", it: "GBIF raccoglie musei, erbari e censimenti nazionali, e per questo di solito conosce più specie – e più foto – di iNaturalist da solo. Le specie che GBIF registra per il tuo gruppo e la tua zona ma che mancavano nella lista di iNaturalist vengono aggiunte, così hai più cose da imparare; e le specie con meno di 50 foto su iNaturalist ricevono immagini in più, preferendo le foto dal vivo e ricorrendo ai campioni d'erbario solo quando una specie ha davvero pochissime immagini. È attivo di default; ogni tanto può capitare qualche immagine di qualità scarsa o con il nome sbagliato. Un certificato o una lista tua non vengono mai ampliati: restano esattamente come li hai impostati.", fr: "GBIF rassemble musées, herbiers et inventaires nationaux : il connaît donc en général plus d'espèces — et plus de photos — qu'iNaturalist seul. Les espèces que GBIF recense pour ton groupe et ta zone mais qui manquaient dans la liste d'iNaturalist sont ajoutées, pour qu'il y ait davantage à apprendre ; et les espèces qui ont moins de 50 photos sur iNaturalist reçoivent des images supplémentaires, photos sur le vif de préférence, parts d'herbier seulement quand une espèce est vraiment pauvre en images. Activé par défaut ; il arrive que certaines images soient de moindre qualité ou mal déterminées. Un certificat ou ta propre liste n'est jamais complété : ils restent exactement tels que tu les as définis.", es: "GBIF reúne museos, herbarios y censos nacionales, así que suele conocer más especies —y más fotos— que iNaturalist por sí solo. Las especies que GBIF registra para tu grupo y tu zona pero que faltaban en la lista de iNaturalist se añaden, para que tengas más que aprender; y las especies con menos de 50 fotos en iNaturalist reciben imágenes adicionales, prefiriendo las de ejemplares vivos y recurriendo a pliegos de herbario solo cuando la especie tiene de verdad muy pocas imágenes. Viene activado; alguna imagen puede ser de peor calidad o estar mal identificada. Un certificado o tu propia lista nunca se amplían: se quedan exactamente como los hayas definido." },
+  "Top up thin species with GBIF photos": { de: "Fotoarme Arten mit GBIF-Fotos auffüllen", it: "Più foto da GBIF per le specie con poche immagini", fr: "Compléter les espèces peu illustrées avec des photos GBIF", es: "Completar con GBIF las especies con pocas fotos" },
+  "For species with fewer than 50 iNaturalist photos, add more from GBIF (museums, national surveys and other platforms). Only photos of the living organism are used — never pressed herbarium sheets or preserved specimens. On by default; occasional lower-quality or mislabelled images. Works with a species list — a certificate, your own list, or the “Region's species, photos from anywhere” mode.": { de: "Hat eine Art auf iNaturalist weniger als 50 Fotos, kommen weitere von GBIF dazu (Museen, nationale Kartierungen und andere Plattformen). Verwendet werden nur Aufnahmen des lebenden Organismus – nie Herbarbelege oder konservierte Objekte. Standardmässig eingeschaltet; gelegentlich sind Bilder von schlechterer Qualität oder mit falscher Bestimmung dabei. Funktioniert nur mit einer Artenliste – einem Zertifikat, deiner eigenen Liste oder dem Modus „Arten deiner Region, Fotos aus aller Welt“.", it: "Per le specie con meno di 50 foto su iNaturalist ne aggiunge altre da GBIF (musei, censimenti nazionali e altre piattaforme). Vengono usate solo immagini dell'organismo vivo, mai campioni d'erbario o esemplari conservati. È attivo di default; ogni tanto può capitare qualche immagine di qualità scarsa o con il nome sbagliato. Funziona solo con una lista di specie: un certificato, una lista tua o la modalità «Specie della regione, foto da ovunque».", fr: "Pour les espèces qui ont moins de 50 photos sur iNaturalist, des images supplémentaires sont récupérées sur GBIF (musées, inventaires nationaux et autres plateformes). Seules les photos de l'organisme vivant sont utilisées, jamais les parts d'herbier ni les spécimens conservés. Activé par défaut ; il arrive que certaines images soient de moindre qualité ou mal déterminées. Ne fonctionne qu'avec une liste d'espèces : un certificat, ta propre liste, ou le mode « Espèces de la région, photos de partout ».", es: "Si una especie tiene menos de 50 fotos en iNaturalist, se añaden más desde GBIF (museos, censos nacionales y otras plataformas). Solo se usan imágenes del organismo vivo, nunca pliegos de herbario ni ejemplares conservados. Viene activado; alguna imagen puede ser de peor calidad o estar mal identificada. Solo funciona si hay una lista de especies: un certificado, tu propia lista o el modo «Especies de tu región, fotos de todo el mundo»." },
   // Round results
   "XP": { de: "XP", it: "XP", fr: "XP", es: "XP" },
   "Accuracy": { de: "Trefferquote", it: "Precisione", fr: "Réussite", es: "Precisión" },
@@ -3729,7 +3714,6 @@ async function startSession() {
   game.covered = new Set(); game.gbifTried = new Set(); game.gapFilling = false;   // GBIF gap-fill bookkeeping
   game.obsCount = new Map();   // taxonId -> iNat photo count for the pool (drives GBIF top-up)
   game.balancedPool = []; game.speciesObs = new Map();   // equal-weight species sampling
-  game.fixedList = false; game.gbifAdded = 0;   // a certificate / own list is never topped up with extra species
 
   // Certificate mode: quiz a fixed, taxonomy-harmonised species list instead of
   // a group. It overrides the group / common-species choice; region still
@@ -3750,7 +3734,6 @@ async function startSession() {
       scientificName: game.taxonomy === "checklist" ? s[2] : s[1], commonName: "", count: 0 }));
     game.label = "Certificate · " + cert.label;
     game.commonOnly = false;
-    game.fixedList = true;   // an exam syllabus: exactly these species, no additions
   } else if (customList) {
     // A user's own list behaves exactly like a certificate pool — a fixed set of
     // taxon ids, fetched a chunk at a time (see currentFetchIds/poolChunk).
@@ -3758,7 +3741,6 @@ async function startSession() {
     game.checklist = customList.taxa.map((t) => ({ id: t.id, scientificName: t.scientificName, commonName: t.commonName || "", count: 0 }));
     game.label = "List · " + customList.name;
     game.commonOnly = false;
-    game.fixedList = true;   // your own list means exactly your own list
   }
 
   showScreen("play");
@@ -3905,7 +3887,7 @@ function startReview(useFreshPhotos) {
   const entries = shuffle([...game.missed.values()]);
   if (entries.length === 0) return;
   game.mode = "review";
-  game.pool = null; game.obsCount = new Map(); game.fixedList = false;   //the end-of-round pile isn't a fixed-list session
+  game.pool = null; game.obsCount = new Map();   // the end-of-round pile isn't a fixed-list session
   game.counts = false;   // you saw these answers seconds ago — they'd flatter the stats
   game.round = { size: entries.length, index: 0, correct: 0 };
   game.roundLog = [];
@@ -3951,7 +3933,7 @@ function startHistoryReview(species, answerMode, label) {
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
   game.allowRepeats   = true;
   game.mode           = "review";
-  game.pool = null; game.obsCount = new Map(); game.fixedList = false;   //a review isn't a fixed-list session — no GBIF top-up / stale pool
+  game.pool = null; game.obsCount = new Map();   // a review isn't a fixed-list session — no GBIF top-up / stale pool
   // These are genuine cross-session retrieval (you haven't just been shown the
   // answer), so unlike the end-of-round pile they DO count — otherwise training
   // your weak spots could never actually improve them.
@@ -4076,10 +4058,11 @@ function questionFromSavedMedia(base, media) {
 //  other platforms) — no API key, CORS enabled — so it can top up the image pool
 //  for exactly those species. iNat photos are always preferred; we only reach
 //  for GBIF when a species has FEWER THAN 50 iNat photos (see GBIF_TARGET), and
-//  we prefer live field photos, only allowing pressed herbarium / preserved-
-//  specimen shots when a species is so image-poor that live sources (iNat +
-//  GBIF-live) still can't reach the target. Quality control is looser
-//  (occasional mislabelling) — the accepted trade-off.
+//  ONLY live field photos are used — pressed herbarium sheets and other
+//  preserved specimens are dropped, however image-poor a species is, because
+//  they look nothing like the living organism and teach the wrong search image.
+//  A species with no live GBIF photo just gets no top-up. Quality control is
+//  looser than iNaturalist's (occasional mislabelling) — the accepted trade-off.
 const GBIF_LIVE_BASIS = new Set(["HUMAN_OBSERVATION", "MACHINE_OBSERVATION", "OBSERVATION", "LIVING_SPECIMEN"]);
 const GBIF_TARGET = 50;        // a species with this many iNat photos is "well covered"
 const GBIF_STRIP_MAX = 8;      // how many GBIF images to actually put on the strip
@@ -4088,44 +4071,37 @@ const GBIF_STRIP_MAX = 8;      // how many GBIF images to actually put on the st
 // species_counts fetched at session start.
 const iNatCount = (taxonId) => (game.obsCount && game.obsCount.get(taxonId)) || 0;
 
-// GBIF images for a species, split into live field photos vs pressed specimens.
-async function fetchGbifSplit(name) {
-  if (!name) return { live: [], specimen: [] };
+// Live field photos of a species from GBIF. Pressed herbarium sheets and other
+// preserved specimens are dropped outright: they look nothing like the living
+// organism you meet in the field, so quizzing on them teaches the wrong search
+// image. A species with no live GBIF photo simply gets no top-up.
+async function fetchGbifLive(name) {
+  if (!name) return [];
   try {
     // 40 records is ~2.5x less to download than 100 and roughly halves the wait,
     // while still offering far more candidates than the 8 we actually show.
     const url = "https://api.gbif.org/v1/occurrence/search?" + new URLSearchParams({
       scientificName: name, mediaType: "StillImage", limit: 40 });
     const res = await fetch(url);
-    if (!res.ok) return { live: [], specimen: [] };
+    if (!res.ok) return [];
     const data = await res.json();
-    const live = [], specimen = [];
+    const live = [];
     (data.results || []).forEach((r) => {
-      const bucket = GBIF_LIVE_BASIS.has(r.basisOfRecord) ? live : specimen;
+      if (!GBIF_LIVE_BASIS.has(r.basisOfRecord)) return;   // preserved specimen — skip
       (r.media || []).forEach((m) => {
         if (m.type === "StillImage" && m.identifier && /^https?:\/\//.test(m.identifier)) {
-          bucket.push({ url: m.identifier, attribution: (m.rightsHolder || m.creator || "Unknown") + " · GBIF", web: true });
+          live.push({ url: m.identifier, attribution: (m.rightsHolder || m.creator || "Unknown") + " · GBIF", web: true });
         }
       });
     });
-    return { live: shuffle(live), specimen: shuffle(specimen) };
-  } catch (err) { return { live: [], specimen: [] }; }
-}
-
-// Pick up to `want` GBIF images for a species that already has `iNatN` iNat
-// photos: live photos preferred, and herbarium specimens allowed ONLY if live
-// sources together still fall short of the target — so image-poor species get
-// filled, well-served ones stay specimen-free.
-function chooseGbif(split, iNatN, want) {
-  const liveReachesTarget = iNatN + split.live.length >= GBIF_TARGET;
-  const pool = liveReachesTarget ? split.live : split.live.concat(split.specimen);
-  return pool.slice(0, want);
+    return shuffle(live);
+  } catch (err) { return []; }
 }
 
 // Build a playable question straight from GBIF images, for a species iNat has
 // nothing for (so it would otherwise never appear at all).
 async function buildGbifQuestion(sp) {
-  const imgs = chooseGbif(await fetchGbifSplit(sp.scientificName), 0, GBIF_STRIP_MAX);
+  const imgs = (await fetchGbifLive(sp.scientificName)).slice(0, GBIF_STRIP_MAX);
   if (!imgs.length) return null;
   return { taxonId: sp.id, scientificName: sp.scientificName,
     iconic: sp.iconic || iconicFor(sp.id),
@@ -4173,7 +4149,7 @@ async function appendWebImages(question) {
   if (!game.webImages || game.media !== "photo" || !game.pool || question.gbif) return;
   const c = iNatCount(question.taxonId);
   if (c <= 0 || c >= GBIF_TARGET) return;   // 0 handled by gap-fill; >=50 well covered
-  const imgs = chooseGbif(await fetchGbifSplit(question.scientificName), c, GBIF_STRIP_MAX);
+  const imgs = (await fetchGbifLive(question.scientificName)).slice(0, GBIF_STRIP_MAX);
   if (game.current !== question || !imgs.length) return;
   const strip = el("photoStrip");
   if (!strip) return;
@@ -4186,168 +4162,6 @@ async function appendWebImages(question) {
   el("photoNext").classList.remove("hidden");
   el("photoCount").classList.remove("hidden");
   updatePhotoIndicator();
-}
-
-// -- GBIF species-list top-up ---------------------------------------------
-//  iNaturalist's species_counts only returns its first ~500 rows reliably, and
-//  it only knows what iNaturalist users have photographed. GBIF aggregates
-//  museums, herbaria, national surveys and atlas schemes as well, so for the
-//  same group and area it usually knows MORE species. This section asks GBIF
-//  which species occur here and adds the ones iNaturalist's list missed, so
-//  there is more to learn than iNaturalist alone would ever offer.
-//
-//  Those extra species have, by definition, no iNaturalist observations, so
-//  their questions are built from GBIF images (buildGbifQuestion) — the same
-//  path already used for pool species iNaturalist has nothing for.
-//
-//  Deliberately NOT applied to a certificate or your own uploaded list: those
-//  are fixed syllabi, and quietly adding species to them would break the very
-//  thing they are for. Region- and group-based sessions are topped up.
-const GBIF_BACKBONE = "d7dddbf4-2cf0-4f39-9b2a-bb099caae36c";  // GBIF's backbone taxonomy
-const GBIF_SPECIES_FACET = 1000;   // species per facet call (one request)
-const GBIF_EXTRA_MAX = 400;        // cap on species added, so a pool stays playable
-// GBIF's backbone has no superfamily rank, so a few iNaturalist groups have to
-// be expressed as the families they contain. Butterflies are the one preset
-// this affects.
-const GBIF_TAXON_ALIASES = {
-  Papilionoidea: ["Papilionidae", "Pieridae", "Nymphalidae", "Lycaenidae", "Riodinidae", "Hesperiidae"],
-};
-const gbifTaxonKeyCache = new Map();
-
-// A GBIF backbone key for one scientific name. The match endpoint is exact and
-// cheap but returns nothing for ambiguous names ("Iris" is both a plant and a
-// mantis) or ranks GBIF doesn't carry, so we fall back to a search filtered to
-// an exact canonical-name hit.
-async function gbifKeyFor(name, rank, kingdom) {
-  const cacheKey = name + "|" + (rank || "") + "|" + (kingdom || "");
-  if (gbifTaxonKeyCache.has(cacheKey)) return gbifTaxonKeyCache.get(cacheKey);
-  let key = null;
-  try {
-    const p = new URLSearchParams({ strict: "false", name: name });
-    if (rank) p.set("rank", String(rank).toUpperCase());
-    if (kingdom) p.set("kingdom", kingdom);
-    const res = await fetch("https://api.gbif.org/v1/species/match?" + p);
-    const j = await res.json();
-    if (j && j.usageKey) key = j.usageKey;
-    if (!key) {
-      const s = await fetch("https://api.gbif.org/v1/species/search?limit=20&status=ACCEPTED" +
-        "&datasetKey=" + GBIF_BACKBONE + "&q=" + encodeURIComponent(name));
-      const sj = await s.json();
-      const exact = (sj.results || []).filter((r) => (r.canonicalName || "") === name);
-      const pick = (kingdom && exact.find((r) => r.kingdom === kingdom)) || exact[0];
-      if (pick) key = pick.key;
-    }
-  } catch (err) { /* leave null — the top-up is best-effort */ }
-  gbifTaxonKeyCache.set(cacheKey, key);
-  return key;
-}
-
-// Every GBIF key for the groups being studied, expanding the alias table where
-// GBIF can't express the rank iNaturalist used.
-async function gbifTaxonKeys(taxa) {
-  const keys = [];
-  for (const t of taxa) {
-    const names = GBIF_TAXON_ALIASES[t.name] || [t.name];
-    const rank = GBIF_TAXON_ALIASES[t.name] ? "FAMILY" : t.rank;
-    for (const n of names) {
-      const k = await gbifKeyFor(n, rank, iconicKingdom(t.iconic));
-      if (k) keys.push(k);
-    }
-  }
-  return keys;
-}
-
-// iNaturalist's iconic groups mapped onto GBIF kingdoms, purely to break ties
-// on ambiguous names. Anything unrecognised returns "" (no hint).
-function iconicKingdom(iconic) {
-  if (!iconic) return "";
-  if (["Plantae", "Fungi", "Protozoa", "Chromista", "Bacteria"].includes(iconic)) return iconic;
-  return "Animalia";
-}
-
-// The selected regions as a GBIF `geometry` polygon: the union bounding box of
-// every chosen place, wound counter-clockwise (GBIF reads a clockwise ring as
-// the rest of the planet). A box is coarser than the real border, so a species
-// just outside the region can slip in — acceptable for a top-up, and the
-// alternative is no regional filter at all. Returns:
-//   ""    -> World, no filter needed
-//   null  -> a region is selected but we have no box for it, so don't top up
-//            (a worldwide species list would be wrong for a regional session)
-function gbifGeometry() {
-  const real = game.regions.filter((r) => r.id !== null);
-  if (!real.length) return "";
-  const boxes = real.map((r) => r.bbox).filter(Boolean);
-  if (boxes.length !== real.length) return null;
-  const w = Math.min(...boxes.map((b) => b[0])), s = Math.min(...boxes.map((b) => b[1]));
-  const e = Math.max(...boxes.map((b) => b[2])), n = Math.max(...boxes.map((b) => b[3]));
-  // A box spanning most of the globe is no filter at all; treat it as World.
-  if (e - w >= 359 || n - s >= 179) return "";
-  const p = (x, y) => x.toFixed(4) + " " + y.toFixed(4);
-  return "POLYGON((" + [p(w, s), p(e, s), p(e, n), p(w, n), p(w, s)].join(",") + "))";
-}
-
-// "Genus epithet" from a GBIF scientific name, dropping the author and any
-// infraspecific rank ("Senecio inaequidens DC." -> "Senecio inaequidens"), or
-// null for anything that isn't a proper binomial (genus-only rows, hybrids).
-function gbifBinomial(name) {
-  const parts = String(name || "").trim().replace(/^×\s*/, "").split(/\s+/);
-  if (parts.length < 2) return null;
-  if (!/^[A-Z][a-z-]+$/.test(parts[0])) return null;
-  if (!/^[a-z][a-z-]+$/.test(parts[1])) return null;
-  return parts[0] + " " + parts[1];
-}
-
-// Which species GBIF records for these groups in this area, commonest first.
-// One faceted request per call — the facet carries the names themselves, so no
-// per-species key lookups are needed.
-async function fetchGbifSpeciesList(keys, geometry) {
-  if (!keys.length) return [];
-  const p = new URLSearchParams({ limit: "0", hasCoordinate: "true",
-    facet: "scientificName", facetLimit: String(GBIF_SPECIES_FACET) });
-  if (geometry) p.set("geometry", geometry);
-  const url = "https://api.gbif.org/v1/occurrence/search?" + p +
-    "&" + keys.map((k) => "taxonKey=" + k).join("&");
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const j = await res.json();
-    const counts = (j.facets && j.facets[0] && j.facets[0].counts) || [];
-    const seen = new Map();
-    counts.forEach((c) => {
-      const bn = gbifBinomial(c.name);
-      if (bn) seen.set(bn, (seen.get(bn) || 0) + (c.count || 0));
-    });
-    return [...seen].map(([scientificName, count]) => ({ scientificName, count }));
-  } catch (err) { return []; }
-}
-
-// Add the species GBIF knows about that iNaturalist's list didn't have. They
-// get negative ids so they can never collide with a real iNaturalist taxon id,
-// and are flagged `gbifOnly` so the sampler fetches their photos from GBIF.
-let gbifOnlySeq = 0;
-async function topUpSpeciesFromGbif() {
-  if (!game.webImages || game.fixedList || game.media !== "photo") return;
-  const geometry = gbifGeometry();
-  if (geometry === null) return;          // region selected but no box for it
-  const keys = await gbifTaxonKeys(game.taxa);
-  if (!keys.length) return;
-  const found = await fetchGbifSpeciesList(keys, geometry);
-  if (!found.length) return;
-  const have = new Set(game.checklist.map((s) => normalize(s.scientificName)));
-  const iconic = (game.taxa[0] && game.taxa[0].iconic) || "";
-  let added = 0;
-  for (const sp of found) {
-    if (added >= GBIF_EXTRA_MAX) break;
-    const norm = normalize(sp.scientificName);
-    if (have.has(norm)) continue;
-    have.add(norm);
-    const entry = { id: --gbifOnlySeq, scientificName: sp.scientificName,
-      commonName: "", count: 0, gbifOnly: true, iconic: iconic };
-    game.checklist.push(entry);
-    game.balancedPool.push({ id: entry.id, scientificName: entry.scientificName, gbifOnly: true, iconic: iconic });
-    added++;
-  }
-  game.gbifAdded = added;
 }
 
 // -- keeping the question queue topped up ---------------------------------
@@ -4363,13 +4177,36 @@ function currentFetchIds() { return game.pool ? poolChunk() : game.taxonIds; }
 //  draw from it UNIFORMLY — every species has the same chance of being the next
 //  question — fetching one species' observations at a time and caching them.
 const BALANCED_BATCH = 8;   // how many questions a fill adds at once
+const FAVED_HEAD = 10;      // how many of the best-faved observations to draw from
+
+// Keep the best-faved observations first (fetchSpeciesObs sorts them that way)
+// but shuffle within that leading group, so a species doesn't open with the
+// identical photo every session while still showing one of its good ones. The
+// unfaved tail keeps its order and is only reached once the head runs out.
+function favedFirst(questions) {
+  if (questions.length <= 1) return questions;
+  return shuffle(questions.slice(0, FAVED_HEAD)).concat(questions.slice(FAVED_HEAD));
+}
 
 // One species' observations, as ready-to-play questions.
+//  Ordered by faves first. A fave is a fellow naturalist saying "this is a good
+//  shot of it", which is the closest thing to a photo-quality signal the API
+//  offers, and it costs nothing to ask for. It only sorts what comes back — a
+//  species whose observations are all unfaved is simply returned in the API's
+//  own order, so nothing is lost where the signal is absent.
+//  The ordering is a preference, never a requirement: if the API rejects it or
+//  hands back nothing, we immediately refetch unordered, so a quiz can never end
+//  up empty because of it.
 async function fetchSpeciesObs(taxonId) {
+  const base = { taxon_id: taxonId, place_id: game.placeId, quality_grade: "research", rank: "species", per_page: 30, page: 1 };
+  base[game.media === "sound" ? "sounds" : "photos"] = "true";
   try {
-    const params = { taxon_id: taxonId, place_id: game.placeId, quality_grade: "research", rank: "species", per_page: 30, page: 1 };
-    params[game.media === "sound" ? "sounds" : "photos"] = "true";
-    const data = await apiGet("/observations", params);
+    const data = await apiGet("/observations", Object.assign({ order_by: "votes", order: "desc" }, base));
+    const qs = toQuestions(data.results);
+    if (qs.length) return qs;
+  } catch (err) { /* fall through to the plain fetch below */ }
+  try {
+    const data = await apiGet("/observations", base);
     return toQuestions(data.results);
   } catch (err) { return []; }
 }
@@ -4381,36 +4218,14 @@ async function buildBalancedPool() {
   const binomials = (arr) => arr
     .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
     .map((s) => ({ id: s.id, scientificName: s.scientificName }));
-  if (game.pool || game.commonOnly) {
-    game.balancedPool = binomials(game.checklist);
-  } else {
-    try {
-      const top = await fetchTopSpecies(game.taxonIds, game.placeId);
-      game.checklist = top
-        .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
-        .map((s) => ({ id: s.id, scientificName: s.scientificName, commonName: s.commonName, count: s.count }));
-      game.balancedPool = game.checklist.map((s) => ({ id: s.id, scientificName: s.scientificName }));
-    } catch (err) { game.balancedPool = []; }
-  }
-  // Then widen the list with the species GBIF knows about and iNaturalist's
-  // didn't have. Skipped for a certificate or your own list (see
-  // topUpSpeciesFromGbif) and for the common-species on-ramp, whose whole point
-  // is a deliberately short list.
-  if (!game.commonOnly) { try { await topUpSpeciesFromGbif(); } catch (err) { /* best-effort */ } }
-}
-
-// Fetch these GBIF species' images all at once. A GBIF species costs a network
-// round-trip, and waiting for them one after another adds seconds per question;
-// in parallel a whole batch costs about as long as the slowest single one.
-// A species with no usable image caches empty, so it is never retried.
-async function warmGbifSpecies(species) {
-  if (!species.length) return;
-  await mapLimit(species, 6, async (sp) => {
-    try {
-      const q = await buildGbifQuestion(sp);
-      game.speciesObs.set(sp.id, { questions: q ? [q] : [], idx: 0 });
-    } catch (err) { game.speciesObs.set(sp.id, { questions: [], idx: 0 }); }
-  });
+  if (game.pool || game.commonOnly) { game.balancedPool = binomials(game.checklist); return; }
+  try {
+    const top = await fetchTopSpecies(game.taxonIds, game.placeId);
+    game.checklist = top
+      .filter((s) => s.scientificName && s.scientificName.trim().split(/\s+/).length >= 2)
+      .map((s) => ({ id: s.id, scientificName: s.scientificName, commonName: s.commonName, count: s.count }));
+    game.balancedPool = game.checklist.map((s) => ({ id: s.id, scientificName: s.scientificName }));
+  } catch (err) { game.balancedPool = []; }
 }
 
 // Add up to `want` questions to the queue, each from a uniformly-random species.
@@ -4418,52 +4233,21 @@ async function fillBalanced(want) {
   const pool = game.balancedPool;
   if (!pool || !pool.length) return;
   const inQueue = new Set(game.queue.map((q) => q.taxonId));
+  let added = 0, tries = 0;
   const cap = want * 6 + 15;
-
-  // Choose this batch's species up front — still uniformly, so every species
-  // keeps the same weight — so the GBIF ones can be fetched together below
-  // rather than one blocking wait per question.
-  const picks = [];
-  const takenNow = new Set();
-  for (let t = 0; t < cap && picks.length < want; t++) {
+  while (added < want && tries < cap) {
+    tries++;
     const sp = pool[randomInt(0, pool.length - 1)];   // uniform — every species equal
-    if (takenNow.has(sp.id)) continue;
     if (!game.allowRepeats && (game.askedTaxa.has(sp.id) || inQueue.has(sp.id))) continue;
-    takenNow.add(sp.id);
-    picks.push(sp);
-  }
-  await warmGbifSpecies(picks.filter((s) => s.gbifOnly && !game.speciesObs.has(s.id)));
-
-  let added = 0;
-  for (const sp of picks) {
-    if (added >= want) break;
-    // A species GBIF supplied has no iNaturalist observations to page through,
-    // so its question is built straight from GBIF images (warmed just above).
-    if (sp.gbifOnly) {
-      const g = game.speciesObs.get(sp.id);
-      if (!g || !g.questions.length) continue;
-      // A copy, so a repeat of this species never puts the same object in the
-      // queue twice (identity is what tells a late photo fetch it's stale).
-      const gq = Object.assign({}, g.questions[0]);
-      if (game.covered) game.covered.add(gq.taxonId);
-      game.queue.push(gq); inQueue.add(gq.taxonId); added++;
-      continue;
-    }
     let c = game.speciesObs.get(sp.id);
-    if (!c) { c = { questions: shuffle(await fetchSpeciesObs(sp.id)), idx: 0 }; game.speciesObs.set(sp.id, c); }
-    if (c.questions.length === 0) continue;                            // nothing here (GBIF gap-fill covers it)
+    if (!c) { c = { questions: favedFirst(await fetchSpeciesObs(sp.id)), idx: 0 }; game.speciesObs.set(sp.id, c); }
     if (c.idx >= c.questions.length) {
-      c.questions = shuffle(await fetchSpeciesObs(sp.id)); c.idx = 0;   // exhausted → refetch for fresh variety
+      if (c.questions.length === 0) continue;                          // this species has nothing (GBIF gap-fill covers it)
+      c.questions = favedFirst(await fetchSpeciesObs(sp.id)); c.idx = 0;   // exhausted → refetch for fresh variety
       if (c.questions.length === 0) continue;
     }
-    // Walk this species' observations for one this session hasn't shown yet,
-    // rather than giving the whole species up on the first repeat.
-    let q = null;
-    while (c.idx < c.questions.length) {
-      const cand = c.questions[c.idx++];
-      if (!game.seen.has(cand.observationId)) { q = cand; break; }
-    }
-    if (!q) continue;
+    const q = c.questions[c.idx++];
+    if (game.seen.has(q.observationId)) continue;
     game.seen.add(q.observationId);
     if (game.covered) game.covered.add(q.taxonId);
     game.queue.push(q); inQueue.add(q.taxonId); added++;
