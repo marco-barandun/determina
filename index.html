@@ -4067,7 +4067,11 @@ function loadAnalytics() {
 // instant gets the tail of the burst dropped at the other end — the first test
 // against the live endpoint lost everything after the first two. Spacing them
 // costs nothing: this is fire-and-forget, and nobody is waiting on it.
-const SEND_GAP_MS = 400;
+// Two seconds between counts. A first attempt at 400ms still lost some of a
+// round's events, and GoatCounter documents no rate limit anywhere, so this is
+// set from what actually survived rather than from a published number. Nothing
+// waits on the queue, so a slow drain costs the player nothing.
+const SEND_GAP_MS = 2000;
 const sendQueue = [];
 let draining = false;
 
@@ -4161,9 +4165,11 @@ function trackRound(finished) {
 
   const asked = game.round ? game.round.size : 0;
   if (finished && asked) {
+    // No separate "finished" count: accuracy is only ever sent for a completed
+    // round, so its total already is the number finished. One request fewer per
+    // round matters when the far end drops bursts.
     const pct = Math.round(100 * (game.round.correct || 0) / asked);
     track("/e/accuracy/" + (Math.floor(pct / 10) * 10) + "s");
-    track("/e/finished");
   } else if (asked) {
     track("/e/quit-at/q" + Math.min(20, (game.round.index || 0) + 1));
   }
