@@ -954,6 +954,67 @@
   @keyframes cowPop { 0%{transform:scale(.4) rotate(-10deg);opacity:0;} 55%{transform:scale(1.22) rotate(5deg);} 78%{transform:scale(.94);} 100%{transform:scale(1) rotate(0);opacity:1;} }
   @keyframes cowTilt { 0%{transform:rotate(0) scale(.85);opacity:0;} 45%{transform:rotate(-7deg) scale(1.05);} 75%{transform:rotate(4deg);} 100%{transform:rotate(0) scale(1);opacity:1;} }
   @keyframes cowShake { 0%{transform:translateX(0) scale(.9);opacity:0;} 25%{transform:translateX(-6px);opacity:1;} 45%{transform:translateX(6px);} 65%{transform:translateX(-4px);} 85%{transform:translateX(2px);} 100%{transform:translateX(0) scale(1);} }
+  /* ---- Laptops and desktops ---------------------------------------------
+     Up to here the app is one phone-shaped column, which is right on a phone
+     and wasteful on a laptop: the photo — the thing you are actually trying to
+     identify — ends up a third of the screen while the rest sits empty. From
+     this width the card widens, setup splits into two columns so the options
+     are visible next to the choices rather than a scroll away, and the play
+     screen puts a large photo beside the answer instead of stacking them.
+     Everything below this breakpoint is untouched. */
+  @media (min-width: 1000px) {
+    /* The gap around the card comes from body padding rather than a margin on
+       the card: body is a fixed 100% tall, and a margin there escapes it and
+       leaves the whole page scrollable by exactly that margin, which shows up
+       as a stray scrollbar with nothing below the fold. Padding is inside the
+       height (border-box), so the card fits exactly. */
+    body { padding: 32px 0; }
+    .app { max-width: 1180px; margin: 0 auto; }
+
+    /* Setup: "what to learn" beside "how to practise"; header and the two big
+       buttons keep the full width. align-items:start so a short card doesn't
+       stretch to match a tall one. */
+    .setup { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; align-items: start; }
+    .setup > .setup-top, .setup > .brand, .setup > .setup-status, .setup > .player-bar,
+    .setup > #startBtn, .setup > #progressBtnSetup { grid-column: 1 / -1; }
+    .setup > .card { grid-column: 1; }
+    .setup > .fold { grid-column: 2; }
+
+    /* Play: the photo takes the left column at whatever height is going, and
+       the prompt, answer box, hints and options stack beside it. The photo card
+       spans the remaining rows so it fills the column however many controls the
+       current mode shows. */
+    .play-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr);
+      column-gap: 26px; align-content: start; }
+    .play-main > .learn-label { grid-column: 1 / -1; }
+    /* An explicit height rather than a stretched grid row: the right-hand column
+       is a stack of rows of its own, so letting the photo span them would tie
+       its height to however many controls the current mode happens to show. */
+    .play-main > .photo-card { grid-column: 1; grid-row: 2 / span 99;
+      aspect-ratio: 4 / 3; height: auto; max-height: calc(100dvh - 258px); min-height: 320px; }
+    /* The credit belongs to the photo, so it stays under it rather than
+       drifting to the top of the answer column. */
+    .play-main > .credit { grid-column: 1; grid-row: 101; margin-top: 6px; }
+    /* Scoped to :not(.reverse-active) rather than overridden later: the :not()
+       chain here is specific enough that a reset rule would lose to it. */
+    .play-main:not(.reverse-active) > *:not(.learn-label):not(.photo-card):not(.credit) {
+      grid-column: 2; align-self: start; }
+    .play-main > .prompt { margin-top: 0; }
+    /* Reverse mode has no single photo — the question IS a grid of photos, so
+       it takes the whole width back. */
+    .play-main.reverse-active { display: flex; }
+    /* "Where?" is a map and wants the width too. */
+    .play-main > .where-area:not(.hidden) { grid-column: 1 / -1; }
+
+    /* The results screen is a short column of numbers and buttons; centred and
+       held narrow it reads far better than stretched across the card. */
+    .done > * { max-width: 520px; width: 100%; margin-left: auto; margin-right: auto; }
+    .bottombar .action-row { max-width: 720px; margin: 0 auto; }
+    /* Charts and lists read better at a sane measure than stretched over the
+       whole card, and the tab bar looks stranded at full width. */
+    .panel > * { max-width: 920px; width: 100%; margin-left: auto; margin-right: auto; }
+  }
+
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
@@ -7169,6 +7230,12 @@ buildChips();           // draws the taxon/region/round-size chips, including to
 populateProfileSelect();
 renderSetupStatus();    // daily streak + "due today" / look-alike prompts
 renderFoldSummaries();  // what each collapsed section currently holds
+// The practise options are folded away on a phone to keep the first screen
+// calm; on a laptop they sit in a column of their own with nothing else in it,
+// so there they start open. Only the initial state — closing it still sticks.
+if (window.matchMedia("(min-width: 1000px)").matches && el("practiseFold")) {
+  el("practiseFold").open = true;
+}
 setupTheme();           // light / dark / device / day-night — <head> already applied it
 setupShortcuts();       // keyboard shortcuts + the (i) that documents them
 setupTranslate();       // our language <select> that drives Google's hidden engine
