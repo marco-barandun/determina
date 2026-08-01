@@ -4153,6 +4153,11 @@ function trackRound(finished) {
     lsSet(ANALYTICS_PINGED, today);
     track("/e/rounds-so-far/" + ret.rounds);
     if (ret.since) track("/e/using-since/" + ret.since);
+    // The language actually being read, which is not what GoatCounter's own
+    // "Languages" panel reports: that is the browser's Accept-Language header.
+    // The app detects that as a starting point but people override it, and the
+    // override is the thing that says whether a translation was worth making.
+    track("/e/lang/" + slug(uiLang || "en"));
   }
 }
 
