@@ -4135,16 +4135,51 @@ function renderThemeChips() {
 //  arrive with a hole exactly where the problem was. Instead the message
 //  carries the species, the observation link and the photo's own url, which
 //  identifies the exact image rather than approximating it.
-const FEEDBACK_EMAIL = "";     // e.g. "you@example.com" — the link hides until set
+const FEEDBACK_EMAIL = "learnit@dryas.ch";     // e.g. "you@example.com" — the link hides until set
 
 let feedbackContext = null;    // set when opened from a live question
+
+// What was actually on screen, which is usually the thing being complained
+// about. A bad question is far more often a bad SET than a bad photo: a
+// distractor from the wrong continent, two species that genuinely can't be told
+// apart at this magnification, or a typed answer refused for being a synonym.
+// None of that is recoverable from the observation alone, and none of it is
+// something a person can be expected to write out by hand.
+function onScreenContext() {
+  const out = {};
+  const choices = [...document.querySelectorAll("#choiceArea .choice")]
+    .map((b) => (b.textContent || "").trim()).filter(Boolean);
+  if (choices.length) out.options = choices;
+
+  // Reverse mode shows photos, not names — record which taxa they belong to.
+  const revs = [...document.querySelectorAll("#reverseArea .rev-photo")];
+  if (revs.length) {
+    const byId = new Map((game.checklist || []).map((s) => [String(s.id), s.scientificName]));
+    out.options = revs.map((b) => byId.get(b.dataset.taxon) || ("taxon " + b.dataset.taxon));
+  }
+
+  const typed = (el("answerInput") && el("answerInput").value || "").trim();
+  if (typed) out.typed = typed;
+  if (game.lastGuess && game.lastGuess.scientificName) out.picked = game.lastGuess.scientificName;
+  // From what the app actually decided, not inferred from lastGuess — that is
+  // only set when a wrong option is PICKED, so a typed answer that was refused
+  // would otherwise be reported as correct, which is the exact complaint being
+  // made.
+  if (game.answered && typeof game.lastCorrect === "boolean") {
+    out.verdict = game.lastCorrect ? "marked correct" : "marked wrong";
+  }
+  if (typeof hintsShown === "number" && hintsShown > 0) out.hints = hintsShown;
+  return out;
+}
 
 function openFeedback(context) {
   feedbackContext = context || null;
   const box = el("feedbackContext");
   if (feedbackContext) {
     box.innerHTML = "Sent with this: <b class='notranslate'>" + escapeHtml(feedbackContext.name) + "</b>" +
-      (feedbackContext.obs ? " · observation " + feedbackContext.obs : "");
+      (feedbackContext.obs ? " · observation " + feedbackContext.obs : "") +
+      (feedbackContext.options ? " · the " + feedbackContext.options.length + " options you were shown" : "") +
+      (feedbackContext.typed || feedbackContext.picked ? " · your answer" : "");
     box.classList.remove("hidden");
   } else {
     box.classList.add("hidden");
@@ -4170,6 +4205,12 @@ function feedbackBody() {
     if (feedbackContext.obs) lines.push("Observation: https://www.inaturalist.org/observations/" + feedbackContext.obs);
     if (feedbackContext.photo) lines.push("Photo: " + feedbackContext.photo);
     lines.push("Answer mode: " + (feedbackContext.mode || "?") + " · " + (feedbackContext.media || "?"));
+    // The rest of the question, not just its subject.
+    if (feedbackContext.options) lines.push("Options offered: " + feedbackContext.options.join(", "));
+    if (feedbackContext.typed) lines.push("Typed: " + feedbackContext.typed);
+    if (feedbackContext.picked) lines.push("Picked: " + feedbackContext.picked);
+    if (feedbackContext.verdict) lines.push("Result: " + feedbackContext.verdict);
+    if (feedbackContext.hints) lines.push("Hints used: " + feedbackContext.hints);
   }
   lines.push("Language: " + (uiLang || "en"));
   lines.push("Screen: " + window.innerWidth + "x" + window.innerHeight);
@@ -4203,12 +4244,12 @@ function setupFeedback() {
       ev.preventDefault();
       // From the play screen the current question travels with the message.
       const live = id === "feedbackBtnPlay" && game.current;
-      openFeedback(live ? {
+      openFeedback(live ? Object.assign({
         name: game.current.scientificName,
         obs: game.current.observationId || "",
         photo: (game.currentMedia && game.currentMedia[currentPhotoIndex()] || {}).url || "",
         mode: game.answerMode, media: game.media,
-      } : null);
+      }, onScreenContext()) : null);
     });
   });
   el("feedbackClose").addEventListener("click", closeFeedback);
@@ -6068,6 +6109,7 @@ function renderHintControl() {
 
 function finishAnswer(wasCorrect, typed) {
   game.answered = true;
+  game.lastCorrect = wasCorrect;   // read by the feedback form, which must not guess
   game.round.index += 1;
   el("answerInput").disabled = true;
   hideSuggest("answerSuggest");
