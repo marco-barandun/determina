@@ -2757,13 +2757,19 @@ async function appendGbifCoverage(box, token) {
 
   // The two sources don't share a taxonomy, so the part can come out larger
   // than the whole. Rather than print "35/29", leave the plain count alone.
+  // No tooltip on the figure itself: it lives inside the .notranslate number
+  // that keeps digits away from the translator, which would leave an English
+  // string sitting in a translated page. The line underneath says whose totals
+  // these are, in words, and is translated like everything else.
   const denom = (cell, total) => {
     const b = cell && cell.querySelector("b");
-    if (!b || !total || Number(cell.dataset.n) > total) return;
+    if (!b || !total || Number(cell.dataset.n) > total) return false;
     b.innerHTML += "<span class='ss-of'>/" + compactNumber(total) + "</span>";
+    return true;
   };
-  denom(box.querySelector(".ss-cell[data-stat='genera']"), cov.genera);
-  denom(box.querySelector(".ss-cell[data-stat='species']"), cov.species);
+  let shownInCells = 0;
+  if (denom(box.querySelector(".ss-cell[data-stat='genera']"), cov.genera)) shownInCells++;
+  if (denom(box.querySelector(".ss-cell[data-stat='species']"), cov.species)) shownInCells++;
 
   // Only the ranks that sit below what you picked: families inside an order is
   // useful, families inside a family is not.
@@ -2781,7 +2787,11 @@ async function appendGbifCoverage(box, token) {
   line.className = "ss-note";
   // Attributed on purpose: these are GBIF's accepted totals, and other
   // authorities count differently (see the note above fetchGbifCoverage).
-  line.textContent = "GBIF accepts " + list + " in this group worldwide.";
+  // Only point at the lighter figures when there actually are some: the
+  // denominator is dropped whenever iNaturalist counts more than GBIF accepts.
+  line.textContent = shownInCells
+    ? "The lighter figure in each is GBIF's worldwide accepted total: " + list + "."
+    : "GBIF accepts " + list + " in this group worldwide.";
   box.appendChild(line);
   if (uiLang !== "en") i18nApplyTo(line, uiLang);
 }
