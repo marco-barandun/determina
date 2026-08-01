@@ -515,6 +515,12 @@
   .ss-bars i { flex: 1; background: var(--green); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .75; }
   .ss-note { font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.45; margin-top: 8px; }
   .ss-loading { font-size: 12px; font-weight: 700; color: var(--faint); }
+  /* The "/ 24k" half of a cell: how many exist worldwide, against how many the
+     selection actually reaches. Lighter, so the figure that matters reads first. */
+  /* Overrides the .ss-cell span label styling it would otherwise inherit —
+     without this the "k" of 447k is uppercased and letter-spaced apart. */
+  .ss-cell .ss-of { color: var(--faint); font-weight: 800; font-size: 14px;
+    text-transform: none; letter-spacing: 0; display: inline; }
 
   /* Progressive hints — a graded scaffold so a learner can work toward the
      answer instead of just failing (and then has it reinforced in review). */
@@ -2635,6 +2641,40 @@ async function renderSelectionStats() {
   }
   box.innerHTML = selectionStatsHtml(rows, speciesTotal, obsTotal);
   if (uiLang !== "en") i18nApplyTo(box, uiLang);   // this markup arrived after the page was translated
+  appendGbifCoverage(box, token);   // slower and optional, so it lands separately
+}
+
+// Put what the selection reaches into proportion with what exists: the cells
+// become "338+ / 24k" — seen here, out of everything science has described.
+// Arrives after the iNaturalist figures, which never wait on it, and any
+// failure simply leaves the panel as it already was.
+async function appendGbifCoverage(box, token) {
+  let cov;
+  try {
+    const keys = await gbifTaxonKeys(game.taxa);
+    if (!keys.length) return;
+    cov = await fetchGbifCoverage(keys);
+  } catch (err) { return; }
+  if (token !== selectionStatsToken || !cov || !cov.species) return;   // selection moved on
+
+  const denom = (cell, total) => {
+    const b = cell && cell.querySelector("b");
+    if (!b || !total) return;
+    b.innerHTML += "<span class='ss-of'>/" + compactNumber(total) + "</span>";
+  };
+  denom(box.querySelector(".ss-cell[data-stat='genera']"), cov.genera);
+  denom(box.querySelector(".ss-cell[data-stat='species']"), cov.species);
+
+  // Photo coverage is the ceiling on how much of a group can ever be quizzed,
+  // so it goes in words rather than as another number to decode. Skipped when
+  // the group was too large to count exactly (see fetchGbifCoverage).
+  if (cov.photos == null) return;
+  const line = document.createElement("div");
+  line.className = "ss-note";
+  line.textContent = compactNumber(cov.photos) + " of the " + compactNumber(cov.species) +
+    " described species have a photo of the living organism in GBIF — the most of this group any quiz could show you.";
+  box.appendChild(line);
+  if (uiLang !== "en") i18nApplyTo(line, uiLang);
 }
 
 function selectionStatsHtml(rows, speciesTotal, obsTotal) {
@@ -2646,9 +2686,9 @@ function selectionStatsHtml(rows, speciesTotal, obsTotal) {
   // Carex holds one genus, or Poaceae so many families, is noise.
   const finest = Math.min(...game.taxa.map(rankLevelOf));
   const cells = [];
-  if (finest > 20) cells.push([compactNumber(genera.size) + (partial ? "+" : ""), "genera"]);
-  if (finest > 10) cells.push([compactNumber(speciesTotal), "species"]);
-  cells.push([compactNumber(obsTotal), "observations"]);
+  if (finest > 20) cells.push([compactNumber(genera.size) + (partial ? "+" : ""), "genera", "genera"]);
+  if (finest > 10) cells.push([compactNumber(speciesTotal), "species", "species"]);
+  cells.push([compactNumber(obsTotal), "observations", "observations"]);
 
   const counts = rows.map((r) => r.count || 0);
   const top = counts.slice(0, 24);
@@ -2671,8 +2711,9 @@ function selectionStatsHtml(rows, speciesTotal, obsTotal) {
     : "Observations are spread widely across these species, with no small group dominating.";
 
   return "<div class='ss-row'>" +
-      cells.map(([value, label]) =>
-        "<div class='ss-cell'><b class='notranslate'>" + value + "</b><span>" + label + "</span></div>").join("") +
+      cells.map(([value, label, stat]) =>
+        "<div class='ss-cell' data-stat='" + stat + "'><b class='notranslate'>" + value +
+        "</b><span>" + label + "</span></div>").join("") +
     "</div>" +
     (counts.length > 3 ? "<div class='ss-bars' aria-hidden='true'>" + bars + "</div>" : "") +
     "<div class='ss-note'>" + note + "</div>";
@@ -4109,6 +4150,121 @@ async function buildGbifQuestion(sp) {
     gbif: true, observationId: null };
 }
 
+// -- how big is this group, and how much of it can you actually be shown? ---
+//  iNaturalist tells you what has been observed near you; it can't tell you how
+//  many species science has described, so a selection's stats can't say whether
+//  you're looking at all of a small genus or a sliver of a huge one. GBIF's
+//  backbone taxonomy can, and its media records say how many of those species
+//  anyone has photographed alive — which is the real ceiling on how much of a
+//  group this app can ever quiz you on.
+const GBIF_BACKBONE = "d7dddbf4-2cf0-4f39-9b2a-bb099caae36c";   // GBIF's backbone taxonomy
+// Above this many described species we don't attempt the photographed-species
+// count: the response carries a row per species, so it stops being worth its
+// weight (a class is ~350 KB, a kingdom many times that).
+const GBIF_COVERAGE_MAX = 25000;
+// GBIF's backbone has no superfamily rank, so a few iNaturalist groups have to
+// be expressed as the families they contain. Butterflies are the one preset
+// this affects.
+const GBIF_TAXON_ALIASES = {
+  Papilionoidea: ["Papilionidae", "Pieridae", "Nymphalidae", "Lycaenidae", "Riodinidae", "Hesperiidae"],
+};
+const gbifTaxonKeyCache = new Map();
+
+// A GBIF backbone key for one scientific name. The match endpoint is exact and
+// cheap but returns nothing for ambiguous names ("Iris" is both a plant and a
+// mantis) or ranks GBIF doesn't carry, so we fall back to a search filtered to
+// an exact canonical-name hit.
+async function gbifKeyFor(name, rank, kingdom) {
+  const cacheKey = name + "|" + (rank || "") + "|" + (kingdom || "");
+  if (gbifTaxonKeyCache.has(cacheKey)) return gbifTaxonKeyCache.get(cacheKey);
+  let key = null;
+  try {
+    const p = new URLSearchParams({ strict: "false", name: name });
+    if (rank) p.set("rank", String(rank).toUpperCase());
+    if (kingdom) p.set("kingdom", kingdom);
+    const j = await (await fetch("https://api.gbif.org/v1/species/match?" + p)).json();
+    // A name GBIF doesn't hold comes back as its nearest ancestor with
+    // matchType HIGHERRANK — asking about "Zzzzyx" would otherwise report the
+    // statistics of the entire plant kingdom. Only take a match that is
+    // actually the name we asked about.
+    if (j && j.usageKey && j.canonicalName === name) key = j.usageKey;
+    if (!key) {
+      const sj = await (await fetch("https://api.gbif.org/v1/species/search?limit=20&status=ACCEPTED" +
+        "&datasetKey=" + GBIF_BACKBONE + "&q=" + encodeURIComponent(name))).json();
+      const exact = (sj.results || []).filter((r) => (r.canonicalName || "") === name);
+      const pick = (kingdom && exact.find((r) => r.kingdom === kingdom)) || exact[0];
+      if (pick) key = pick.key;
+    }
+  } catch (err) { /* leave null — these stats are a nicety, never load-bearing */ }
+  gbifTaxonKeyCache.set(cacheKey, key);
+  return key;
+}
+
+// iNaturalist's iconic groups mapped onto GBIF kingdoms, purely to break ties
+// on ambiguous names. Anything unrecognised returns "" (no hint).
+function iconicKingdom(iconic) {
+  if (!iconic) return "";
+  if (["Plantae", "Fungi", "Protozoa", "Chromista", "Bacteria"].includes(iconic)) return iconic;
+  return "Animalia";
+}
+
+// Every GBIF key for the groups being studied, expanding the alias table where
+// GBIF can't express the rank iNaturalist used.
+async function gbifTaxonKeys(taxa) {
+  const keys = [];
+  for (const t of taxa) {
+    const names = GBIF_TAXON_ALIASES[t.name] || [t.name];
+    const rank = GBIF_TAXON_ALIASES[t.name] ? "FAMILY" : t.rank;
+    for (const n of names) {
+      const k = await gbifKeyFor(n, rank, iconicKingdom(t.iconic));
+      if (k) keys.push(k);
+    }
+  }
+  return keys;
+}
+
+// Described species and genera under these keys, plus how many species have a
+// photo of the living organism. Repeated key parameters are OR-ed by GBIF, so
+// a group spread over several families still costs one request per figure.
+// Only live-photo records are counted, matching what the quiz will actually
+// show (see fetchGbifLive) — counting herbarium sheets here would promise
+// pictures the app then refuses to use.
+const gbifCoverageCache = new Map();
+
+async function fetchGbifCoverage(keys) {
+  const cacheKey = keys.slice().sort().join(",");
+  if (gbifCoverageCache.has(cacheKey)) return gbifCoverageCache.get(cacheKey);
+  const higher = keys.map((k) => "highertaxonKey=" + k).join("&");
+  const rankCount = async (rank) => {
+    const res = await fetch("https://api.gbif.org/v1/species/search?datasetKey=" + GBIF_BACKBONE +
+      "&status=ACCEPTED&limit=0&rank=" + rank + "&" + higher);
+    if (!res.ok) throw new Error("gbif " + res.status);
+    return (await res.json()).count || 0;
+  };
+  const [species, genera] = await Promise.all([rankCount("SPECIES"), rankCount("GENUS")]);
+
+  // Counting how many species have been photographed means asking for one facet
+  // row per species, so the response grows with the group: a genus costs 1 KB,
+  // a class about 350 KB, a whole kingdom far too much. Past the limit we report
+  // no figure at all rather than a capped one — "1000+ of 447k" would read as a
+  // finding when it is really just where we stopped counting.
+  let photos = null;
+  if (species && species <= GBIF_COVERAGE_MAX) {
+    const p = new URLSearchParams({ mediaType: "StillImage", limit: "0",
+      facet: "speciesKey", facetLimit: String(GBIF_COVERAGE_MAX) });
+    const res = await fetch("https://api.gbif.org/v1/occurrence/search?" + p +
+      "&" + keys.map((k) => "taxonKey=" + k).join("&") +
+      "&" + [...GBIF_LIVE_BASIS].map((b) => "basisOfRecord=" + b).join("&"));
+    if (res.ok) {
+      const j = await res.json();
+      photos = ((j.facets && j.facets[0] && j.facets[0].counts) || []).length;
+    }
+  }
+  const cov = { species, genera, photos };
+  gbifCoverageCache.set(cacheKey, cov);
+  return cov;
+}
+
 // Fetch iNaturalist photo-counts for the whole pool at once (chunked), so we
 // know which species are thin. Same place filter as the observation fetch, so
 // the count matches what the quiz can actually draw on.
@@ -4157,11 +4313,20 @@ async function appendWebImages(question) {
   const add = imgs.filter((m) => !have.has(m.url));
   if (!add.length) return;
   game.currentMedia = (game.currentMedia || []).concat(add);
-  add.forEach((m) => { const img = document.createElement("img"); img.src = m.url; img.alt = "Species to identify"; strip.appendChild(img); });
+  // Appended the same staged way as the originals (data-src, not src), so these
+  // extras queue up behind the photo you're looking at instead of racing it.
+  add.forEach((m) => {
+    const img = document.createElement("img");
+    img.dataset.src = m.url;
+    img.decoding = "async";
+    img.alt = "Species to identify";
+    strip.appendChild(img);
+  });
   el("photoPrev").classList.remove("hidden");
   el("photoNext").classList.remove("hidden");
   el("photoCount").classList.remove("hidden");
   updatePhotoIndicator();
+  loadNextPhoto();   // in case the original chain had already finished
 }
 
 // -- keeping the question queue topped up ---------------------------------
@@ -4351,6 +4516,24 @@ async function nextQuestion() {
   }
   game.current = game.queue.shift();
   presentQuestion();
+  prefetchNextLeadPhoto();
+}
+
+// While you're working on this question, quietly fetch the lead photo of the
+// one behind it, so moving on shows an image immediately instead of a spinner.
+// Just one photo, and only the lead: the rest of that question's strip still
+// loads in its own time once it's actually on screen.
+let prefetchedPhoto = null;   // kept referenced so the browser can't bin it early
+function prefetchNextLeadPhoto() {
+  if (game.media !== "photo") return;
+  const next = game.queue[0];
+  if (!next) return;
+  const photos = questionPhotos(next);
+  const url = photos && photos[0] && photos[0].url;
+  if (!url) return;
+  prefetchedPhoto = new Image();
+  prefetchedPhoto.decoding = "async";
+  prefetchedPhoto.src = url;
 }
 
 // -- the photo gallery ------------------------------------------------------
@@ -4385,11 +4568,48 @@ function onMediaBroken() {
   nextQuestion();
 }
 
+// -- staged photo loading --------------------------------------------------
+//  A question can carry eight photos, and pointing eight <img> tags at their
+//  urls at once makes them all compete for the connection — including the one
+//  you are actually looking at, which is the only one that matters right now.
+//  So only the lead photo gets a src up front; each of the rest starts loading
+//  when the previous finishes. Swiping ahead jumps the queue (see
+//  loadPhotoNow), so a photo you reach early never waits behind the chain.
+
+// Give one strip slot its real src, if it hasn't got one yet.
+function loadPhotoNow(i) {
+  const strip = el("photoStrip");
+  const img = strip && strip.children[i];
+  if (!img || img.tagName !== "IMG" || !img.dataset.src) return;
+  img.src = img.dataset.src;
+  delete img.dataset.src;
+}
+
+// Start the next un-started photo, and queue the one after it behind this one.
+function loadNextPhoto() {
+  const strip = el("photoStrip");
+  const next = strip && strip.querySelector("img[data-src]");
+  if (!next) return;
+  const step = () => {
+    next.removeEventListener("load", step);
+    next.removeEventListener("error", step);
+    loadNextPhoto();
+  };
+  next.addEventListener("load", step);
+  next.addEventListener("error", step);
+  next.src = next.dataset.src;
+  delete next.dataset.src;
+}
+
 function showPhotoGallery(photos) {
   game.currentMedia = photos;   // read by the scroll handler as you swipe
 
   const strip = el("photoStrip");
-  strip.innerHTML = photos.map((p) => "<img src='" + p.url + "' alt='Species to identify'>").join("");
+  // Only photo 1 gets a src here; the rest carry data-src and are started by
+  // loadNextPhoto() once it has landed.
+  strip.innerHTML = photos.map((p, i) =>
+    "<img " + (i === 0 ? "fetchpriority='high' src='" : "data-src='") + escapeHtml(p.url) +
+    "' decoding='async' alt='Species to identify'>").join("");
   strip.scrollLeft = 0;
 
   const multiple = photos.length > 1;
@@ -4400,11 +4620,15 @@ function showPhotoGallery(photos) {
 
   el("photoLoading").classList.remove("hidden");
   const firstImage = strip.querySelector("img");
-  firstImage.onload  = () => { el("photoLoading").classList.add("hidden"); onMediaOk(); };
-  firstImage.onerror = () => onMediaBroken();   // the lead photo is broken — skip ahead (guarded)
+  firstImage.onload  = () => { el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto(); };
+  // The lead photo is broken — skip ahead (guarded). Still start the rest, so a
+  // single dead url doesn't strand every photo behind it.
+  firstImage.onerror = () => { onMediaBroken(); loadNextPhoto(); };
   // A cached image can already be complete before onload is attached, in which
   // case onload never fires and the spinner would sit on top of it forever.
-  if (firstImage.complete && firstImage.naturalWidth > 0) { el("photoLoading").classList.add("hidden"); onMediaOk(); }
+  if (firstImage.complete && firstImage.naturalWidth > 0) {
+    el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto();
+  }
 
   updatePhotoIndicator();   // sets the "1 / n" pill and the credit line for photo 1
 }
@@ -4455,6 +4679,11 @@ function updatePhotoIndicator() {
   const index = Math.min(currentPhotoIndex(), photos.length - 1);
 
   if (photos.length > 1) el("photoCount").textContent = (index + 1) + " / " + photos.length;
+
+  // Swiping ahead of the staged chain: start the slide you're on and the next
+  // one right away rather than making you wait for every photo in between.
+  loadPhotoNow(index);
+  loadPhotoNow(index + 1);
 
   // Copyright attribution is always shown (it's a licence requirement and never
   // names the species). The LINK to the observation would give the answer away,
