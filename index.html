@@ -76,10 +76,47 @@
     --line-2: #d8d0bd;
     --bg:     #fffdf9;        /* warm paper white              */
     --bg-2:   #f5f0e3;        /* app backdrop — warm cream     */
+    --page-bg: linear-gradient(160deg, #f3f5ec 0%, #f1f2ec 45%, #f6f1e6 100%);
+    --shadow: rgba(0,0,0,.04);
+    --photo-bg: #f5f0e3;      /* letterboxing behind a photo   */
 
     --radius: 14px;
     --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-display: "Fraunces", Georgia, "Times New Roman", serif;   /* headings & big numbers */
+  }
+
+  /* Dark mode. Warm near-black rather than pure black, so it stays the same
+     parchment-and-ink app with the lights off instead of turning into a
+     different, colder one. Every colour is redefined rather than dimmed: the
+     accents have to get LIGHTER on a dark ground to keep their contrast, while
+     the "soft" banner fills get much darker. Green and orange keep their
+     colour-blind-safe separation (see the note above), and the ✓/✗ marks carry
+     the meaning regardless. Applied by data-theme, which the boot script at the
+     end of <head> sets before anything paints, so there's no light flash. */
+  :root[data-theme="dark"] {
+    --green:       #6fa87d;
+    --green-hover: #7fba8d;
+    --green-dark:  #4d8059;
+    --green-soft:  #22301f;
+    --green-text:  #9fd3aa;
+    --blue:        #6fa0b3;
+    --blue-dark:   #5a8497;
+    --gold:        #d7a558;
+    --red:         #e08046;
+    --red-dark:    #c26733;
+    --red-soft:    #38221a;
+    --red-text:    #f0a473;
+
+    --ink:    #ece6db;
+    --muted:  #b3aa9c;
+    --faint:  #8b8275;
+    --line:   #35302a;
+    --line-2: #474138;
+    --bg:     #1c1a16;
+    --bg-2:   #262119;
+    --page-bg: linear-gradient(160deg, #131612 0%, #141513 45%, #17150f 100%);
+    --shadow: rgba(0,0,0,.5);
+    --photo-bg: #100f0c;
   }
 
   /* ====================================================================== */
@@ -88,7 +125,7 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: linear-gradient(160deg, #f3f5ec 0%, #f1f2ec 45%, #f6f1e6 100%);
+    background: var(--page-bg);
     color: var(--ink);
     font-family: var(--font);
     font-weight: 700;
@@ -96,7 +133,7 @@
     -webkit-font-smoothing: antialiased;
   }
   .app { max-width: 560px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; background: var(--bg); position: relative;
-         box-shadow: 0 0 40px rgba(0,0,0,.04); }
+         box-shadow: 0 0 40px var(--shadow); }
   /* On anything wider than a phone, let the app float as a card with room to
      breathe, rather than stretching a phone-shaped column across the screen. */
   @media (min-width: 620px) {
@@ -291,7 +328,7 @@
     max-height: 88vh; overflow-y: auto; padding: 26px 22px 14px; text-align: center;
     box-shadow: 0 24px 64px rgba(40,34,24,.35); animation: fbPopIn .3s cubic-bezier(.2,1.2,.4,1); }
   .intro-art { width: 96px; height: 96px; margin: 0 auto 14px; border-radius: 50%;
-    background: #fbf3e4; display: grid; place-items: center; font-size: 42px; }
+    background: var(--bg-2); display: grid; place-items: center; font-size: 42px; }
   .intro-art svg { width: 86px; height: 86px; }
   .intro h2 { font-family: var(--font-display); font-size: 23px; font-weight: 600; font-style: italic;
     color: var(--green-dark); margin: 0 0 8px; }
@@ -398,7 +435,7 @@
      shrinking on short phones instead of forcing the page to scroll. The image
      inside is object-fit:contain, so it's never cropped at any size. */
   .photo-card {
-    position: relative; width: 100%; flex: 1 1 0; min-height: 120px; background: #f1eee3;
+    position: relative; width: 100%; flex: 1 1 0; min-height: 120px; background: var(--photo-bg);
     border: 2px solid var(--line); border-radius: var(--radius); overflow: hidden;
     box-shadow: 0 6px 16px rgba(58,53,46,.08);
   }
@@ -503,8 +540,11 @@
      before committing a round to it. Three numbers and one sentence; the
      temptation to add a fourth and a fifth is the thing to resist. */
   .sel-stats { margin-top: 14px; border-top: 1.5px solid var(--line); padding-top: 12px; }
-  .ss-row { display: flex; gap: 8px; }
-  .ss-cell { flex: 1; text-align: center; background: var(--bg-2); border: 1.5px solid var(--line);
+  /* Three abreast normally; wraps rather than crushing if a translation makes
+     the labels long on a narrow phone. */
+  .ss-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ss-cell { flex: 1 1 0; min-width: 88px; text-align: center;
+    background: var(--bg-2); border: 1.5px solid var(--line);
     border-radius: 10px; padding: 8px 4px; }
   .ss-cell b { display: block; font-size: 17px; font-weight: 900; color: var(--green-dark); }
   .ss-cell span { font-size: 11px; font-weight: 800; text-transform: uppercase;
@@ -515,6 +555,15 @@
   .ss-bars i { flex: 1; background: var(--green); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .75; }
   .ss-note { font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.45; margin-top: 8px; }
   .ss-loading { font-size: 12px; font-weight: 700; color: var(--faint); }
+  /* Keyboard shortcut list — two columns, keys right-aligned against meanings. */
+  .keys-list { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px;
+    margin: 14px 0 0; align-items: baseline; }
+  .keys-list dt { text-align: right; white-space: nowrap; }
+  .keys-list dd { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+  kbd { display: inline-block; font-family: var(--font); font-size: 11px; font-weight: 900;
+    background: var(--bg-2); border: 1.5px solid var(--line-2); border-bottom-width: 2.5px;
+    border-radius: 6px; padding: 2px 6px; color: var(--ink); }
+  .keys-note { margin-top: 14px; font-size: 12px; font-weight: 700; color: var(--faint); line-height: 1.5; }
   /* The "/ 24k" half of a cell: how many exist worldwide, against how many the
      selection actually reaches. Lighter, so the figure that matters reads first. */
   /* Overrides the .ss-cell span label styling it would otherwise inherit —
@@ -595,10 +644,10 @@
      opens the same layers full-size in #mapPopup, where they are interactive. */
   .study-map {
     flex: 0 0 148px; height: 112px; position: relative; z-index: 0; cursor: pointer;
-    border-radius: 10px; overflow: hidden; border: 2px solid var(--line); background: #f1eee3;
+    border-radius: 10px; overflow: hidden; border: 2px solid var(--line); background: var(--photo-bg);
   }
   .map-canvas { position: absolute; inset: 0; }
-  .map-canvas.leaflet-container { background: #f1eee3; }
+  .map-canvas.leaflet-container { background: var(--photo-bg); }
   .map-expand {
     position: absolute; z-index: 500; right: 5px; bottom: 5px; pointer-events: none;
     background: rgba(255,255,255,.9); border-radius: 6px; padding: 1px 6px;
@@ -628,7 +677,7 @@
     color: var(--green-dark); margin: 0 0 10px; padding-right: 34px;
   }
   .map-big { width: 100%; height: min(62vh, 460px); border-radius: 10px; overflow: hidden;
-    background: #f1eee3; border: 2px solid var(--line); }
+    background: var(--photo-bg); border: 2px solid var(--line); }
   .map-legend { font-size: 11.5px; color: var(--faint); font-weight: 700; margin-top: 8px; }
 
   /* "Where?" mode — the name is given, the region is the answer. One column,
@@ -638,7 +687,7 @@
   .where-name { font-family: var(--font-display); font-style: italic; font-size: 20px;
     font-weight: 600; color: var(--green-dark); text-align: center; margin-bottom: 4px; }
   .where-map { height: 190px; position: relative; z-index: 0; cursor: pointer; margin-top: 10px;
-    border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: #f1eee3; }
+    border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: var(--photo-bg); }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
   .reverse-active .photo-card, .reverse-active #credit { display: none; }
@@ -691,7 +740,7 @@
 
   /* Memory notes (aid E) */
   .fb-note { margin-top: 8px; }
-  .fb-note .note-saved { font-size: 13px; font-weight: 700; color: var(--ink); background: #fbf3e4;
+  .fb-note .note-saved { font-size: 13px; font-weight: 700; color: var(--ink); background: var(--bg-2);
     border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
   .fb-note textarea { width: 100%; font-family: var(--font); font-weight: 700; font-size: 14px; color: var(--ink);
     background: var(--bg-2); border: 2px solid var(--line); border-radius: 10px; padding: 9px 11px; resize: vertical; min-height: 40px; }
@@ -721,7 +770,7 @@
   .fb-icon {
     position: relative;
     width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; flex: none;
-    background: #fbf3e4; border: 2px solid var(--line);
+    background: var(--bg-2); border: 2px solid var(--line);
   }
   .fb-icon svg { width: 52px; height: 52px; }
   /* The decisive right/wrong mark — a shape, so it never depends on colour. */
@@ -781,7 +830,7 @@
   }
   .learn-popup-card > h3:first-of-type { margin-top: 4px; }
   .learn-popup-card .btn { margin-top: 18px; }
-  .learn-map { width: 100%; height: 200px; border-radius: 10px; overflow: hidden; background: #f1eee3; border: 2px solid var(--line); }
+  .learn-map { width: 100%; height: 200px; border-radius: 10px; overflow: hidden; background: var(--photo-bg); border: 2px solid var(--line); }
   .learn-facts p { font-size: 14px; line-height: 1.5; margin: 0 0 6px; }
   .learn-loading, .learn-empty { font-size: 13px; color: var(--muted); padding: 10px 2px; }
   #learnWikiLink {
@@ -905,6 +954,21 @@
   @keyframes cowShake { 0%{transform:translateX(0) scale(.9);opacity:0;} 25%{transform:translateX(-6px);opacity:1;} 45%{transform:translateX(6px);} 65%{transform:translateX(-4px);} 85%{transform:translateX(2px);} 100%{transform:translateX(0) scale(1);} }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
+
+<script>
+// Theme, applied before the page paints so it never flashes white on the way to
+// dark. Deliberately tiny and dependency-free: it runs in <head>, long before
+// the app's own script exists. "auto" (the default) follows the device.
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem("determinare.theme"); } catch (e) { /* storage blocked */ }
+  var dark;
+  if (saved === "dark" || saved === "light") dark = saved === "dark";
+  else if (saved === "clock") { var h = new Date().getHours(); dark = h < 7 || h >= 19; }
+  else dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+})();
+</script>
 </head>
 
 <body>
@@ -1078,6 +1142,10 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3-1 4-2 6-1 2 0 4 2 4 1 0 2-1 2-3 2 2 3 4 3 6a5 5 0 11-10 0c0-4 3-6 5-13z"/></svg>
         <span id="streakTop">0</span>
       </div>
+      <!-- Shown only where there's a real keyboard (see setupShortcuts). -->
+      <button id="keysBtn" class="icon-btn hidden" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
+      </button>
     </header>
 
     <main id="playMain" class="play-main">
@@ -1255,6 +1323,28 @@
      Study mode carries a small, inert range map beside the species name;
      tapping it opens the same GBIF layers here, full-size and interactive.
      Static markup like the lightbox — refilled each time it opens. -->
+<!-- Keyboard shortcuts, offered only on devices with a real keyboard. -->
+<div id="keysPopup" class="map-popup hidden">
+  <div class="map-popup-card">
+    <button id="keysClose" class="icon-btn map-popup-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h3>Keyboard shortcuts</h3>
+    <dl class="keys-list">
+      <dt><kbd>Enter</kbd></dt><dd>Check your answer, then move to the next species</dd>
+      <dt><kbd>1</kbd>…<kbd>9</kbd></dt><dd>Pick that answer, when you're choosing from options</dd>
+      <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Look through the other photos</dd>
+      <dt><kbd>H</kbd></dt><dd>Hint</dd>
+      <dt><kbd>R</kbd></dt><dd>Reveal the answer</dd>
+      <dt><kbd>S</kbd></dt><dd>Skip this one</dd>
+      <dt><kbd>W</kbd></dt><dd>Where it was seen</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close whatever is open, or leave the answer box</dd>
+      <dt><kbd>?</kbd></dt><dd>This list</dd>
+    </dl>
+    <div class="keys-note">While you're typing a name, the letter keys write into the box rather than trigger shortcuts — press <kbd>Esc</kbd> first to leave it.</div>
+  </div>
+</div>
+
 <div id="mapPopup" class="map-popup hidden">
   <div class="map-popup-card">
     <button id="mapPopupClose" class="icon-btn map-popup-close" aria-label="Close">
@@ -1380,6 +1470,11 @@
       </label>
       </div>
       <div id="langPanel" class="hidden">
+      <div class="field">
+        <div class="field-label">Appearance</div>
+        <div id="themeChips" class="chips"></div>
+        <div class="hint" style="margin-top:6px;">Dark mode is easier on the eyes at night, and makes the photos stand out. “Device” follows your phone or computer; “Day / night” goes light in the morning and dark in the evening.</div>
+      </div>
       <div class="field">
         <div class="field-label">Translate this page</div>
         <select id="langSelect" class="select notranslate"></select>
@@ -2657,13 +2752,26 @@ async function appendGbifCoverage(box, token) {
   } catch (err) { return; }
   if (token !== selectionStatsToken || !cov || !cov.species) return;   // selection moved on
 
+  // The two sources don't share a taxonomy: iNaturalist can count taxa GBIF's
+  // backbone doesn't accept, so the part can come out larger than the whole.
+  // Rather than print "35/29", drop the denominator and leave the plain count.
   const denom = (cell, total) => {
     const b = cell && cell.querySelector("b");
     if (!b || !total) return;
+    if (Number(cell.dataset.n) > total) return;
     b.innerHTML += "<span class='ss-of'>/" + compactNumber(total) + "</span>";
   };
   denom(box.querySelector(".ss-cell[data-stat='genera']"), cov.genera);
   denom(box.querySelector(".ss-cell[data-stat='species']"), cov.species);
+
+  // No family count here, deliberately. GBIF's backbone marks long-superseded
+  // family names as accepted — Hostaceae, Eschscholtziaceae and Microcachryaceae
+  // all come back "ACCEPTED" with zero occurrence records — and because families
+  // are few, each of those ghosts weighs heavily. It reports 379 bird families
+  // (IOC recognises about 250) and 121 orthopteran families (about 30 are
+  // extant), so any figure we showed would be wrong by a margin a botanist would
+  // spot at a glance. Genus and species totals don't suffer nearly as much: they
+  // are large enough numbers that the same noise barely moves them.
 
   // Photo coverage is the ceiling on how much of a group can ever be quizzed,
   // so it goes in words rather than as another number to decode. Skipped when
@@ -2686,9 +2794,9 @@ function selectionStatsHtml(rows, speciesTotal, obsTotal) {
   // Carex holds one genus, or Poaceae so many families, is noise.
   const finest = Math.min(...game.taxa.map(rankLevelOf));
   const cells = [];
-  if (finest > 20) cells.push([compactNumber(genera.size) + (partial ? "+" : ""), "genera", "genera"]);
-  if (finest > 10) cells.push([compactNumber(speciesTotal), "species", "species"]);
-  cells.push([compactNumber(obsTotal), "observations", "observations"]);
+  if (finest > 20) cells.push([compactNumber(genera.size) + (partial ? "+" : ""), "genera", "genera", genera.size]);
+  if (finest > 10) cells.push([compactNumber(speciesTotal), "species", "species", speciesTotal]);
+  cells.push([compactNumber(obsTotal), "observations", "observations", obsTotal]);
 
   const counts = rows.map((r) => r.count || 0);
   const top = counts.slice(0, 24);
@@ -2711,8 +2819,8 @@ function selectionStatsHtml(rows, speciesTotal, obsTotal) {
     : "Observations are spread widely across these species, with no small group dominating.";
 
   return "<div class='ss-row'>" +
-      cells.map(([value, label, stat]) =>
-        "<div class='ss-cell' data-stat='" + stat + "'><b class='notranslate'>" + value +
+      cells.map(([value, label, stat, raw]) =>
+        "<div class='ss-cell' data-stat='" + stat + "' data-n='" + raw + "'><b class='notranslate'>" + value +
         "</b><span>" + label + "</span></div>").join("") +
     "</div>" +
     (counts.length > 3 ? "<div class='ss-bars' aria-hidden='true'>" + bars + "</div>" : "") +
@@ -3313,6 +3421,22 @@ const MANUAL_I18N = {
   "Correct answers in a row before a species drops off your difficult list.": { de: "So viele richtige Antworten in Folge braucht eine Art, bis sie von deiner Liste der schwierigen Arten verschwindet.", it: "Quante risposte corrette di fila servono perché una specie non sia più considerata difficile.", fr: "Nombre de bonnes réponses d'affilée nécessaires pour qu'une espèce quitte ta liste des difficiles.", es: "Cuántas veces seguidas tienes que acertar una especie para que salga de tu lista de difíciles." },
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
   "Show the welcome walkthrough again": { de: "Einführung nochmal ansehen", it: "Rivedi l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Volver a ver la introducción" },
+  "Appearance": { de: "Darstellung", it: "Aspetto", fr: "Apparence", es: "Apariencia" },
+  "Device": { de: "Gerät", it: "Dispositivo", fr: "Appareil", es: "Dispositivo" },
+  "Day / night": { de: "Tag / Nacht", it: "Giorno / notte", fr: "Jour / nuit", es: "Día / noche" },
+  "Light": { de: "Hell", it: "Chiaro", fr: "Clair", es: "Claro" },
+  "Dark": { de: "Dunkel", it: "Scuro", fr: "Sombre", es: "Oscuro" },
+  "Dark mode is easier on the eyes at night, and makes the photos stand out. “Device” follows your phone or computer; “Day / night” goes light in the morning and dark in the evening.": { de: "Der dunkle Modus ist abends angenehmer für die Augen und lässt die Fotos besser wirken. „Gerät“ richtet sich nach deinem Handy oder Computer, „Tag / Nacht“ wird morgens hell und abends dunkel.", it: "La modalità scura di sera è più riposante per gli occhi e fa risaltare le foto. «Dispositivo» segue il tuo telefono o computer; «Giorno / notte» diventa chiara la mattina e scura la sera.", fr: "Le mode sombre repose les yeux le soir et met les photos en valeur. « Appareil » suit ton téléphone ou ton ordinateur ; « Jour / nuit » passe au clair le matin et au sombre le soir.", es: "El modo oscuro cansa menos la vista de noche y hace que las fotos destaquen. «Dispositivo» sigue a tu móvil u ordenador; «Día / noche» se aclara por la mañana y se oscurece por la tarde." },
+  "Keyboard shortcuts": { de: "Tastenkürzel", it: "Scorciatoie da tastiera", fr: "Raccourcis clavier", es: "Atajos de teclado" },
+  "Check your answer, then move to the next species": { de: "Antwort prüfen, danach zur nächsten Art", it: "Controlla la risposta, poi passa alla specie successiva", fr: "Vérifier ta réponse, puis passer à l'espèce suivante", es: "Comprobar tu respuesta y pasar a la siguiente especie" },
+  "Pick that answer, when you're choosing from options": { de: "Diese Antwort wählen, wenn Antwortmöglichkeiten angezeigt werden", it: "Scegli quella risposta, quando hai delle opzioni", fr: "Choisir cette réponse, quand des options sont proposées", es: "Elegir esa respuesta, cuando hay opciones" },
+  "Look through the other photos": { de: "Die anderen Fotos durchsehen", it: "Sfoglia le altre foto", fr: "Parcourir les autres photos", es: "Ver las demás fotos" },
+  "Hint": { de: "Hinweis", it: "Indizio", fr: "Indice", es: "Pista" },
+  "Reveal the answer": { de: "Antwort aufdecken", it: "Rivela la risposta", fr: "Révéler la réponse", es: "Revelar la respuesta" },
+  "Skip this one": { de: "Diese überspringen", it: "Salta questa", fr: "Passer celle-ci", es: "Saltar esta" },
+  "Where it was seen": { de: "Wo sie beobachtet wurde", it: "Dove è stata osservata", fr: "Où elle a été observée", es: "Dónde se observó" },
+  "Close whatever is open, or leave the answer box": { de: "Offenes schliessen oder das Antwortfeld verlassen", it: "Chiudi ciò che è aperto, o esci dal campo di risposta", fr: "Fermer ce qui est ouvert, ou quitter le champ de réponse", es: "Cerrar lo que esté abierto o salir del campo de respuesta" },
+  "This list": { de: "Diese Liste", it: "Questo elenco", fr: "Cette liste", es: "Esta lista" },
   "Language": { de: "Sprache", it: "Lingua", fr: "Langue", es: "Idioma" },
   "Translate this page": { de: "Diese Seite übersetzen", it: "Traduci questa pagina", fr: "Traduire cette page", es: "Traducir esta página" },
   "German, Italian, French and Spanish are hand-translated; the rest use Google Translate — imperfect, but enough to make the app usable in many languages. Scientific species names are never translated. Pick English to switch back instantly.": { de: "Deutsch, Italienisch, Französisch und Spanisch sind von Hand übersetzt, alle anderen Sprachen übernimmt Google Übersetzer – nicht perfekt, aber gut genug, um die App in vielen Sprachen nutzbar zu machen. Wissenschaftliche Artnamen werden nie übersetzt. Mit Englisch bist du sofort wieder beim Original.", it: "Tedesco, italiano, francese e spagnolo sono tradotti a mano; le altre lingue passano da Google Traduttore: una traduzione imperfetta, ma sufficiente a rendere l'app utilizzabile quasi ovunque. I nomi scientifici non vengono mai tradotti. Scegli l'inglese per tornare subito all'originale.", fr: "L'allemand, l'italien, le français et l'espagnol sont traduits à la main ; les autres langues passent par Google Traduction, imparfait mais suffisant pour rendre l'application utilisable à peu près partout. Les noms scientifiques ne sont jamais traduits. Choisis l'anglais pour revenir instantanément à la version d'origine.", es: "El alemán, el italiano, el francés y el español están traducidos a mano; el resto pasa por Google Traductor: no es perfecto, pero basta para que la app se pueda usar en muchos idiomas. Los nombres científicos no se traducen nunca. Si eliges inglés, vuelves al original al instante." },
@@ -3713,6 +3837,67 @@ function setupTranslate() {
   // never saves, so a detected language keeps following the device.
   sel.addEventListener("change", () => setUiLang(sel.value, true));
   if (lang !== "en") setUiLang(lang, false);
+}
+
+// -- light / dark ----------------------------------------------------------
+//  The boot script in <head> has already applied the theme by the time this
+//  runs; all this does is draw the control and let you change your mind. Three
+//  states rather than a switch, because "follow my device" is a real preference
+//  and not the same as either fixed choice.
+const THEME_KEY = "determinare.theme";
+const THEME_OPTIONS = [["auto", "Device"], ["clock", "Day / night"], ["light", "Light"], ["dark", "Dark"]];
+// Evening starts at 19:00 and morning at 07:00, by the device's own clock. No
+// location is asked for, so this can't follow real sunset — the hours are a
+// deliberate approximation, and anyone who wants it exact can just pick Light
+// or Dark.
+const NIGHT_FROM = 19, NIGHT_UNTIL = 7;
+const isNightNow = () => { const h = new Date().getHours(); return h < NIGHT_UNTIL || h >= NIGHT_FROM; };
+
+function savedTheme() {
+  try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (err) { return "auto"; }
+}
+function systemPrefersDark() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+function applyTheme(choice) {
+  const dark = choice === "dark" ||
+    (choice === "clock" && isNightNow()) ||
+    (choice === "auto" && systemPrefersDark());
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+}
+function setTheme(choice) {
+  try {
+    if (choice === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, choice);
+  } catch (err) { /* storage blocked — the choice still applies for this visit */ }
+  applyTheme(choice);
+  renderThemeChips();
+}
+function renderThemeChips() {
+  const box = el("themeChips");
+  if (!box) return;
+  const current = savedTheme();
+  box.innerHTML = THEME_OPTIONS.map(([value, label]) =>
+    "<button type='button' class='chip" + (value === current ? " active" : "") +
+    "' data-theme-choice='" + value + "'>" + label + "</button>").join("");
+}
+function setupTheme() {
+  renderThemeChips();
+  const box = el("themeChips");
+  if (box) box.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-theme-choice]");
+    if (btn) setTheme(btn.dataset.themeChoice);
+  });
+  // On "Device", follow the system if it changes while the app is open.
+  if (window.matchMedia) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => { if (savedTheme() === "auto") applyTheme("auto"); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+  // On "Day / night", cross into evening without needing a reload. A minute's
+  // granularity is plenty for something that changes twice a day.
+  setInterval(() => { if (savedTheme() === "clock") applyTheme("clock"); }, 60000);
 }
 
 
@@ -4183,11 +4368,19 @@ async function gbifKeyFor(name, rank, kingdom) {
     if (rank) p.set("rank", String(rank).toUpperCase());
     if (kingdom) p.set("kingdom", kingdom);
     const j = await (await fetch("https://api.gbif.org/v1/species/match?" + p)).json();
-    // A name GBIF doesn't hold comes back as its nearest ancestor with
-    // matchType HIGHERRANK — asking about "Zzzzyx" would otherwise report the
-    // statistics of the entire plant kingdom. Only take a match that is
-    // actually the name we asked about.
-    if (j && j.usageKey && j.canonicalName === name) key = j.usageKey;
+    // Only an exact hit on an ACCEPTED taxon is usable, and both halves matter.
+    //   - A name GBIF doesn't hold comes back as its nearest ancestor with
+    //     matchType HIGHERRANK: "Polygonum viviparum" resolves to the genus
+    //     Bistorta, "Aster bellidiastrum" all the way up to Asteraceae. Counting
+    //     under those would describe a completely different taxon, hence the
+    //     canonical-name check.
+    //   - A name GBIF treats as a SYNONYM is a genuine disagreement about what
+    //     the group IS, not just what it's called: iNaturalist keeps Acinos as a
+    //     genus of a handful of species, GBIF sinks it into Clinopodium's 207.
+    //     Following the synonym would report Clinopodium's figures under the
+    //     name Acinos, so we decline and simply show no worldwide totals.
+    const accepted = j && j.status !== "SYNONYM" && !j.acceptedUsageKey;
+    if (j && j.usageKey && j.canonicalName === name && accepted) key = j.usageKey;
     if (!key) {
       const sj = await (await fetch("https://api.gbif.org/v1/species/search?limit=20&status=ACCEPTED" +
         "&datasetKey=" + GBIF_BACKBONE + "&q=" + encodeURIComponent(name))).json();
@@ -5623,12 +5816,29 @@ let learnMoreToken = 0;
 let currentDistributionMap = null;   // the Leaflet map currently in the pop-up, if any
 
 // GBIF's own taxon id for a species, found by matching its scientific name
-// against GBIF's backbone taxonomy. Returns null if there's no good match.
+// against GBIF's backbone taxonomy. Returns null if there's no good match —
+// and "good" has to be strict here, because everything downstream draws or
+// grades against whatever this returns.
+//
+// GBIF answers a name it doesn't hold with the nearest ancestor it does, as
+// matchType HIGHERRANK: "Polygonum viviparum" comes back as the genus Bistorta,
+// "Aster bellidiastrum" as the family Asteraceae. Accepting those would put a
+// genus- or family-wide distribution map under a single species' name, and in
+// "Where?" mode would mark answers right or wrong against the wrong taxon
+// entirely. A FUZZY hit is a different species that merely spells alike, so it
+// is refused too. A SYNONYM is the one redirect worth following: it is the same
+// organism under a newer name (Listera ovata -> Neottia ovata), and the accepted
+// taxon is exactly the one whose range we want.
+const GBIF_SPECIES_RANKS = ["SPECIES", "SUBSPECIES", "VARIETY", "FORM"];
+
 async function gbifTaxonKey(scientificName) {
   const res = await fetch("https://api.gbif.org/v1/species/match?name=" + encodeURIComponent(scientificName));
   if (!res.ok) return null;
   const data = await res.json();
-  return (data.matchType && data.matchType !== "NONE" && data.usageKey) ? data.usageKey : null;
+  if (data.matchType !== "EXACT") return null;
+  const rank = String(data.rank || "").toUpperCase();
+  if (rank && GBIF_SPECIES_RANKS.indexOf(rank) === -1) return null;
+  return data.acceptedUsageKey || data.usageKey || null;
 }
 
 // The bounding box GBIF actually has records within, for this species — or
@@ -6867,6 +7077,77 @@ function wireLearnPopup() {
   });
 }
 
+// -- keyboard shortcuts (laptops and desktops) -----------------------------
+//  On a phone every one of these is a tap, so the shortcuts cost nothing and
+//  the (i) that documents them would just be clutter — it appears only where
+//  there's a real keyboard, tested with any-pointer:fine the same way the
+//  auto-focus on the answer box is.
+//
+//  The one real constraint: in Type mode the answer box has focus, so plain
+//  letters belong to it, not to us. Rather than invent modifier chords that
+//  fight the OS, the letter shortcuts simply don't fire while you're typing —
+//  Esc steps out of the box and they light up. This is stated in the pop-up
+//  rather than left for people to discover.
+const hasKeyboard = () => window.matchMedia("(any-pointer: fine)").matches;
+
+function isTypingIn(target) {
+  if (!target) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
+function openKeysPopup() { el("keysPopup").classList.remove("hidden"); }
+function closeKeysPopup() { el("keysPopup").classList.add("hidden"); }
+
+// Click a visible, enabled control — the shortcuts drive the real buttons
+// rather than re-implementing what they do, so the two can never drift apart.
+function pressIfLive(id) {
+  const b = el(id);
+  if (!b || b.disabled || b.classList.contains("hidden") || b.offsetParent === null) return false;
+  b.click();
+  return true;
+}
+
+function setupShortcuts() {
+  if (hasKeyboard()) el("keysBtn").classList.remove("hidden");
+  el("keysBtn").addEventListener("click", openKeysPopup);
+  el("keysClose").addEventListener("click", closeKeysPopup);
+  el("keysPopup").addEventListener("click", (e) => { if (e.target.id === "keysPopup") closeKeysPopup(); });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;    // leave browser/OS chords alone
+    const keysOpen = !el("keysPopup").classList.contains("hidden");
+    if (keysOpen && e.key === "Escape") { e.preventDefault(); return closeKeysPopup(); }
+    // "?" is worth having anywhere, including the setup screen.
+    if (e.key === "?" && !isTypingIn(e.target)) { e.preventDefault(); return openKeysPopup(); }
+    if (keysOpen) return;
+
+    // Esc while typing hands the keyboard back so the letter shortcuts work.
+    if (e.key === "Escape" && isTypingIn(e.target)) { e.target.blur(); return; }
+    if (el("play").classList.contains("hidden")) return;   // shortcuts are for playing
+    if (isTypingIn(e.target)) return;
+
+    // Photo browsing, which the arrow keys would otherwise scroll the page with.
+    if (e.key === "ArrowLeft")  { if (pressIfLive("photoPrev")) e.preventDefault(); return; }
+    if (e.key === "ArrowRight") { if (pressIfLive("photoNext")) e.preventDefault(); return; }
+
+    // Answer options are numbered as they appear on screen.
+    if (/^[1-9]$/.test(e.key)) {
+      const opts = document.querySelectorAll("#choiceArea .choice:not([disabled]), #reverseArea .rev-photo:not([disabled])");
+      const pick = opts[Number(e.key) - 1];
+      if (pick) { e.preventDefault(); pick.click(); }
+      return;
+    }
+
+    switch (e.key.toLowerCase()) {
+      case "h": if (el("hintArea")) { const b = el("hintArea").querySelector("button"); if (b) { e.preventDefault(); b.click(); } } break;
+      case "r": if (pressIfLive("revealBtn")) e.preventDefault(); break;
+      case "s": if (pressIfLive("skipBtn")) e.preventDefault(); break;
+      case "w": if (pressIfLive("obsMapBtn")) e.preventDefault(); break;
+    }
+  });
+}
+
 // The settings sheet. Both panels are always in the DOM; opening one is just
 // showing it, so every control keeps the listeners it was given at start-up.
 function openSheet(which) {
@@ -6909,6 +7190,8 @@ buildChips();           // draws the taxon/region/round-size chips, including to
 populateProfileSelect();
 renderSetupStatus();    // daily streak + "due today" / look-alike prompts
 renderFoldSummaries();  // what each collapsed section currently holds
+setupTheme();           // light / dark / device / day-night — <head> already applied it
+setupShortcuts();       // keyboard shortcuts + the (i) that documents them
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 maybeShowIntro();       // the four-card walkthrough, on a first visit only
