@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Determinare — species ID trainer</title>
+<title>LearnIt — species ID trainer</title>
 
 <!--
-  DETERMINARE — a species-identification trainer built on iNaturalist.
+  LEARNIT — a species-identification trainer built on iNaturalist.
 
   A single static file. No build step, no server, no API key, no libraries.
   Drop it in a GitHub repo as index.html, turn on GitHub Pages, and it runs.
@@ -1059,7 +1059,7 @@
           <path d="M50 46 C64 46 74 36 72 24 C58 24 48 34 50 46Z" fill="#7aa584"/>
         </svg>
       </div>
-      <h1>Determinare</h1>
+      <h1>LearnIt</h1>
       <p class="tagline">Learn to name species from real photos and sounds.</p>
     </div>
 
@@ -1561,7 +1561,7 @@
 
 <script>
 // ==========================================================================
-//  DETERMINARE
+//  LEARNIT
 // --------------------------------------------------------------------------
 //  1. Configuration & small helpers
 //  2. Talking to the iNaturalist API
@@ -2009,6 +2009,11 @@ CERTIFICATES.forEach((c) => c.species().forEach((e) => certNameMap.set(e[0], { i
 
 // == 5. Players & scoring, saved in the browser (no login) =================
 
+// Every storage key, and the DET1: share-code prefix, keep the app's original
+// name on purpose. They are invisible to players, and renaming them would wipe
+// the saved progress of everyone who already uses the app and invalidate every
+// share code already passed around. If they ever do need to change, it has to
+// be a deliberate migration that reads the old keys once and writes the new.
 const STORE_KEY = "determinare.v2";
 const OLD_KEY   = "determinare.stats.v1";   // migrated on first load if present
 
@@ -2130,7 +2135,7 @@ function exportBackup() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "determinare-backup-" + todayStr() + ".json";
+  a.download = "learnit-backup-" + todayStr() + ".json";
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2145,7 +2150,7 @@ function importBackup(file) {
     try { data = JSON.parse(reader.result); }
     catch (err) { toast("That file isn't valid JSON."); return; }
     if (!data || !Array.isArray(data.profiles) || data.profiles.length === 0) {
-      toast("That file isn't a Determinare backup.");
+      toast("That file isn't a LearnIt backup.");
       return;
     }
     if (!window.confirm(tSync("Import this backup? It replaces the players and progress currently in this browser."))) return;
@@ -3321,7 +3326,7 @@ const INTRO_KEY = "determinare.intro.v1";
 const INTRO_SLIDES = [
   {
     art: () => cowMascot("happy"),
-    title: "Welcome to Determinare",
+    title: "Welcome to LearnIt",
     body: "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.",
   },
   {
@@ -3458,7 +3463,7 @@ function i18nTextNodes(root) {
 //  dynamic content (species, places, stats) is still left to Google. The
 //  language dropdown and everything's appearance are unchanged.
 const MANUAL_I18N = {
-  "Determinare": { de: "Determinare", it: "Determinare", fr: "Determinare", es: "Determinare" },
+  "LearnIt": { de: "LearnIt", it: "LearnIt", fr: "LearnIt", es: "LearnIt" },
   "Learn to name species from real photos and sounds.": { de: "Arten bestimmen lernen – anhand echter Fotos und Tonaufnahmen.", it: "Impara a determinare le specie da foto e suoni reali.", fr: "Apprends à déterminer les espèces d'après de vraies photos et de vrais sons.", es: "Aprende a determinar especies con fotos y sonidos reales." },
   "Playing as": { de: "Du spielst als", it: "Giochi come", fr: "Tu joues en tant que", es: "Juegas como" },
   "+ New player…": { de: "+ Neues Profil…", it: "+ Nuovo giocatore…", fr: "+ Nouveau joueur…", es: "+ Nuevo jugador…" },
@@ -3591,7 +3596,7 @@ const MANUAL_I18N = {
   "Ecology": { de: "Ökologie", it: "Ecologia", fr: "Écologie", es: "Ecología" },
   "Read more on Wikipedia →": { de: "Mehr auf Wikipedia →", it: "Approfondisci su Wikipedia →", fr: "En savoir plus sur Wikipédia →", es: "Leer más en Wikipedia →" },
   // First-run intro
-  "Welcome to Determinare": { de: "Willkommen bei Determinare", it: "Ti diamo il benvenuto in Determinare", fr: "Bienvenue sur Determinare", es: "Te damos la bienvenida a Determinare" },
+  "Welcome to LearnIt": { de: "Willkommen bei LearnIt", it: "Ti diamo il benvenuto in LearnIt", fr: "Bienvenue sur LearnIt", es: "Te damos la bienvenida a LearnIt" },
   "Learn to recognise species from real photos and sounds — every one a genuine iNaturalist observation, not a tidy textbook plate.": { de: "Lerne, Arten anhand echter Fotos und Tonaufnahmen zu bestimmen – alles echte iNaturalist-Beobachtungen, keine geschönten Lehrbuchtafeln.", it: "Impara a determinare le specie da foto e suoni reali: sono tutte osservazioni vere di iNaturalist, non tavole ordinate da manuale.", fr: "Apprends à déterminer les espèces sur de vraies photos et de vrais sons : à chaque fois une observation iNaturalist authentique, jamais une planche de flore idéalisée.", es: "Aprende a determinar especies con fotos y sonidos reales: todos proceden de observaciones auténticas de iNaturalist, no de láminas idealizadas de un manual." },
   "Pick what to learn": { de: "Was willst du lernen?", it: "Scegli cosa imparare", fr: "Choisis ton programme", es: "Elige qué quieres aprender" },
   "A group and a place is all you need to start.": { de: "Eine Gruppe und ein Gebiet – mehr brauchst du nicht zum Start.", it: "Un gruppo e un luogo bastano per iniziare.", fr: "Un groupe et un lieu suffisent pour commencer.", es: "Un grupo y un lugar bastan para empezar." },
@@ -3711,7 +3716,7 @@ const MANUAL_I18N = {
   "Couldn't read that file.": { de: "Die Datei konnte nicht gelesen werden.", it: "Non è stato possibile leggere il file.", fr: "Impossible de lire ce fichier.", es: "No se pudo leer el archivo." },
   "Couldn't save the imported data (storage blocked).": { de: "Die importierten Daten konnten nicht gespeichert werden (Speicher blockiert).", it: "Non è stato possibile salvare i dati importati (archiviazione bloccata).", fr: "Impossible d'enregistrer les données importées (stockage bloqué).", es: "No se pudieron guardar los datos importados (almacenamiento bloqueado)." },
   "That file isn't valid JSON.": { de: "Diese Datei ist kein gültiges JSON.", it: "Il file non è JSON valido.", fr: "Ce fichier n'est pas du JSON valide.", es: "Ese archivo no es JSON válido." },
-  "That file isn't a Determinare backup.": { de: "Diese Datei ist keine Determinare-Sicherung.", it: "Il file non è un backup di Determinare.", fr: "Ce fichier n'est pas une sauvegarde Determinare.", es: "Ese archivo no es una copia de seguridad de Determinare." },
+  "That file isn't a LearnIt backup.": { de: "Diese Datei ist keine LearnIt-Sicherung.", it: "Il file non è un backup di LearnIt.", fr: "Ce fichier n'est pas une sauvegarde LearnIt.", es: "Ese archivo no es una copia de seguridad de LearnIt." },
   "Backup downloaded.": { de: "Sicherung heruntergeladen.", it: "Backup scaricato.", fr: "Sauvegarde téléchargée.", es: "Copia de seguridad descargada." },
   "Backup imported.": { de: "Sicherung importiert.", it: "Backup importato.", fr: "Sauvegarde importée.", es: "Copia de seguridad importada." },
   "Import this backup? It replaces the players and progress currently in this browser.": { de: "Diese Sicherung importieren? Damit werden die Profile und der Fortschritt ersetzt, die gerade in diesem Browser liegen.", it: "Importare questo backup? Sostituirà i giocatori e i progressi che hai adesso in questo browser.", fr: "Importer cette sauvegarde ? Elle remplacera les joueurs et la progression actuellement dans ce navigateur.", es: "¿Importar esta copia de seguridad? Sustituirá los jugadores y el progreso que tienes ahora en este navegador." },
@@ -4007,7 +4012,7 @@ function setupTheme() {
 //  Nothing here runs, and the third-party script is never even fetched, unless
 //  ANALYTICS_SITE is filled in below AND the visitor hasn't opted out AND their
 //  browser isn't asking not to be tracked.
-const ANALYTICS_SITE = "";        // e.g. "determinare" -> determinare.goatcounter.com
+const ANALYTICS_SITE = "";        // e.g. "learnit" -> learnit.goatcounter.com
 const ANALYTICS_KEY = "determinare.analytics";      // "off" when opted out
 const ANALYTICS_FIRST = "determinare.firstSeen";    // ISO date of first visit
 const ANALYTICS_ROUNDS = "determinare.roundCount";  // rounds finished on this browser
