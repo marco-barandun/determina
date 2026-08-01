@@ -656,6 +656,19 @@
     background: var(--bg-2); border: 1.5px solid var(--line-2); border-bottom-width: 2.5px;
     border-radius: 6px; padding: 2px 6px; color: var(--ink); }
   .keys-note { margin-top: 14px; font-size: 12px; font-weight: 700; color: var(--faint); line-height: 1.5; }
+  /* Feedback form. Stacked with gap rather than per-element margins, so the
+     optional rows can be hidden without leaving a hole. */
+  .map-popup-card .fb-intro { font-size: 13.5px; color: var(--muted); margin: 6px 0 14px; }
+  .fb-text { width: 100%; resize: vertical; font-family: var(--font); font-size: 15px; line-height: 1.45; }
+  .fb-context { margin-top: 10px; padding: 9px 12px; border-radius: 8px; background: var(--bg-2);
+    border: 1.5px solid var(--line); font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.5; }
+  .fb-context b { color: var(--ink); font-style: italic; }
+  .fb-email { width: 100%; margin-top: 12px; }
+  .fb-check { display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .fb-check input { width: 17px; height: 17px; accent-color: var(--green); }
+  .fb-send { width: 100%; margin-top: 16px; }
+  .fb-note { margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--faint); line-height: 1.5; }
   /* The "/ 24k" half of a cell: how many exist worldwide, against how many the
      selection actually reaches. Lighter, so the figure that matters reads first. */
 
@@ -1277,6 +1290,7 @@
     <button id="startBtn" class="btn btn-primary btn-big">Start learning</button>
 
     <button id="progressBtnSetup" class="btn btn-ghost btn-big">My progress</button>
+    <button id="feedbackBtnSetup" class="btn btn-ghost btn-big hidden">Send feedback</button>
   </section>
 
   <!-- ============================ PLAY ============================ -->
@@ -1292,6 +1306,9 @@
         <span id="streakTop">0</span>
       </div>
       <!-- Shown only where there's a real keyboard (see setupShortcuts). -->
+      <button id="feedbackBtnPlay" class="icon-btn hidden" aria-label="Send feedback" title="Send feedback">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.9 8.9 0 01-4-.9L3 21l1.9-4.9A8.4 8.4 0 0112 3.1a8.4 8.4 0 019 8.4z"/></svg>
+      </button>
       <button id="keysBtn" class="icon-btn hidden" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
       </button>
@@ -1472,6 +1489,26 @@
      Study mode carries a small, inert range map beside the species name;
      tapping it opens the same GBIF layers here, full-size and interactive.
      Static markup like the lightbox — refilled each time it opens. -->
+<!-- Feedback. Opens from the setup screen, from Options, and from the play
+     screen while a question is on show — in that last case it carries the
+     species and the observation with it. -->
+<div id="feedbackPopup" class="map-popup hidden">
+  <div class="map-popup-card">
+    <button id="feedbackClose" class="icon-btn map-popup-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h3>Send feedback</h3>
+    <p class="fb-intro">Anything that went wrong, an unclear photo, a species you think is misnamed, or something you'd like the app to do.</p>
+    <textarea id="feedbackText" class="input fb-text" rows="5" placeholder="What happened, or what would you change?"></textarea>
+    <div id="feedbackContext" class="fb-context hidden"></div>
+    <input id="feedbackEmail" class="input fb-email" type="email" autocomplete="email"
+           placeholder="Your email — only if you want a reply">
+    <label class="fb-check"><input type="checkbox" id="feedbackList"> Also keep me posted about new features</label>
+    <button id="feedbackSend" class="btn btn-primary fb-send">Send</button>
+    <div id="feedbackNote" class="fb-note"></div>
+  </div>
+</div>
+
 <!-- Keyboard shortcuts, offered only on devices with a real keyboard. -->
 <div id="keysPopup" class="map-popup hidden">
   <div class="map-popup-card">
@@ -1572,7 +1609,7 @@
       </div>
       <div class="field">
         <div class="field-label">Something wrong, or an idea?</div>
-        <a id="feedbackLink" class="cert-list-link" href="#" target="_blank" rel="noopener">Send feedback</a>
+        <button type="button" id="feedbackLink" class="cert-list-link">Send feedback</button>
         <div class="hint" style="margin-top:6px;">Unclear photos, a species that seems misnamed, anything that annoyed you — it all helps.</div>
       </div>
 
@@ -3615,6 +3652,11 @@ const MANUAL_I18N = {
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
   "Something wrong, or an idea?": { de: "Etwas falsch, oder eine Idee?", it: "Qualcosa non va, o hai un'idea?", fr: "Un problème, ou une idée ?", es: "¿Algo va mal, o tienes una idea?" },
   "Send feedback": { de: "Rückmeldung senden", it: "Manda un riscontro", fr: "Envoyer un retour", es: "Enviar comentarios" },
+  "Anything that went wrong, an unclear photo, a species you think is misnamed, or something you'd like the app to do.": { de: "Alles, was schiefgelaufen ist: ein unklares Foto, eine Art, die deiner Meinung nach falsch benannt ist, oder etwas, das die App können sollte.", it: "Qualsiasi cosa non abbia funzionato: una foto poco chiara, una specie che secondo te ha il nome sbagliato, o qualcosa che vorresti che l'app facesse.", fr: "Tout ce qui a mal tourné : une photo peu claire, une espèce qui te semble mal nommée, ou quelque chose que tu aimerais que l'app fasse.", es: "Cualquier cosa que haya salido mal: una foto poco clara, una especie que crees que está mal nombrada, o algo que te gustaría que hiciera la app." },
+  "What happened, or what would you change?": { de: "Was ist passiert, oder was würdest du ändern?", it: "Che cosa è successo, o che cosa cambieresti?", fr: "Que s'est-il passé, ou que changerais-tu ?", es: "¿Qué ha pasado, o qué cambiarías?" },
+  "Your email — only if you want a reply": { de: "Deine E-Mail – nur wenn du eine Antwort möchtest", it: "La tua email – solo se vuoi una risposta", fr: "Ton e-mail — seulement si tu veux une réponse", es: "Tu correo: solo si quieres respuesta" },
+  "Also keep me posted about new features": { de: "Halt mich auch über neue Funktionen auf dem Laufenden", it: "Tienimi aggiornato anche sulle nuove funzioni", fr: "Tiens-moi aussi au courant des nouveautés", es: "Avísame también de las novedades" },
+  "Write a line or two first.": { de: "Schreib zuerst ein, zwei Zeilen.", it: "Scrivi prima una riga o due.", fr: "Écris d'abord une ligne ou deux.", es: "Escribe antes una línea o dos." },
   "Unclear photos, a species that seems misnamed, anything that annoyed you — it all helps.": { de: "Unklare Fotos, eine Art, die falsch benannt scheint, alles was dich gestört hat – alles hilft.", it: "Foto poco chiare, una specie che sembra avere il nome sbagliato, qualsiasi cosa ti abbia dato fastidio: tutto è utile.", fr: "Photos peu claires, une espèce qui semble mal nommée, tout ce qui t'a agacé — tout aide.", es: "Fotos poco claras, una especie que parece mal nombrada, cualquier cosa que te haya molestado: todo ayuda." },
   "Show the welcome walkthrough again": { de: "Einführung nochmal ansehen", it: "Rivedi l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Volver a ver la introducción" },
   "Help improve the app": { de: "Hilf mit, die App zu verbessern", it: "Aiuta a migliorare l'app", fr: "Aide à améliorer l'app", es: "Ayuda a mejorar la app" },
@@ -4081,21 +4123,100 @@ function renderThemeChips() {
 }
 // -- feedback ---------------------------------------------------------------
 //  Analytics can say WHERE people give up; only people can say why. This is the
-//  channel for that. It points at GitHub issues by default because that needs
-//  no email address published — swap in "mailto:you@example.com" if you would
-//  rather hear from people who don't have a GitHub account, which is most
-//  naturalists. Set to "" to hide the link entirely.
-const FEEDBACK_URL = "https://github.com/marco-barandun/determina/issues/new";
+//  channel for that, and it deliberately goes by ordinary email: a static site
+//  has nothing to POST to, and routing people's messages through a third-party
+//  form service would mean handing their words and address to a company neither
+//  of us chose. mailto opens their own mail app, so nothing passes through
+//  anyone else on the way.
+//
+//  There is no screenshot, and that is not an oversight. Capturing one in the
+//  browser needs a canvas library, and a canvas cannot read the iNaturalist
+//  photos — they are cross-origin, so they come out blank. A screenshot would
+//  arrive with a hole exactly where the problem was. Instead the message
+//  carries the species, the observation link and the photo's own url, which
+//  identifies the exact image rather than approximating it.
+const FEEDBACK_EMAIL = "";     // e.g. "you@example.com" — the link hides until set
+
+let feedbackContext = null;    // set when opened from a live question
+
+function openFeedback(context) {
+  feedbackContext = context || null;
+  const box = el("feedbackContext");
+  if (feedbackContext) {
+    box.innerHTML = "Sent with this: <b class='notranslate'>" + escapeHtml(feedbackContext.name) + "</b>" +
+      (feedbackContext.obs ? " · observation " + feedbackContext.obs : "");
+    box.classList.remove("hidden");
+  } else {
+    box.classList.add("hidden");
+  }
+  el("feedbackNote").textContent = "";
+  el("feedbackPopup").classList.remove("hidden");
+  el("feedbackText").focus();
+  track("/e/feedback/opened");
+}
+function closeFeedback() { el("feedbackPopup").classList.add("hidden"); }
+
+// Everything the message needs, assembled where it is known rather than asked
+// for: nobody can be expected to report which mode they were in.
+function feedbackBody() {
+  const lines = [el("feedbackText").value.trim(), ""];
+  const email = el("feedbackEmail").value.trim();
+  if (email) lines.push("Reply to: " + email);
+  if (el("feedbackList").checked && email) lines.push("Happy to hear about new features.");
+  if (email) lines.push("");
+  lines.push("— sent from LearnIt, details below —");
+  if (feedbackContext) {
+    lines.push("Species shown: " + feedbackContext.name);
+    if (feedbackContext.obs) lines.push("Observation: https://www.inaturalist.org/observations/" + feedbackContext.obs);
+    if (feedbackContext.photo) lines.push("Photo: " + feedbackContext.photo);
+    lines.push("Answer mode: " + (feedbackContext.mode || "?") + " · " + (feedbackContext.media || "?"));
+  }
+  lines.push("Language: " + (uiLang || "en"));
+  lines.push("Screen: " + window.innerWidth + "x" + window.innerHeight);
+  return lines.join("\n");
+}
+
+function sendFeedback() {
+  const text = el("feedbackText").value.trim();
+  if (!text) { el("feedbackText").focus(); el("feedbackNote").textContent = "Write a line or two first."; return; }
+  const subject = "LearnIt feedback" + (feedbackContext ? " — " + feedbackContext.name : "");
+  const href = "mailto:" + encodeURIComponent(FEEDBACK_EMAIL) +
+    "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(feedbackBody());
+  track("/e/feedback/sent");
+  // Opening the mail app can silently do nothing on a machine with none set up,
+  // so leave the text on screen and say what to do instead of closing on them.
+  window.location.href = href;
+  el("feedbackNote").textContent = "Your mail app should be opening. Nothing happened? Copy the text and send it to " + FEEDBACK_EMAIL + ".";
+}
 
 function setupFeedback() {
-  const link = el("feedbackLink");
-  if (!link) return;
-  const row = link.closest(".field");
-  if (!FEEDBACK_URL) { if (row) row.classList.add("hidden"); return; }
-  link.href = FEEDBACK_URL;
-  // Counted so you can see whether anyone ever looks for it — a feedback link
-  // nobody clicks is worth knowing about too.
-  link.addEventListener("click", () => track("/e/feedback"));
+  const openers = ["feedbackLink", "feedbackBtnSetup", "feedbackBtnPlay"];
+  if (!FEEDBACK_EMAIL) {
+    openers.forEach((id) => { const e = el(id); if (e) (e.closest(".field") || e).classList.add("hidden"); });
+    return;
+  }
+  openers.forEach((id) => {
+    const e = el(id);
+    if (!e) return;
+    (e.closest(".field") || e).classList.remove("hidden");
+    e.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      // From the play screen the current question travels with the message.
+      const live = id === "feedbackBtnPlay" && game.current;
+      openFeedback(live ? {
+        name: game.current.scientificName,
+        obs: game.current.observationId || "",
+        photo: (game.currentMedia && game.currentMedia[currentPhotoIndex()] || {}).url || "",
+        mode: game.answerMode, media: game.media,
+      } : null);
+    });
+  });
+  el("feedbackClose").addEventListener("click", closeFeedback);
+  el("feedbackSend").addEventListener("click", sendFeedback);
+  el("feedbackPopup").addEventListener("click", (e) => { if (e.target.id === "feedbackPopup") closeFeedback(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("feedbackPopup").classList.contains("hidden")) closeFeedback();
+  });
 }
 
 function setupTheme() {
