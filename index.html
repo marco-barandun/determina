@@ -4243,6 +4243,10 @@ function trackRound(finished) {
     // round matters when the far end drops bursts.
     const pct = Math.round(100 * (game.round.correct || 0) / asked);
     track("/e/accuracy/" + (Math.floor(pct / 10) * 10) + "s");
+    // How much of the round needed a hint, as a share rather than a count, so
+    // it means the same thing whether the round was ten species or a hundred.
+    const helped = Math.round(100 * (game.round.helped || 0) / asked);
+    track("/e/hints/" + bucket(helped, [[0, "none"], [33, "few"], [66, "many"], [Infinity, "most"]]));
   } else if (asked) {
     track("/e/quit-at/q" + Math.min(20, (game.round.index || 0) + 1));
   }
@@ -4261,6 +4265,18 @@ function trackRound(finished) {
     // The app detects that as a starting point but people override it, and the
     // override is the thing that says whether a translation was worth making.
     track("/e/lang/" + slug(uiLang || "en"));
+
+    // Which learning aids anyone actually switches on. Each is a feature with
+    // real code behind it, and this is the only way to find out whether it is
+    // being maintained for nobody. Only non-default settings are sent, so the
+    // usual case costs no requests at all — and the counts read directly as
+    // "browsers using this", one row per aid, rather than needing to be
+    // summed out of combinations.
+    if (game.reverseQuiz) track("/e/aid/reverse");
+    if (game.selfRate) track("/e/aid/self-rate");
+    if (game.mnemonics) track("/e/aid/notes");
+    if (game.locationHint) track("/e/aid/location");
+    if (!game.webImages) track("/e/aid/gbif-off");
   }
 }
 
@@ -5819,6 +5835,12 @@ function buildHints(q, mode) {
 }
 
 function resetHints() {
+  // Carry the finished question's hint use into a round total before clearing
+  // it, so the end-of-round count can say how much scaffolding this round
+  // needed. Counts QUESTIONS that needed help, not individual hints: "half the
+  // species needed a nudge" is a statement about difficulty, where "eleven
+  // hints" mostly reflects how long the round was.
+  if (hintsShown > 0 && game.round) game.round.helped = (game.round.helped || 0) + 1;
   currentHints = game.current ? buildHints(game.current, game.modeThis) : [];
   hintsShown = 0;
   renderHintControl();
