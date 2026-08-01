@@ -4061,13 +4061,37 @@ function loadAnalytics() {
 // One count. `path` is the whole message: GoatCounter has no key/value fields,
 // so every dimension is its own flat path rather than a property bag. Events
 // are prefixed /e/ to keep them apart from the screen paths in the dashboard.
-async function track(path) {
+//
+// Counts are queued and released one at a time rather than fired together. The
+// end of a round has half a dozen things to say, and sending them in the same
+// instant gets the tail of the burst dropped at the other end — the first test
+// against the live endpoint lost everything after the first two. Spacing them
+// costs nothing: this is fire-and-forget, and nobody is waiting on it.
+const SEND_GAP_MS = 400;
+const sendQueue = [];
+let draining = false;
+
+async function drainQueue() {
+  if (draining) return;
+  draining = true;
+  while (sendQueue.length) {
+    const path = sendQueue.shift();
+    try {
+      if (!(await loadAnalytics())) break;   // blocked or offline — stop trying
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: path, event: path.startsWith("/e/") });
+      }
+    } catch (err) { /* counting must never break the app */ }
+    if (sendQueue.length) await new Promise((r) => setTimeout(r, SEND_GAP_MS));
+  }
+  draining = false;
+}
+
+function track(path) {
   if (!analyticsAllowed()) return;
   try {
-    if (!(await loadAnalytics())) return;
-    if (window.goatcounter && window.goatcounter.count) {
-      window.goatcounter.count({ path: path, event: path.startsWith("/e/") });
-    }
+    sendQueue.push(path);
+    drainQueue();
   } catch (err) { /* counting must never break the app */ }
 }
 
