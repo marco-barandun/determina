@@ -549,6 +549,12 @@
   .ss-cell b { display: block; font-size: 17px; font-weight: 900; color: var(--green-dark); }
   .ss-cell span { font-size: 11px; font-weight: 800; text-transform: uppercase;
     letter-spacing: .05em; color: var(--faint); }
+  /* The "/24k" half of a cell: what GBIF accepts worldwide, against what the
+     selection reaches. Lighter, so the figure that matters reads first. The
+     extra .ss-cell specificity is needed to beat the label rule above, which
+     would otherwise uppercase and letter-space the "k". */
+  .ss-cell .ss-of { color: var(--faint); font-weight: 800; font-size: 14px;
+    text-transform: none; letter-spacing: 0; display: inline; }
   /* One bar per species, commonest first — the shape of the drop-off says more
      about what a round will feel like than any single number does. */
   .ss-bars { display: flex; align-items: flex-end; gap: 2px; height: 34px; margin-top: 10px; }
@@ -566,10 +572,6 @@
   .keys-note { margin-top: 14px; font-size: 12px; font-weight: 700; color: var(--faint); line-height: 1.5; }
   /* The "/ 24k" half of a cell: how many exist worldwide, against how many the
      selection actually reaches. Lighter, so the figure that matters reads first. */
-  /* Overrides the .ss-cell span label styling it would otherwise inherit —
-     without this the "k" of 447k is uppercased and letter-spaced apart. */
-  .ss-cell .ss-of { color: var(--faint); font-weight: 800; font-size: 14px;
-    text-transform: none; letter-spacing: 0; display: inline; }
 
   /* Progressive hints — a graded scaffold so a learner can work toward the
      answer instead of just failing (and then has it reinforced in review). */
@@ -2736,13 +2738,14 @@ async function renderSelectionStats() {
   }
   box.innerHTML = selectionStatsHtml(rows, speciesTotal, obsTotal);
   if (uiLang !== "en") i18nApplyTo(box, uiLang);   // this markup arrived after the page was translated
-  appendGbifCoverage(box, token);   // slower and optional, so it lands separately
+  appendGbifCoverage(box, token);   // separate request, so it lands separately
 }
 
-// Put what the selection reaches into proportion with what exists: the cells
-// become "338+ / 24k" — seen here, out of everything science has described.
-// Arrives after the iNaturalist figures, which never wait on it, and any
-// failure simply leaves the panel as it already was.
+// Put the selection in proportion: the cells gain a "/24k" showing what GBIF
+// accepts worldwide, and a line underneath names the source and gives the
+// family total, which has no per-region counterpart to sit beside. Arrives
+// after the iNaturalist figures, which never wait on it; any failure simply
+// leaves the panel as it already was.
 async function appendGbifCoverage(box, token) {
   let cov;
   try {
@@ -2752,35 +2755,33 @@ async function appendGbifCoverage(box, token) {
   } catch (err) { return; }
   if (token !== selectionStatsToken || !cov || !cov.species) return;   // selection moved on
 
-  // The two sources don't share a taxonomy: iNaturalist can count taxa GBIF's
-  // backbone doesn't accept, so the part can come out larger than the whole.
-  // Rather than print "35/29", drop the denominator and leave the plain count.
+  // The two sources don't share a taxonomy, so the part can come out larger
+  // than the whole. Rather than print "35/29", leave the plain count alone.
   const denom = (cell, total) => {
     const b = cell && cell.querySelector("b");
-    if (!b || !total) return;
-    if (Number(cell.dataset.n) > total) return;
+    if (!b || !total || Number(cell.dataset.n) > total) return;
     b.innerHTML += "<span class='ss-of'>/" + compactNumber(total) + "</span>";
   };
   denom(box.querySelector(".ss-cell[data-stat='genera']"), cov.genera);
   denom(box.querySelector(".ss-cell[data-stat='species']"), cov.species);
 
-  // No family count here, deliberately. GBIF's backbone marks long-superseded
-  // family names as accepted — Hostaceae, Eschscholtziaceae and Microcachryaceae
-  // all come back "ACCEPTED" with zero occurrence records — and because families
-  // are few, each of those ghosts weighs heavily. It reports 379 bird families
-  // (IOC recognises about 250) and 121 orthopteran families (about 30 are
-  // extant), so any figure we showed would be wrong by a margin a botanist would
-  // spot at a glance. Genus and species totals don't suffer nearly as much: they
-  // are large enough numbers that the same noise barely moves them.
+  // Only the ranks that sit below what you picked: families inside an order is
+  // useful, families inside a family is not.
+  const finest = Math.min(...game.taxa.map(rankLevelOf));
+  const parts = [];
+  if (finest > 30 && cov.families > 1) parts.push(compactNumber(cov.families) + " families");
+  if (finest > 20 && cov.genera > 1) parts.push(compactNumber(cov.genera) + " genera");
+  if (cov.species) parts.push(compactNumber(cov.species) + " species");
+  if (!parts.length) return;
+  const list = parts.length > 1
+    ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1]
+    : parts[0];
 
-  // Photo coverage is the ceiling on how much of a group can ever be quizzed,
-  // so it goes in words rather than as another number to decode. Skipped when
-  // the group was too large to count exactly (see fetchGbifCoverage).
-  if (cov.photos == null) return;
   const line = document.createElement("div");
   line.className = "ss-note";
-  line.textContent = compactNumber(cov.photos) + " of the " + compactNumber(cov.species) +
-    " described species have a photo of the living organism in GBIF — the most of this group any quiz could show you.";
+  // Attributed on purpose: these are GBIF's accepted totals, and other
+  // authorities count differently (see the note above fetchGbifCoverage).
+  line.textContent = "GBIF accepts " + list + " in this group worldwide.";
   box.appendChild(line);
   if (uiLang !== "en") i18nApplyTo(line, uiLang);
 }
@@ -4335,18 +4336,18 @@ async function buildGbifQuestion(sp) {
     gbif: true, observationId: null };
 }
 
-// -- how big is this group, and how much of it can you actually be shown? ---
-//  iNaturalist tells you what has been observed near you; it can't tell you how
-//  many species science has described, so a selection's stats can't say whether
-//  you're looking at all of a small genus or a sliver of a huge one. GBIF's
-//  backbone taxonomy can, and its media records say how many of those species
-//  anyone has photographed alive — which is the real ceiling on how much of a
-//  group this app can ever quiz you on.
+// -- how big is this group, worldwide? -------------------------------------
+//  iNaturalist can only say what has been observed; it can't say whether that
+//  is all of a small genus or a sliver of a huge one. GBIF's backbone can, so
+//  these are GBIF's accepted totals — and they are labelled as GBIF's, because
+//  no such total is simply "the" truth. Authorities disagree by a lot: GBIF
+//  accepts 29 species of Biarum where POWO accepts about 21, and 14,641 birds
+//  where the IOC list has about 11,000. Presented as one taxonomy's count, to
+//  give a sense of scale, the figures are accurate; presented as fact, they
+//  would not be. Family counts are the shakiest of the three (GBIF still marks
+//  superseded names like Hostaceae as accepted), which is exactly why the
+//  wording attributes every one of them.
 const GBIF_BACKBONE = "d7dddbf4-2cf0-4f39-9b2a-bb099caae36c";   // GBIF's backbone taxonomy
-// Above this many described species we don't attempt the photographed-species
-// count: the response carries a row per species, so it stops being worth its
-// weight (a class is ~350 KB, a kingdom many times that).
-const GBIF_COVERAGE_MAX = 25000;
 // GBIF's backbone has no superfamily rank, so a few iNaturalist groups have to
 // be expressed as the families they contain. Butterflies are the one preset
 // this affects.
@@ -4355,10 +4356,16 @@ const GBIF_TAXON_ALIASES = {
 };
 const gbifTaxonKeyCache = new Map();
 
-// A GBIF backbone key for one scientific name. The match endpoint is exact and
-// cheap but returns nothing for ambiguous names ("Iris" is both a plant and a
-// mantis) or ranks GBIF doesn't carry, so we fall back to a search filtered to
-// an exact canonical-name hit.
+// A GBIF backbone key for one scientific name, or null if GBIF can't offer one
+// we trust. Both halves of the test matter:
+//   - A name GBIF doesn't hold comes back as its nearest ancestor with
+//     matchType HIGHERRANK: "Polygonum viviparum" resolves to the genus
+//     Bistorta, "Aster bellidiastrum" all the way up to Asteraceae. Counting
+//     under those would describe a different taxon entirely.
+//   - A name GBIF treats as a SYNONYM is a disagreement about what the group
+//     IS, not merely what it's called: iNaturalist keeps Acinos as a genus of a
+//     handful of species, GBIF sinks it into Clinopodium's 207. Reporting the
+//     latter under the former's name would be wrong, so we decline instead.
 async function gbifKeyFor(name, rank, kingdom) {
   const cacheKey = name + "|" + (rank || "") + "|" + (kingdom || "");
   if (gbifTaxonKeyCache.has(cacheKey)) return gbifTaxonKeyCache.get(cacheKey);
@@ -4368,33 +4375,15 @@ async function gbifKeyFor(name, rank, kingdom) {
     if (rank) p.set("rank", String(rank).toUpperCase());
     if (kingdom) p.set("kingdom", kingdom);
     const j = await (await fetch("https://api.gbif.org/v1/species/match?" + p)).json();
-    // Only an exact hit on an ACCEPTED taxon is usable, and both halves matter.
-    //   - A name GBIF doesn't hold comes back as its nearest ancestor with
-    //     matchType HIGHERRANK: "Polygonum viviparum" resolves to the genus
-    //     Bistorta, "Aster bellidiastrum" all the way up to Asteraceae. Counting
-    //     under those would describe a completely different taxon, hence the
-    //     canonical-name check.
-    //   - A name GBIF treats as a SYNONYM is a genuine disagreement about what
-    //     the group IS, not just what it's called: iNaturalist keeps Acinos as a
-    //     genus of a handful of species, GBIF sinks it into Clinopodium's 207.
-    //     Following the synonym would report Clinopodium's figures under the
-    //     name Acinos, so we decline and simply show no worldwide totals.
     const accepted = j && j.status !== "SYNONYM" && !j.acceptedUsageKey;
     if (j && j.usageKey && j.canonicalName === name && accepted) key = j.usageKey;
-    if (!key) {
-      const sj = await (await fetch("https://api.gbif.org/v1/species/search?limit=20&status=ACCEPTED" +
-        "&datasetKey=" + GBIF_BACKBONE + "&q=" + encodeURIComponent(name))).json();
-      const exact = (sj.results || []).filter((r) => (r.canonicalName || "") === name);
-      const pick = (kingdom && exact.find((r) => r.kingdom === kingdom)) || exact[0];
-      if (pick) key = pick.key;
-    }
-  } catch (err) { /* leave null — these stats are a nicety, never load-bearing */ }
+  } catch (err) { /* leave null — these totals are a nicety, never load-bearing */ }
   gbifTaxonKeyCache.set(cacheKey, key);
   return key;
 }
 
 // iNaturalist's iconic groups mapped onto GBIF kingdoms, purely to break ties
-// on ambiguous names. Anything unrecognised returns "" (no hint).
+// on ambiguous names ("Iris" is a plant and a mantis).
 function iconicKingdom(iconic) {
   if (!iconic) return "";
   if (["Plantae", "Fungi", "Protozoa", "Chromista", "Bacteria"].includes(iconic)) return iconic;
@@ -4416,12 +4405,9 @@ async function gbifTaxonKeys(taxa) {
   return keys;
 }
 
-// Described species and genera under these keys, plus how many species have a
-// photo of the living organism. Repeated key parameters are OR-ed by GBIF, so
-// a group spread over several families still costs one request per figure.
-// Only live-photo records are counted, matching what the quiz will actually
-// show (see fetchGbifLive) — counting herbarium sheets here would promise
-// pictures the app then refuses to use.
+// Families, genera and species GBIF accepts under these keys. Repeated key
+// parameters are OR-ed by GBIF, so a group spread over several families still
+// costs one request per rank. Cached, so changing region doesn't refetch.
 const gbifCoverageCache = new Map();
 
 async function fetchGbifCoverage(keys) {
@@ -4434,26 +4420,9 @@ async function fetchGbifCoverage(keys) {
     if (!res.ok) throw new Error("gbif " + res.status);
     return (await res.json()).count || 0;
   };
-  const [species, genera] = await Promise.all([rankCount("SPECIES"), rankCount("GENUS")]);
-
-  // Counting how many species have been photographed means asking for one facet
-  // row per species, so the response grows with the group: a genus costs 1 KB,
-  // a class about 350 KB, a whole kingdom far too much. Past the limit we report
-  // no figure at all rather than a capped one — "1000+ of 447k" would read as a
-  // finding when it is really just where we stopped counting.
-  let photos = null;
-  if (species && species <= GBIF_COVERAGE_MAX) {
-    const p = new URLSearchParams({ mediaType: "StillImage", limit: "0",
-      facet: "speciesKey", facetLimit: String(GBIF_COVERAGE_MAX) });
-    const res = await fetch("https://api.gbif.org/v1/occurrence/search?" + p +
-      "&" + keys.map((k) => "taxonKey=" + k).join("&") +
-      "&" + [...GBIF_LIVE_BASIS].map((b) => "basisOfRecord=" + b).join("&"));
-    if (res.ok) {
-      const j = await res.json();
-      photos = ((j.facets && j.facets[0] && j.facets[0].counts) || []).length;
-    }
-  }
-  const cov = { species, genera, photos };
+  const [species, genera, families] =
+    await Promise.all([rankCount("SPECIES"), rankCount("GENUS"), rankCount("FAMILY")]);
+  const cov = { species, genera, families };
   gbifCoverageCache.set(cacheKey, cov);
   return cov;
 }
