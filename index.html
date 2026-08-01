@@ -1531,6 +1531,17 @@
         <input id="locationHintToggle" type="checkbox">
         <span class="switch"></span>
       </label>
+      <!-- Hidden unless a counter is actually configured (see setupAnalytics),
+           so a self-hosted copy with no analytics doesn't offer to turn off
+           something that was never on. -->
+      <label class="toggle field hidden" id="analyticsRow" style="margin-bottom:0;">
+        <span>
+          <b>Help improve the app</b>
+          <span class="hint">Sends a count of which groups and modes get used, and how far rounds get. No account, no cookies, no location, and nothing that identifies you or your device — just totals. Turn it off and nothing is sent at all.</span>
+        </span>
+        <input id="analyticsToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
       </div>
       <div id="langPanel" class="hidden">
       <div class="field">
@@ -3493,6 +3504,8 @@ const MANUAL_I18N = {
   "Correct answers in a row before a species drops off your difficult list.": { de: "So viele richtige Antworten in Folge braucht eine Art, bis sie von deiner Liste der schwierigen Arten verschwindet.", it: "Quante risposte corrette di fila servono perché una specie non sia più considerata difficile.", fr: "Nombre de bonnes réponses d'affilée nécessaires pour qu'une espèce quitte ta liste des difficiles.", es: "Cuántas veces seguidas tienes que acertar una especie para que salga de tu lista de difíciles." },
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
   "Show the welcome walkthrough again": { de: "Einführung nochmal ansehen", it: "Rivedi l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Volver a ver la introducción" },
+  "Help improve the app": { de: "Hilf mit, die App zu verbessern", it: "Aiuta a migliorare l'app", fr: "Aide à améliorer l'app", es: "Ayuda a mejorar la app" },
+  "Sends a count of which groups and modes get used, and how far rounds get. No account, no cookies, no location, and nothing that identifies you or your device — just totals. Turn it off and nothing is sent at all.": { de: "Sendet, welche Gruppen und Modi genutzt werden und wie weit Runden kommen. Kein Konto, keine Cookies, kein Standort und nichts, was dich oder dein Gerät erkennbar macht – nur Summen. Schaltest du es aus, wird gar nichts gesendet.", it: "Invia il conteggio di quali gruppi e modalità vengono usati e fin dove arrivano le sessioni. Nessun account, nessun cookie, nessuna posizione e niente che identifichi te o il tuo dispositivo: solo totali. Se lo disattivi, non viene inviato proprio nulla.", fr: "Envoie le décompte des groupes et des modes utilisés, et jusqu'où vont les sessions. Pas de compte, pas de cookies, pas de localisation, et rien qui t'identifie toi ou ton appareil — seulement des totaux. Si tu le désactives, plus rien n'est envoyé.", es: "Envía el recuento de qué grupos y modos se usan y hasta dónde llegan las rondas. Sin cuenta, sin cookies, sin ubicación y sin nada que te identifique a ti ni a tu dispositivo: solo totales. Si lo desactivas, no se envía absolutamente nada." },
   "Appearance": { de: "Darstellung", it: "Aspetto", fr: "Apparence", es: "Apariencia" },
   "Device": { de: "Gerät", it: "Dispositivo", fr: "Appareil", es: "Dispositivo" },
   "Day / night": { de: "Tag / Nacht", it: "Giorno / notte", fr: "Jour / nuit", es: "Día / noche" },
@@ -3973,12 +3986,163 @@ function setupTheme() {
 }
 
 
+// == 8b. Anonymous usage counting (opt-out, off until configured) ==========
+//  What this is for: knowing which parts of the app are actually used, so the
+//  ones that aren't can be dropped rather than maintained forever. It is
+//  deliberately incapable of following a person.
+//
+//  GoatCounter is a cookieless counter that never stores an IP: it hashes
+//  address + browser with a salt it rotates daily and throws away, so it cannot
+//  connect today's visit to tomorrow's. That is the point, and it is also why
+//  it cannot answer "how many people came back".
+//
+//  So returning visits are worked out HERE, on the device, from figures the app
+//  already keeps, and only the BUCKET is ever sent: "this browser has done
+//  between 6 and 20 rounds", "first used more than a month ago". Nothing that
+//  distinguishes one browser from another leaves the machine, so two visits
+//  still cannot be linked at the other end — but the spread across everyone is
+//  visible, which is what actually informs a decision. It counts browsers, not
+//  people: clearing site data or switching device reads as somebody new.
+//
+//  Nothing here runs, and the third-party script is never even fetched, unless
+//  ANALYTICS_SITE is filled in below AND the visitor hasn't opted out AND their
+//  browser isn't asking not to be tracked.
+const ANALYTICS_SITE = "";        // e.g. "determinare" -> determinare.goatcounter.com
+const ANALYTICS_KEY = "determinare.analytics";      // "off" when opted out
+const ANALYTICS_FIRST = "determinare.firstSeen";    // ISO date of first visit
+const ANALYTICS_ROUNDS = "determinare.roundCount";  // rounds finished on this browser
+
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch (err) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (err) { /* blocked */ } };
+
+// Do Not Track and Global Privacy Control are the browser saying no on the
+// visitor's behalf; an explicit opt-out in Options says it directly.
+function analyticsAllowed() {
+  if (!ANALYTICS_SITE) return false;
+  if (navigator.globalPrivacyControl) return false;
+  const dnt = navigator.doNotTrack || window.doNotTrack;
+  if (dnt === "1" || dnt === "yes") return false;
+  return lsGet(ANALYTICS_KEY) !== "off";
+}
+
+// The counter script is only fetched once something is actually worth counting,
+// so a visitor who opted out never contacts goatcounter.com at all.
+let analyticsLoading = null;
+function loadAnalytics() {
+  if (analyticsLoading) return analyticsLoading;
+  analyticsLoading = new Promise((resolve) => {
+    window.goatcounter = { no_onload: true, no_events: true };
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://gc.zgo.at/count.js";
+    s.setAttribute("data-goatcounter", "https://" + ANALYTICS_SITE + ".goatcounter.com/count");
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);   // blocked or offline — counting just stops
+    document.head.appendChild(s);
+  });
+  return analyticsLoading;
+}
+
+// One count. `path` is the whole message: GoatCounter has no key/value fields,
+// so every dimension is its own flat path rather than a property bag. Events
+// are prefixed /e/ to keep them apart from the screen paths in the dashboard.
+async function track(path) {
+  if (!analyticsAllowed()) return;
+  try {
+    if (!(await loadAnalytics())) return;
+    if (window.goatcounter && window.goatcounter.count) {
+      window.goatcounter.count({ path: path, event: path.startsWith("/e/") });
+    }
+  } catch (err) { /* counting must never break the app */ }
+}
+
+// Which screen you're on, as a path, so the dashboard shows setup -> play ->
+// done as an ordinary funnel. This is the only thing counted on arrival.
+const trackScreen = (name) => track("/" + name);
+
+// Anything that varies has to be squeezed into a short fixed vocabulary, both
+// to keep the dashboard readable and so no combination is ever rare enough to
+// single somebody out.
+const slug = (s) => String(s || "other").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "other";
+const bucket = (n, edges) => {
+  for (const [limit, label] of edges) if (n <= limit) return label;
+  return edges[edges.length - 1][1];
+};
+
+// How much this browser has used the app, and how long it has known about it.
+// Both are read from localStorage and reported only as a bucket.
+function retentionBuckets() {
+  const rounds = Number(lsGet(ANALYTICS_ROUNDS) || 0);
+  const first = lsGet(ANALYTICS_FIRST);
+  const out = { rounds: bucket(rounds, [[1, "1"], [5, "2-5"], [20, "6-20"], [Infinity, "21+"]]) };
+  if (first) {
+    const days = Math.floor((Date.now() - Date.parse(first)) / 86400000);
+    out.since = Number.isFinite(days)
+      ? bucket(days, [[0, "same-day"], [7, "d1-7"], [30, "d8-30"], [Infinity, "d31+"]])
+      : null;
+  }
+  return out;
+}
+
+function noteVisit() {
+  if (!lsGet(ANALYTICS_FIRST)) lsSet(ANALYTICS_FIRST, new Date().toISOString());
+}
+
+// The opt-out lives with the other settings. The row only appears when a
+// counter is configured, and is forced off (and disabled) when the browser
+// itself has already said no, so the switch never claims more than it can do.
+function setupAnalytics() {
+  noteVisit();
+  const row = el("analyticsRow"), box = el("analyticsToggle");
+  if (!row || !box || !ANALYTICS_SITE) return;
+  row.classList.remove("hidden");
+  const dnt = navigator.doNotTrack || window.doNotTrack;
+  const browserSaysNo = !!navigator.globalPrivacyControl || dnt === "1" || dnt === "yes";
+  if (browserSaysNo) {
+    box.checked = false;
+    box.disabled = true;
+    return;
+  }
+  box.checked = lsGet(ANALYTICS_KEY) !== "off";
+  box.addEventListener("change", () => lsSet(ANALYTICS_KEY, box.checked ? "on" : "off"));
+}
+
+// Everything about one round, sent when it ends rather than as it happens: a
+// per-answer stream would let anyone reading the log reassemble a session from
+// the timing alone. Mode and media share a path to keep the request count down.
+function trackRound(finished) {
+  if (!analyticsAllowed()) return;
+  const rounds = Number(lsGet(ANALYTICS_ROUNDS) || 0);
+  const ret = retentionBuckets();               // read BEFORE incrementing
+  if (finished) lsSet(ANALYTICS_ROUNDS, String(rounds + 1));
+
+  track("/e/round/" + slug(game.answerMode) + "-" + slug(game.media));
+  track("/e/group/" + (game.taxa && game.taxa.length === 1 ? slug(game.taxa[0].name) : "mixed"));
+  if (certChoice && certChoice !== "none") track("/e/cert/" + slug(certChoice));
+
+  const asked = game.round ? game.round.size : 0;
+  if (finished && asked) {
+    const pct = Math.round(100 * (game.round.correct || 0) / asked);
+    track("/e/accuracy/" + (Math.floor(pct / 10) * 10) + "s");
+    track("/e/finished");
+  } else if (asked) {
+    track("/e/quit-at/q" + Math.min(20, (game.round.index || 0) + 1));
+  }
+  // The returning-visitor picture, as buckets only.
+  track("/e/rounds-so-far/" + ret.rounds);
+  if (ret.since) track("/e/using-since/" + ret.since);
+}
+
 // == 9. Playing a lesson ===================================================
 
 // Show one of the top-level screens and hide the rest.
+let lastScreen = null;
 function showScreen(name) {
   ["setup", "play", "done", "progressPanel"].forEach((id) =>
     el(id).classList.toggle("hidden", id !== name));
+  // Counted as a path so the dashboard reads as a plain funnel. Only on a real
+  // change, or re-rendering the same screen would inflate it.
+  if (name !== lastScreen) { lastScreen = name; trackScreen(name); }
 }
 
 // Kick off a session with the chosen groups + region(s).
@@ -6491,6 +6655,7 @@ function showStudyDone() {
 
 function showDone() {
   if (game.answerMode === "study") return showStudyDone();
+  trackRound(true);
   showScreen("done");
   const reviewMode = game.mode === "review";
   const accuracy = game.round.size ? Math.round(100 * game.round.correct / game.round.size) : 0;
@@ -7029,7 +7194,11 @@ function wireControls() {
   el("checkBtn").addEventListener("click", onPrimaryAction);
   el("skipBtn").addEventListener("click", skipForLater);
   el("revealBtn").addEventListener("click", revealAnswer);
-  el("quitBtn").addEventListener("click", backToSetup);
+  // Leaving mid-round is the interesting case: it says where people give up.
+  el("quitBtn").addEventListener("click", () => {
+    if (!el("play").classList.contains("hidden")) trackRound(false);
+    backToSetup();
+  });
 
   // progress panel (delegated)
   el("progressPanel").addEventListener("click", (e) => {
@@ -7236,6 +7405,7 @@ renderFoldSummaries();  // what each collapsed section currently holds
 if (window.matchMedia("(min-width: 1000px)").matches && el("practiseFold")) {
   el("practiseFold").open = true;
 }
+setupAnalytics();       // opt-out row; stays dormant until ANALYTICS_SITE is set
 setupTheme();           // light / dark / device / day-night — <head> already applied it
 setupShortcuts();       // keyboard shortcuts + the (i) that documents them
 setupTranslate();       // our language <select> that drives Google's hidden engine
