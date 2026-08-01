@@ -4013,6 +4013,10 @@ function setupTheme() {
 //  ANALYTICS_SITE is filled in below AND the visitor hasn't opted out AND their
 //  browser isn't asking not to be tracked.
 const ANALYTICS_SITE = "";        // e.g. "learnit" -> learnit.goatcounter.com
+// Only for checking the wiring from a local server: GoatCounter ignores hits
+// from localhost unless told otherwise, so leave this false once it's live or
+// your own testing will show up in the real figures.
+const ANALYTICS_ALLOW_LOCAL = false;
 const ANALYTICS_KEY = "determinare.analytics";      // "off" when opted out
 const ANALYTICS_FIRST = "determinare.firstSeen";    // ISO date of first visit
 const ANALYTICS_ROUNDS = "determinare.roundCount";  // rounds finished on this browser
@@ -4036,7 +4040,12 @@ let analyticsLoading = null;
 function loadAnalytics() {
   if (analyticsLoading) return analyticsLoading;
   analyticsLoading = new Promise((resolve) => {
-    window.goatcounter = { no_onload: true, no_events: true };
+    // no_onload: we count screens ourselves, so the script must not fire its own
+    // pageview on load. no_events: we send every event by hand rather than
+    // letting it bind to elements. allow_local: the script silently refuses to
+    // count from localhost, which is sensible in production and unhelpful when
+    // checking the wiring works — hence the switch above.
+    window.goatcounter = { no_onload: true, no_events: true, allow_local: ANALYTICS_ALLOW_LOCAL };
     const s = document.createElement("script");
     s.async = true;
     s.src = "https://gc.zgo.at/count.js";
