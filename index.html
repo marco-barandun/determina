@@ -4214,7 +4214,97 @@ function feedbackBody() {
   }
   lines.push("Language: " + (uiLang || "en"));
   lines.push("Screen: " + window.innerWidth + "x" + window.innerHeight);
+  // The whole question, packed. Opening this link rebuilds it on screen, which
+  // beats trying to picture it from the lines above.
+  const packed = feedbackContext ? encodeRepro(reproState()) : "";
+  if (packed) {
+    lines.push("");
+    lines.push("Open this exact question:");
+    lines.push(location.origin + location.pathname + "?replay=" + packed);
+  }
   return lines.join("\n");
+}
+
+// -- reproducing a reported question ---------------------------------------
+//  A screenshot shows what a question looked like; this rebuilds it. Everything
+//  needed to put the same question back on screen is packed into one string
+//  that travels in the email, so a report can be opened rather than imagined.
+//  Short keys because it has to stay comfortably inside a mailto body.
+function reproState() {
+  if (!game.current) return null;
+  const photos = (game.currentMedia || questionPhotos(game.current) || []).map((p) => p.url);
+  const s = {
+    v: 1,
+    n: game.current.scientificName,
+    o: game.current.observationId || 0,
+    p: photos.slice(0, MAX_MEDIA_PER_QUESTION),
+    i: currentPhotoIndex(),
+    m: game.answerMode, d: game.media,
+    c: game.choiceCount || 0,
+    x: certChoice !== "none" ? certChoice : "",
+    g: game.webImages ? 1 : 0,
+    l: uiLang || "en",
+  };
+  const ctx = onScreenContext();
+  if (ctx.options) s.q = ctx.options;
+  if (ctx.typed) s.t = ctx.typed;
+  if (ctx.picked) s.k = ctx.picked;
+  if (ctx.verdict) s.r = ctx.verdict;
+  return s;
+}
+
+// base64url, so it survives being a query parameter and being wrapped by a mail
+// client without needing to be un-mangled by hand at the other end.
+function encodeRepro(state) {
+  try {
+    const json = JSON.stringify(state);
+    return btoa(String.fromCharCode(...new TextEncoder().encode(json)))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch (err) { return ""; }
+}
+function decodeRepro(str) {
+  try {
+    const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch (err) { return null; }
+}
+
+// Put a reported question back on screen, read-only: the same photos, the same
+// options, in the same mode. It deliberately doesn't resume a session — this is
+// for looking at what somebody else saw, not for playing from it.
+function replayFromUrl() {
+  const param = new URLSearchParams(location.search).get("replay");
+  if (!param) return false;
+  const s = decodeRepro(param);
+  if (!s || !s.n) return false;
+  game.current = { taxonId: -1, scientificName: s.n, observationId: s.o || null,
+    photos: (s.p || []).map((u) => ({ url: u, attribution: "reported question" })) };
+  game.answerMode = s.m || "type"; game.media = s.d || "photo";
+  game.answered = true; game.reverseThis = false; game.mode = "normal";
+  game.label = "Reported question";
+  game.replaying = true;   // nothing from a normal session may repaint over this
+  showScreen("play"); clearBusy();
+  el("learnLabel").textContent = "Reported question · " + s.n;
+  if (game.media === "photo" && (s.p || []).length) showPhotoGallery(questionPhotos(game.current));
+  el("promptText").innerHTML = "<i class='notranslate'>" + escapeHtml(s.n) + "</i>";
+  el("answerInput").closest(".search.answer").classList.add("hidden");
+  if (s.q && s.q.length) {
+    el("choiceArea").classList.remove("hidden");
+    el("choiceArea").innerHTML = s.q.map((n) =>
+      "<button type='button' class='choice notranslate' disabled" +
+      (n === s.n ? " style='outline:3px solid var(--green)'" : "") +
+      (n === s.k ? " style='outline:3px solid var(--red)'" : "") + ">" + escapeHtml(n) + "</button>").join("");
+  }
+  const bits = ["mode " + s.m + " · " + s.d];
+  if (s.t) bits.push("typed “" + s.t + "”");
+  if (s.k) bits.push("picked " + s.k);
+  if (s.r) bits.push(s.r);
+  if (s.x) bits.push("certificate " + s.x);
+  bits.push("photo " + ((s.i || 0) + 1) + " of " + (s.p || []).length);
+  bits.push("GBIF top-up " + (s.g ? "on" : "off") + " · language " + s.l);
+  el("credit").textContent = bits.join(" · ");
+  return true;
 }
 
 function sendFeedback() {
@@ -6165,6 +6255,7 @@ function scheduleReinforcement(question) {
 
 // -- busy / empty / error states inside the play area ---------------------
 function setBusy(message) {
+  if (game.replaying) return;   // a reported question is on screen
   el("playMain").innerHTML = "<div class='busy'><div class='spinner'></div><p>" + escapeHtml(message) + "</p></div>";
   el("actionRow").classList.add("hidden");
   hideFeedback();
@@ -6202,6 +6293,7 @@ function clearBusy() {
   wirePhotoGallery();  // re-attach listeners to the fresh gallery controls
 }
 function showEmpty() {
+  if (game.replaying) return;   // a reported question is on screen
   el("playMain").innerHTML = "<div class='busy'><p>No research-grade " + mediaWord(true) + " matched that choice.<br>" +
     "Try a broader group (like Plantae) or a larger region (like World).</p>" +
     "<button class='btn btn-primary' onclick='backToSetup()'>Change selection</button></div>";
@@ -7794,6 +7886,13 @@ setupShortcuts();       // keyboard shortcuts + the (i) that documents them
 setupTranslate();       // our language <select> that drives Google's hidden engine
 wireControls();
 maybeShowIntro();       // the four-card walkthrough, on a first visit only
+
+
+// A ?replay= link from a feedback email opens that exact question. Runs last,
+// after the rest of start-up, because the normal boot rebuilds the play markup
+// and would otherwise wipe what this puts on screen.
+replayFromUrl();
+
 </script>
 </body>
 </html>
