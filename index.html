@@ -32,6 +32,10 @@
      Polish, Hungarian, Turkish and Romanian. Greek, Cyrillic and the non-Latin
      scripts fall back to the reader's system font, which handles them at least
      as well as these faces would. -->
+<!-- The photo host is contacted for every single question, so pay the DNS and
+     TLS cost once at startup rather than when the first photo is wanted. -->
+<link rel="preconnect" href="https://inaturalist-open-data.s3.amazonaws.com" crossorigin>
+<link rel="preconnect" href="https://static.inaturalist.org" crossorigin>
 <link rel="preload" href="fonts/inter-normal-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/fraunces-normal-latin.woff2" as="font" type="font/woff2" crossorigin>
 
@@ -526,6 +530,15 @@
     flex: 0 0 100%; width: 100%; height: 100%; object-fit: contain;
     background: var(--bg-2); display: block; scroll-snap-align: start;
   }
+  /* The 240px stand-in, drawn behind the real photo and sized the same way, so
+     the frame is filled while the full image is still arriving and nothing
+     shifts when it lands. It fades in rather than appearing, which reads as
+     loading rather than as a glitch. */
+  .photo-strip img.blurring {
+    background-size: contain; background-position: center; background-repeat: no-repeat;
+  }
+  .photo-strip img.blurring { animation: photoIn .25s ease-out; }
+  @keyframes photoIn { from { opacity: .35; } to { opacity: 1; } }
   .photo-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
   /* One slot of the sound-mode "gallery" — same strip/scroll-snap mechanics
      as a photo slot, just centering an icon + native audio player instead. */
@@ -1557,6 +1570,11 @@
         <div class="field-label">How it works</div>
         <button type="button" id="introReplay" class="cert-list-link">Show the welcome walkthrough again</button>
       </div>
+      <div class="field">
+        <div class="field-label">Something wrong, or an idea?</div>
+        <a id="feedbackLink" class="cert-list-link" href="#" target="_blank" rel="noopener">Send feedback</a>
+        <div class="hint" style="margin-top:6px;">Unclear photos, a species that seems misnamed, anything that annoyed you — it all helps.</div>
+      </div>
 
 
       <div class="field">
@@ -1906,7 +1924,20 @@ function fetchObservations(taxonIds, placeId, page, perPage = PER_PAGE) {
 
 // == 3. Turning observations into quiz questions ===========================
 
-const biggerPhoto = (url) => url.replace("/square.", "/large.");
+// iNaturalist serves the same photo at several sizes off one url, and the app
+// used to take "large" (1024px) everywhere. On a phone that is roughly four
+// times the pixels the card can show, paid for on a mobile connection. Pick
+// from what the card will actually be asked to display instead.
+function photoSizeWanted() {
+  const card = Math.min(window.innerWidth || 400, 760);   // the card never gets wider
+  return card * (window.devicePixelRatio || 1) <= 560 ? "medium" : "large";
+}
+const biggerPhoto = (url) => url.replace("/square.", "/" + photoSizeWanted() + ".");
+// A 240px version of the same frame — same crop, a fraction of the bytes. Shown
+// blurred while the real one arrives, so there is something to look at almost
+// immediately instead of a spinner. Not the "square" size, which is cropped
+// square and would visibly jump when the full photo replaced it.
+const thumbPhoto = (url) => url.replace("/square.", "/small.");
 
 function toQuestions(observations) {
   const wantSound = game.media === "sound";
@@ -1940,7 +1971,8 @@ function toQuestions(observations) {
       // as a convenient alias for the first photo, since a few other places
       // (the review pile) only ever need one representative image.
       const photos = obs.photos.slice(0, MAX_MEDIA_PER_QUESTION)
-        .map((photo) => ({ url: biggerPhoto(photo.url), attribution: photo.attribution || "" }));
+        .map((photo) => ({ url: biggerPhoto(photo.url), thumb: thumbPhoto(photo.url),
+                           attribution: photo.attribution || "" }));
       return { ...base, photos, photoUrl: photos[0].url, attribution: photos[0].attribution };
     });
 }
@@ -3581,6 +3613,9 @@ const MANUAL_I18N = {
   "5 in a row": { de: "5 in Folge", it: "5 di fila", fr: "5 d'affilée", es: "5 seguidas" },
   "Correct answers in a row before a species drops off your difficult list.": { de: "So viele richtige Antworten in Folge braucht eine Art, bis sie von deiner Liste der schwierigen Arten verschwindet.", it: "Quante risposte corrette di fila servono perché una specie non sia più considerata difficile.", fr: "Nombre de bonnes réponses d'affilée nécessaires pour qu'une espèce quitte ta liste des difficiles.", es: "Cuántas veces seguidas tienes que acertar una especie para que salga de tu lista de difíciles." },
   "How it works": { de: "So funktioniert's", it: "Come funziona", fr: "Comment ça marche", es: "Cómo funciona" },
+  "Something wrong, or an idea?": { de: "Etwas falsch, oder eine Idee?", it: "Qualcosa non va, o hai un'idea?", fr: "Un problème, ou une idée ?", es: "¿Algo va mal, o tienes una idea?" },
+  "Send feedback": { de: "Rückmeldung senden", it: "Manda un riscontro", fr: "Envoyer un retour", es: "Enviar comentarios" },
+  "Unclear photos, a species that seems misnamed, anything that annoyed you — it all helps.": { de: "Unklare Fotos, eine Art, die falsch benannt scheint, alles was dich gestört hat – alles hilft.", it: "Foto poco chiare, una specie che sembra avere il nome sbagliato, qualsiasi cosa ti abbia dato fastidio: tutto è utile.", fr: "Photos peu claires, une espèce qui semble mal nommée, tout ce qui t'a agacé — tout aide.", es: "Fotos poco claras, una especie que parece mal nombrada, cualquier cosa que te haya molestado: todo ayuda." },
   "Show the welcome walkthrough again": { de: "Einführung nochmal ansehen", it: "Rivedi l'introduzione", fr: "Revoir la présentation de bienvenue", es: "Volver a ver la introducción" },
   "Help improve the app": { de: "Hilf mit, die App zu verbessern", it: "Aiuta a migliorare l'app", fr: "Aide à améliorer l'app", es: "Ayuda a mejorar la app" },
   "Sends a count of which groups and modes get used, and how far rounds get. No account, no cookies, no location, and nothing that identifies you or your device — just totals. Turn it off and nothing is sent at all.": { de: "Sendet, welche Gruppen und Modi genutzt werden und wie weit Runden kommen. Kein Konto, keine Cookies, kein Standort und nichts, was dich oder dein Gerät erkennbar macht – nur Summen. Schaltest du es aus, wird gar nichts gesendet.", it: "Invia il conteggio di quali gruppi e modalità vengono usati e fin dove arrivano le sessioni. Nessun account, nessun cookie, nessuna posizione e niente che identifichi te o il tuo dispositivo: solo totali. Se lo disattivi, non viene inviato proprio nulla.", fr: "Envoie le décompte des groupes et des modes utilisés, et jusqu'où vont les sessions. Pas de compte, pas de cookies, pas de localisation, et rien qui t'identifie toi ou ton appareil — seulement des totaux. Si tu le désactives, plus rien n'est envoyé.", es: "Envía el recuento de qué grupos y modos se usan y hasta dónde llegan las rondas. Sin cuenta, sin cookies, sin ubicación y sin nada que te identifique a ti ni a tu dispositivo: solo totales. Si lo desactivas, no se envía absolutamente nada." },
@@ -4044,6 +4079,25 @@ function renderThemeChips() {
     "<button type='button' class='chip" + (value === current ? " active" : "") +
     "' data-theme-choice='" + value + "'>" + label + "</button>").join("");
 }
+// -- feedback ---------------------------------------------------------------
+//  Analytics can say WHERE people give up; only people can say why. This is the
+//  channel for that. It points at GitHub issues by default because that needs
+//  no email address published — swap in "mailto:you@example.com" if you would
+//  rather hear from people who don't have a GitHub account, which is most
+//  naturalists. Set to "" to hide the link entirely.
+const FEEDBACK_URL = "https://github.com/marco-barandun/determina/issues/new";
+
+function setupFeedback() {
+  const link = el("feedbackLink");
+  if (!link) return;
+  const row = link.closest(".field");
+  if (!FEEDBACK_URL) { if (row) row.classList.add("hidden"); return; }
+  link.href = FEEDBACK_URL;
+  // Counted so you can see whether anyone ever looks for it — a feedback link
+  // nobody clicks is worth knowing about too.
+  link.addEventListener("click", () => track("/e/feedback"));
+}
+
 function setupTheme() {
   renderThemeChips();
   const box = el("themeChips");
@@ -5150,10 +5204,19 @@ function showPhotoGallery(photos) {
 
   const strip = el("photoStrip");
   // Only photo 1 gets a src here; the rest carry data-src and are started by
-  // loadNextPhoto() once it has landed.
+  // loadNextPhoto() once it has landed. The lead slot also gets the 240px
+  // version as a blurred backdrop, so the frame is filled almost immediately
+  // and the full photo fades in over it rather than arriving into a spinner.
   strip.innerHTML = photos.map((p, i) =>
     "<img " + (i === 0 ? "fetchpriority='high' src='" : "data-src='") + escapeHtml(p.url) +
     "' decoding='async' alt='Species to identify'>").join("");
+  // Set from script rather than an inline style attribute: a url() inside an
+  // attribute has to survive HTML escaping as well as CSS quoting, and quietly
+  // ends up empty when it doesn't.
+  if (photos[0] && photos[0].thumb && strip.firstElementChild) {
+    strip.firstElementChild.style.backgroundImage = "url(" + JSON.stringify(photos[0].thumb) + ")";
+    strip.firstElementChild.classList.add("blurring");
+  }
   strip.scrollLeft = 0;
 
   const multiple = photos.length > 1;
@@ -5164,14 +5227,17 @@ function showPhotoGallery(photos) {
 
   el("photoLoading").classList.remove("hidden");
   const firstImage = strip.querySelector("img");
-  firstImage.onload  = () => { el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto(); };
+  // Drop the stand-in once the real photo has decoded, or it keeps painting
+  // behind a transparent PNG.
+  const clearPlaceholder = () => { firstImage.classList.remove("blurring"); firstImage.style.backgroundImage = ""; };
+  firstImage.onload  = () => { clearPlaceholder(); el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto(); };
   // The lead photo is broken — skip ahead (guarded). Still start the rest, so a
   // single dead url doesn't strand every photo behind it.
   firstImage.onerror = () => { onMediaBroken(); loadNextPhoto(); };
   // A cached image can already be complete before onload is attached, in which
   // case onload never fires and the spinner would sit on top of it forever.
   if (firstImage.complete && firstImage.naturalWidth > 0) {
-    el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto();
+    clearPlaceholder(); el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto();
   }
 
   updatePhotoIndicator();   // sets the "1 / n" pill and the credit line for photo 1
@@ -7559,6 +7625,7 @@ if (window.matchMedia("(min-width: 1000px)").matches && el("practiseFold")) {
   el("practiseFold").open = true;
 }
 setupAnalytics();       // opt-out row; stays dormant until ANALYTICS_SITE is set
+setupFeedback();        // the 'send feedback' link, if FEEDBACK_URL is set
 setupTheme();           // light / dark / device / day-night — <head> already applied it
 setupShortcuts();       // keyboard shortcuts + the (i) that documents them
 setupTranslate();       // our language <select> that drives Google's hidden engine
