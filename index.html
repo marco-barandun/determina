@@ -4020,6 +4020,7 @@ const ANALYTICS_ALLOW_LOCAL = false;
 const ANALYTICS_KEY = "determinare.analytics";      // "off" when opted out
 const ANALYTICS_FIRST = "determinare.firstSeen";    // ISO date of first visit
 const ANALYTICS_ROUNDS = "determinare.roundCount";  // rounds finished on this browser
+const ANALYTICS_PINGED = "determinare.retentionPing";  // date the retention bucket last went out
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (err) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (err) { /* blocked */ } };
@@ -4142,9 +4143,17 @@ function trackRound(finished) {
   } else if (asked) {
     track("/e/quit-at/q" + Math.min(20, (game.round.index || 0) + 1));
   }
-  // The returning-visitor picture, as buckets only.
-  track("/e/rounds-so-far/" + ret.rounds);
-  if (ret.since) track("/e/using-since/" + ret.since);
+  // The returning-visitor picture, as buckets only, and at most once a day per
+  // browser. Sending it every round would count activity rather than people:
+  // one enthusiast doing ten rounds would look like ten returning visitors and
+  // drown out everybody else. Once a day makes each bucket "browsers active
+  // today", which is what a retention curve actually needs.
+  const today = new Date().toISOString().slice(0, 10);
+  if (lsGet(ANALYTICS_PINGED) !== today) {
+    lsSet(ANALYTICS_PINGED, today);
+    track("/e/rounds-so-far/" + ret.rounds);
+    if (ret.since) track("/e/using-since/" + ret.since);
+  }
 }
 
 // == 9. Playing a lesson ===================================================
