@@ -1645,7 +1645,14 @@
     </button>
     <h3>Send feedback</h3>
     <p class="fb-intro">Anything that went wrong, an unclear photo, a species you think is misnamed, or something you'd like the app to do.</p>
-    <textarea id="feedbackText" class="input fb-text" rows="5" placeholder="What happened, or what would you change?"></textarea>
+    <!-- maxlength: the whole report has to fit in a mailto:, and Windows drops
+         one over ~2048 characters without saying so (see MAILTO_MAX). Percent
+         encoding roughly doubles spaces and newlines, and the details the app
+         adds take a few hundred characters of their own, so ~700 typed
+         characters is what reliably fits alongside them. That is a long
+         paragraph — far more than a report of a bad photo needs — and the box
+         stopping is at least visible, unlike a message that never sends. -->
+    <textarea id="feedbackText" class="input fb-text" rows="5" maxlength="700" placeholder="What happened, or what would you change?"></textarea>
     <div id="feedbackContext" class="fb-context hidden"></div>
     <input id="feedbackEmail" class="input fb-email" type="email" autocomplete="email"
            placeholder="Your email — only if you want a reply">
@@ -2200,6 +2207,9 @@ const game = {
   queue: [], seen: new Set(), maxPage: 1, fetching: false,
   checklist: [],            // whole-region species list, powers name suggestions
   current: null, answered: false,
+  replaying: false,         // true only while a reported question (?replay=) is on screen —
+                            // see replayFromUrl(); nothing from a normal session may
+                            // repaint over it, and nothing may advance past it
 
   // The current lesson:
   mode: "normal",           // "normal" or "review"
@@ -4284,6 +4294,13 @@ function renderThemeChips() {
 const FEEDBACK_EMAIL = "learnit@dryas.ch";     // e.g. "you@example.com" — the link hides until set
 
 let feedbackContext = null;    // set when opened from a live question
+// The packed question (see reproState/encodeRepro), frozen at the same moment as
+// feedbackContext above. Both describe one question, so both have to be read at
+// the same instant: built at SEND time instead, it read game.current live, and
+// anything that moved the quiz on while the pop-up was open — a stray Enter, a
+// photo failing behind it — sent a message naming one species with a replay link
+// that rebuilt another.
+let feedbackRepro = "";
 
 // What was actually on screen, which is usually the thing being complained
 // about. A bad question is far more often a bad SET than a bad photo: a
@@ -4320,6 +4337,7 @@ function onScreenContext() {
 
 function openFeedback(context) {
   feedbackContext = context || null;
+  feedbackRepro = feedbackContext ? encodeRepro(reproState()) : "";
   const box = el("feedbackContext");
   if (feedbackContext) {
     box.innerHTML = "Sent with this: <b class='notranslate'>" + escapeHtml(feedbackContext.name) + "</b>" +
@@ -4339,7 +4357,7 @@ function closeFeedback() { el("feedbackPopup").classList.add("hidden"); }
 
 // Everything the message needs, assembled where it is known rather than asked
 // for: nobody can be expected to report which mode they were in.
-function feedbackBody() {
+function feedbackBody(includeReplay) {
   const lines = [el("feedbackText").value.trim(), ""];
   const email = el("feedbackEmail").value.trim();
   if (email) lines.push("Reply to: " + email);
@@ -4361,14 +4379,22 @@ function feedbackBody() {
   lines.push("Language: " + (uiLang || "en"));
   lines.push("Screen: " + window.innerWidth + "x" + window.innerHeight);
   // The whole question, packed. Opening this link rebuilds it on screen, which
-  // beats trying to picture it from the lines above.
-  const packed = feedbackContext ? encodeRepro(reproState()) : "";
-  if (packed) {
+  // beats trying to picture it from the lines above. It is by far the longest
+  // line in the message, so when the mailto won't fit (see sendFeedback) it is
+  // the part that gets left out and offered to copy instead.
+  const link = includeReplay !== false ? replayLink() : "";
+  if (link) {
     lines.push("");
     lines.push("Open this exact question:");
-    lines.push(location.origin + location.pathname + "?replay=" + packed);
+    lines.push(link);
   }
   return lines.join("\n");
+}
+
+// The link that rebuilds the reported question, from the snapshot taken when the
+// pop-up opened. Empty when there is no question behind the report.
+function replayLink() {
+  return feedbackRepro ? location.origin + location.pathname + "?replay=" + feedbackRepro : "";
 }
 
 // -- reproducing a reported question ---------------------------------------
@@ -4450,20 +4476,99 @@ function replayFromUrl() {
   bits.push("photo " + ((s.i || 0) + 1) + " of " + (s.p || []).length);
   bits.push("GBIF top-up " + (s.g ? "on" : "off") + " · language " + s.l);
   el("credit").textContent = bits.join(" · ");
+
+  // Skip / Reveal / Check belong to a question being answered; there is nothing
+  // to answer here. They are replaced by the one control this screen needs — a
+  // way out — because without it the only exit is editing the address bar, and
+  // the replay link is usually opened by someone who has never seen the app.
+  el("actionRow").classList.add("hidden");
+  const exit = document.createElement("button");
+  exit.id = "replayExit";
+  exit.className = "btn btn-primary btn-big";
+  exit.textContent = "Back to the app";
+  exit.addEventListener("click", exitReplay);
+  el("playMain").appendChild(exit);
   return true;
+}
+
+// Leave the replay and hand the app back as if it had just been opened. The
+// ?replay= parameter goes with it: it is the whole reason replayFromUrl() runs
+// on load, so leaving it in the address bar would drop a reload straight back
+// into the report the visitor just left.
+function exitReplay() {
+  game.replaying = false;
+  game.current = null;
+  game.answered = false;
+  try { history.replaceState(null, "", location.pathname); } catch (err) { /* file:// etc. */ }
+  backToSetup();
+}
+
+// Windows hands a mailto: to ShellExecute, which stops at about 2048 characters
+// and then does nothing at all — no mail window, no error. A full report with a
+// dozen photo urls packed into the replay link measured well past that, so the
+// whole message silently vanished on the platform most likely to send it. Cut
+// below the limit with room to spare rather than at it: the encoding of what a
+// person typed is not something to be exact about.
+const MAILTO_MAX = 1900;
+
+function mailtoHref(subject, body) {
+  return "mailto:" + encodeURIComponent(FEEDBACK_EMAIL) +
+    "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
 }
 
 function sendFeedback() {
   const text = el("feedbackText").value.trim();
   if (!text) { el("feedbackText").focus(); el("feedbackNote").textContent = "Write a line or two first."; return; }
   const subject = "LearnIt feedback" + (feedbackContext ? " — " + feedbackContext.name : "");
-  const href = "mailto:" + encodeURIComponent(FEEDBACK_EMAIL) +
-    "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(feedbackBody());
+  let href = mailtoHref(subject, feedbackBody(true));
+  // Too long: drop the replay link — the one part that can be handed over
+  // separately — rather than let the mail app refuse the whole thing.
+  const dropped = href.length > MAILTO_MAX && !!replayLink();
+  if (dropped) href = mailtoHref(subject, feedbackBody(false));
   track("/e/feedback/sent");
   // Opening the mail app can silently do nothing on a machine with none set up,
   // so leave the text on screen and say what to do instead of closing on them.
   window.location.href = href;
-  el("feedbackNote").textContent = "Your mail app should be opening. Nothing happened? Copy the text and send it to " + FEEDBACK_EMAIL + ".";
+  showFeedbackNote(dropped);
+}
+
+// What to do when the mail app doesn't appear. It says "the whole message"
+// deliberately: the details under the typed text are most of what makes a report
+// answerable, and someone told to "copy the text" copies only their own words.
+function showFeedbackNote(dropped) {
+  const note = el("feedbackNote");
+  note.textContent = "Your mail app should be opening. Nothing happened? Copy the whole message — your text and the details below it — and send it to " + FEEDBACK_EMAIL + ".";
+  if (!dropped) return;
+  note.appendChild(document.createElement("br"));
+  note.appendChild(document.createTextNode(
+    "This report was too long to carry the link that rebuilds the question, so it was left out. Paste it into the mail yourself:"));
+  note.appendChild(document.createElement("br"));   // the button gets its own line
+  const btn = document.createElement("button");
+  btn.className = "btn btn-ghost";
+  btn.textContent = "Copy the link to this question";
+  btn.addEventListener("click", () => copyReplayLink(btn));
+  note.appendChild(btn);
+}
+
+// Clipboard first; where that is refused (no permission, no https) fall back to
+// a selected field, which can always be copied by hand.
+function copyReplayLink(button) {
+  const link = replayLink();
+  if (!link) return;
+  // The field goes on screen either way: it shows what is being copied, and it
+  // is the one route that still works when the clipboard API is refused.
+  const field = document.createElement("input");
+  field.className = "input";
+  field.readOnly = true;
+  field.value = link;
+  button.replaceWith(field);
+  field.select();
+  const done = () => toast("Link copied — paste it into your mail");
+  try {
+    const p = navigator.clipboard && navigator.clipboard.writeText(link);
+    if (p && p.then) p.then(done, () => {});
+    else if (document.execCommand("copy")) done();
+  } catch (err) { /* the field is selected — it can be copied by hand */ }
 }
 
 function setupFeedback() {
@@ -4604,6 +4709,11 @@ async function drainQueue() {
   if (draining) return;
   draining = true;
   while (sendQueue.length) {
+    // Re-read the opt-out on every pass, not once at track() time. A round's
+    // worth of counts takes twenty seconds to drain, and somebody who switches
+    // the counter off in Options during those seconds has said no to the ones
+    // still waiting as much as to any future one.
+    if (!analyticsAllowed()) { sendQueue.length = 0; break; }
     const path = sendQueue.shift();
     try {
       if (!(await loadAnalytics())) break;   // blocked or offline — stop trying
@@ -4624,6 +4734,53 @@ function track(path) {
   } catch (err) { /* counting must never break the app */ }
 }
 
+// count.js quietly refuses to count anything from localhost or a private address
+// unless allow_local is set, which is why ANALYTICS_ALLOW_LOCAL exists. A request
+// built by hand below would sail straight past that check and put local testing
+// into the real figures, so it makes the same judgement itself.
+function isLocalHost() {
+  return location.protocol === "file:" ||
+    /(^localhost$|\.localhost$|^127\.|^0\.0\.0\.0$|^10\.|^172\.(1[6-9]|2\d|3[01])\.|^192\.168\.)/.test(location.hostname);
+}
+
+// The request count.js would have made, built by hand so it can be handed to
+// sendBeacon instead: same endpoint, same parameters, minus everything the
+// script adds that isn't needed here (title, referrer, screen size).
+function beaconUrl(path) {
+  return "https://" + ANALYTICS_SITE + ".goatcounter.com/count" +
+    "?p=" + encodeURIComponent(path) +
+    (path.startsWith("/e/") ? "&e=true" : "") +
+    "&rnd=" + Math.random().toString(36).slice(2, 8);   // count.js sends one; caches respect it
+}
+
+// Everything still queued, at once, on the way out. sendBeacon hands the
+// request to the browser, which delivers it after the document is gone; a queue
+// draining on a two-second timer simply stops existing at that moment, and a
+// finished round has nine things to say and takes twenty seconds to say them.
+// The spacing above exists because the far end drops part of a burst — but a
+// burst that arrives incomplete still beats a tab that closes on nine unsent
+// counts and takes all of them with it. The end of a round is exactly when
+// there is most to say and exactly when people leave.
+function flushQueue() {
+  if (!sendQueue.length) return;
+  // Opting out mid-drain (or a browser saying no) empties the queue rather than
+  // firing it: leaving is not consent.
+  if (!analyticsAllowed()) { sendQueue.length = 0; return; }
+  if (isLocalHost() && !ANALYTICS_ALLOW_LOCAL) { sendQueue.length = 0; return; }
+  const pending = sendQueue.splice(0, sendQueue.length);
+  for (const path of pending) {
+    try {
+      const url = beaconUrl(path);
+      // sendBeacon returns false when the browser won't take it (queue full,
+      // or no support at all) — keepalive fetch is the same promise by another
+      // name, and no-cors because nothing here reads the reply.
+      if (!(navigator.sendBeacon && navigator.sendBeacon(url))) {
+        fetch(url, { mode: "no-cors", keepalive: true });
+      }
+    } catch (err) { /* counting must never break the app */ }
+  }
+}
+
 // Which screen you're on, as a path, so the dashboard shows setup -> play ->
 // done as an ordinary funnel. This is the only thing counted on arrival.
 const trackScreen = (name) => track("/" + name);
@@ -4642,7 +4799,13 @@ const bucket = (n, edges) => {
 function retentionBuckets() {
   const rounds = Number(lsGet(ANALYTICS_ROUNDS) || 0);
   const first = lsGet(ANALYTICS_FIRST);
-  const out = { rounds: bucket(rounds, [[1, "1"], [5, "2-5"], [20, "6-20"], [Infinity, "21+"]]) };
+  // Edges are inclusive upper bounds, so each one has to be the LAST value in
+  // its bucket: 1 for "1", 5 for "2-5". A browser that has never finished a
+  // round gets its own bucket rather than being folded into "1" — quitting
+  // part-way through a first round still reports here (see trackRound(false)),
+  // and "started once, finished nothing" is the single most useful thing this
+  // whole measurement can say.
+  const out = { rounds: bucket(rounds, [[0, "0"], [1, "1"], [5, "2-5"], [20, "6-20"], [Infinity, "21+"]]) };
   if (first) {
     const days = Math.floor((Date.now() - Date.parse(first)) / 86400000);
     out.since = Number.isFinite(days)
@@ -4660,7 +4823,19 @@ function noteVisit() {
 // counter is configured, and is forced off (and disabled) when the browser
 // itself has already said no, so the switch never claims more than it can do.
 function setupAnalytics() {
-  noteVisit();
+  // Only for someone the counter is actually allowed to count. This used to run
+  // first, which wrote a first-seen date into the storage of visitors who had
+  // opted out, or whose browser had opted out for them — a record kept about
+  // people who had said no, and never read.
+  if (analyticsAllowed()) noteVisit();
+  // Whatever is still queued when the tab goes away, sent at once (see
+  // flushQueue). pagehide is the reliable "this document is going" signal;
+  // visibilitychange catches the mobile case of switching apps and never coming
+  // back, where pagehide may not fire at all.
+  window.addEventListener("pagehide", flushQueue);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushQueue();
+  });
   const row = el("analyticsRow"), box = el("analyticsToggle");
   if (!row || !box || !ANALYTICS_SITE) return;
   row.classList.remove("hidden");
@@ -4707,7 +4882,11 @@ function trackRound(finished) {
   // one enthusiast doing ten rounds would look like ten returning visitors and
   // drown out everybody else. Once a day makes each bucket "browsers active
   // today", which is what a retention curve actually needs.
-  const today = new Date().toISOString().slice(0, 10);
+  // The learner's own day, not UTC's. toISOString() put the boundary at UTC
+  // midnight, so at UTC+13 a morning round and an afternoon round on the same
+  // local day fell either side of it and pinged twice — the exact double count
+  // this gate exists to prevent.
+  const today = todayStr();
   if (lsGet(ANALYTICS_PINGED) !== today) {
     lsSet(ANALYTICS_PINGED, today);
     track("/e/rounds-so-far/" + ret.rounds);
@@ -4770,6 +4949,10 @@ async function startSession() {
   game.difficultThreshold = difficultThresholdChoice;
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
+  // A real round supersedes any replayed report, and the flag that protected
+  // that report suppresses setBusy()/showEmpty() — left set, it would leave this
+  // session staring at a screen nothing is allowed to paint.
+  game.replaying = false;
   game.missed = new Map(); game.streak = 0; game.askedTaxa = new Set();
   game.counts = true;   // ordinary play always counts
   game.covered = new Set(); game.gbifTried = new Set(); game.gapFilling = false;   // GBIF gap-fill bookkeeping
@@ -5478,6 +5661,12 @@ const recordMastered = (question) => game.missed.delete(question.taxonId);
 
 // -- advancing through the lesson -----------------------------------------
 async function nextQuestion() {
+  // A replayed report is a still life, not a session: there is no queue behind
+  // it and nothing to advance to. Anything that would move on — a stray Enter,
+  // a broken photo asking for the next one, the learn pop-up's Continue — has
+  // to stop here, or the one question the reporter wanted looked at is replaced
+  // by an unrelated one before it can be read.
+  if (game.replaying) return;
   closeLearnPopup();   // in case it was still open when Continue was clicked directly
   if (game.round.index >= game.round.size) return showDone();
   hideFeedback();
@@ -5630,8 +5819,17 @@ function showPhotoGallery(photos) {
   const clearPlaceholder = () => { firstImage.classList.remove("blurring"); firstImage.style.backgroundImage = ""; };
   firstImage.onload  = () => { clearPlaceholder(); el("photoLoading").classList.add("hidden"); onMediaOk(); loadNextPhoto(); };
   // The lead photo is broken — skip ahead (guarded). Still start the rest, so a
-  // single dead url doesn't strand every photo behind it.
-  firstImage.onerror = () => { onMediaBroken(); loadNextPhoto(); };
+  // single dead url doesn't strand every photo behind it. Take the spinner and
+  // the blurred stand-in down first: in normal play the skip repaints over them
+  // a moment later and hides the omission, but where nothing follows — a
+  // replayed report, or a skip that is refused — they sit there forever, and a
+  // dead photo is often the very thing the report is about.
+  firstImage.onerror = () => {
+    clearPlaceholder();
+    el("photoLoading").classList.add("hidden");
+    onMediaBroken();
+    loadNextPhoto();
+  };
   // A cached image can already be complete before onload is attached, in which
   // case onload never fires and the spinner would sit on top of it forever.
   if (firstImage.complete && firstImage.naturalWidth > 0) {
@@ -5852,6 +6050,7 @@ function applyTaxonomy(q) {
 }
 
 function presentQuestion() {
+  if (game.replaying) return;   // a reported question is on screen — see nextQuestion()
   clearBusy();
   game.answered = false;
   game.lastGuess = null;            // (aid A) the wrong species just picked, if any
@@ -7517,6 +7716,7 @@ function doImport() {
 // == 11. Wiring up the controls ============================================
 
 function backToSetup() {
+  game.replaying = false;   // whatever brought us here, the replay is over (see replayFromUrl)
   populateProfileSelect();
   renderSetupStatus();
   renderCertChips();      // refresh certificate progress after a session
@@ -7900,6 +8100,14 @@ function wireLearnPopup() {
   document.addEventListener("keydown", (e) => {
     const popupOpen = !el("learnPopup").classList.contains("hidden");
     if (e.key === "Escape" && popupOpen) return closeLearnPopupAndAdvance();
+    // Enter inside a text field belongs to that field. The answer input is
+    // disabled the moment you answer (see finishAnswer), so it never competes
+    // for this — but the feedback message, the reply-to address and the memory
+    // notes are all typed while game.answered is true, and without this guard
+    // pressing Enter in any of them advanced the quiz underneath the pop-up.
+    // That is worse than a stray keypress: the report is composed about the
+    // question you were looking at and sent about whichever one replaced it.
+    if (isTypingIn(e.target)) return;
     // Skip when Enter's target is a button (Continue, Skip, the pop-up's own
     // buttons, ...) — a focused button already advances on its own via the
     // browser's native "Enter activates the focused button" behaviour, and
