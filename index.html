@@ -589,8 +589,19 @@
     background: rgba(255,255,255,.15); color: #fff; font-size: 13px; font-weight: 800;
     padding: 5px 14px; border-radius: 999px;
   }
+  /* The photo's attribution line and the observation's location map share one
+     row. The credit is a thin line of small type that never uses more than
+     half the width of a phone, so the map costs only the difference between
+     the credit's own height and the thumbnail's — about 18px — instead of a
+     whole row of its own. See .obs-mini further down. */
+  .credit-row { display: flex; align-items: flex-start; gap: 10px; flex: none; }
   .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 6px 2px 0; flex: none; }
   .credit a { color: var(--faint); }
+  /* In the row it takes the space the map leaves and wraps inside it: the row
+     is already as tall as the thumbnail, so a second or third line of a long
+     "© Observer Name · iNaturalist" is free. anywhere (not break-word) so a
+     long unbroken username can't push the map off the edge. */
+  .credit-row > .credit { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .prompt { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin: 10px 2px 8px; flex: none; }
   /* The answer controls keep their natural height — only the photo flexes. */
   .search.answer, .hint-area, .choice-area, .study-answer, .where-area { flex: none; }
@@ -689,10 +700,10 @@
   .hint-btn:hover { background: var(--bg-2); color: var(--ink); }
 
   /* "Where was this seen?" — a continental map of the observation's own
-     location. On a phone it waits behind a button (the same pill look as the
-     hint button) because the screen is one column and a map between the photo
-     and the answer field would push the controls off; on a laptop it is drawn
-     straight into the answer pane, see the min-width:1000px block. */
+     location, no longer behind a button in either layout. On a laptop it is
+     drawn straight into the answer pane (see the min-width:1000px block); on a
+     phone it rides in the credit row as a thumbnail (see .obs-mini below).
+     .obs-btn is what is left over: the fallback when Leaflet never loaded. */
   .obs-location { margin-top: 12px; }
   .obs-location:empty { display: none; }
   .obs-btn {
@@ -709,6 +720,67 @@
   .obs-map { height: 190px; border-radius: 12px; overflow: hidden; margin-top: 10px;
     border: 2px solid var(--line); position: relative; z-index: 0; }
   .obs-map .leaflet-container { height: 100%; background: var(--bg-2); }
+
+  /* ---- The phone's permanent observation map ----------------------------
+     A square thumbnail that rides in the credit row (see .credit-row above)
+     rather than behind a button, so the location is simply always there. Tap
+     it and it takes the full width at a readable height, with zoom buttons and
+     an ✕ to put it back. Small it is inert — the ⤢ button covers it, so the
+     map underneath cannot be dragged by accident; enlarged, the whole body of
+     the map is drag and pinch, and nothing about touching it closes it. */
+  .obs-mini { flex: none; margin-top: 6px; }
+  .obs-mini:empty { display: none; }
+  /* z-index: 0 for the same reason .obs-map has it — it traps Leaflet's own
+     400–700 panes in this box so they can't paint over the suggestion
+     dropdown. The size change is deliberately not animated: the row flips
+     from a row to a column at the same moment, and Chrome will not interpolate
+     a width across that reflow — it simply holds the old value. Snapping also
+     means Leaflet's invalidateSize() lands on the final size. */
+  .obs-thumb {
+    position: relative; z-index: 0; width: 80px; height: 80px; overflow: hidden;
+    border-radius: 12px; border: 2px solid var(--line); background: var(--bg-2);
+  }
+  .obs-thumb > .obs-canvas { width: 100%; height: 100%; }
+  .obs-thumb .leaflet-container { width: 100%; height: 100%; background: var(--bg-2); }
+  /* The whole thumbnail IS the enlarge button — a transparent overlay filling
+     the square rather than a small badge with a click handler on the map, so
+     the tap target is the entire 80px, the control is focusable and labelled,
+     and the map beneath is genuinely unreachable while it is small. The ⤢ in
+     its corner is the only thing that paints. */
+  .obs-expand {
+    position: absolute; inset: 0; z-index: 500; padding: 0; border: 0; background: none;
+    cursor: pointer; display: flex; align-items: flex-start; justify-content: flex-end;
+  }
+  .obs-expand > span {
+    margin: 4px; background: rgba(0,0,0,.5); color: #fff; font-size: 11px; font-weight: 800;
+    line-height: 1; padding: 3px 5px; border-radius: 6px;
+  }
+  .obs-expand:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  /* The way out, and the only one: above Leaflet's own controls (z-index 800 –
+     1000) and in the corner they leave free — zoom buttons go top-left and the
+     attribution bottom-right. Hidden until the map is open, at which point the
+     ⤢ overlay is hidden in its place. */
+  .obs-close {
+    position: absolute; right: 6px; top: 6px; z-index: 1100; display: none;
+    width: 30px; height: 30px; padding: 0; cursor: pointer; border-radius: 999px;
+    border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+    font-family: var(--font); font-size: 14px; font-weight: 800; line-height: 1;
+  }
+  .obs-close:hover { background: var(--bg-2); }
+  .credit-row.obs-open .obs-expand { display: none; }
+  .credit-row.obs-open .obs-close { display: block; }
+  /* Too small to read at 80px, and the tile terms are still met once enlarged. */
+  .credit-row:not(.obs-open) .obs-thumb .leaflet-control-attribution { display: none; }
+  /* Enlarged: the row becomes a stack, so the credit keeps its own line above
+     a full-width map instead of being squeezed into a column beside it. */
+  .credit-row.obs-open { flex-direction: column; align-items: stretch; }
+  .credit-row.obs-open > .obs-mini { width: 100%; margin-top: 8px; }
+  /* Taller than the 190px the button's map has always had, because this one is
+     meant to be pinched and dragged and a 190px letterbox gives a zoomed-in map
+     almost nothing to show. The dvh cap keeps a short phone from handing the
+     map so much of the screen that the photo it belongs to is squeezed to a
+     stamp — on a 640px phone it comes out at ~192px, on a tall one at 220. */
+  .credit-row.obs-open .obs-thumb { width: 100%; height: min(220px, 30dvh); }
 
   /* Multiple-choice ("Choose") answer grid — recognition instead of recall. */
   .choice-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
@@ -794,7 +866,7 @@
     border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: var(--photo-bg); }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
-  .reverse-active .photo-card, .reverse-active #credit { display: none; }
+  .reverse-active .photo-card, .reverse-active #credit, .reverse-active .credit-row { display: none; }
   .reverse-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
   .rev-photo { padding: 0; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer;
     background: var(--bg-2); aspect-ratio: 1; }
@@ -1137,8 +1209,16 @@
     .play-main > .photo-card { grid-column: 1; grid-row: 3 / 33;
       min-height: calc(100dvh - 205px); }
     /* The credit belongs to the photo, so it stays under it rather than
-       drifting to the top of the answer column. */
-    .play-main > .credit { grid-column: 1; grid-row: 33; margin-top: 7px; }
+       drifting to the top of the answer column.
+       The phone pairs the credit with the observation map in a .credit-row;
+       here there is a whole answer pane to put that map in, so the wrapper is
+       dissolved with display:contents (the same trick .play-main itself uses
+       above) and the credit goes back to being a grid item in its own right.
+       The map thumbnail inside it is display:none on this breakpoint — the
+       pane's own map is this layout's map — so it never places. */
+    .play-main > .credit-row { display: contents; }
+    .play-main > .credit-row > .credit { grid-column: 1; grid-row: 33; margin-top: 7px; }
+    .play-main > .credit-row > .obs-mini { display: none; }
     /* The answer pane's backdrop: a ::before rather than a wrapper element,
        again to avoid touching markup clearBusy() duplicates. It is taken out
        of flow because an in-flow item holding rows 3–32 of column 2 would
@@ -1167,14 +1247,14 @@
     .play-main > .search.answer .input, .play-main > .study-answer,
     .play-main > .choice-area .choice, .play-main > .where-area .choice { background: var(--bg); }
     /* The observation map is drawn here instead of hidden behind its button
-       (see obsMapAlwaysOn) — there is a column of room beside the photo, and a
-       map you have to ask for is one most people never see. Its height comes
+       (see renderObsLocation) — there is a column of room beside the photo, and
+       a map you have to ask for is one most people never see. Its height comes
        from the window rather than being fixed, so on a short laptop screen the
        hint row and Check below it stay in view, and capped so it doesn't sprawl
-       on a tall one. The margin is the button's, which is no longer there. */
+       on a tall one. The margin is the button's, which is no longer there.
+       (The W shortcut has nothing left to press either — setObsKeyRow() takes
+       the row out of the shortcut list, in both layouts, for the same reason.) */
     .play-main > .obs-location .obs-map { height: clamp(150px, 24dvh, 250px); margin-top: 0; }
-    /* Nothing left for W to press once the map is simply there. */
-    .keys-list .keys-obs { display: none; }
     /* Reverse mode has no single photo — the question IS a grid of photos, so
        both panes collapse back to one column and the wrappers become real
        boxes again. */
@@ -1490,7 +1570,14 @@
         </button>
         <span id="photoCount" class="photo-count hidden"></span>
       </div>
-      <div id="credit" class="credit"></div>
+      <!-- The credit and (on a phone) the observation's location map share one
+           row — see .credit-row in the CSS. #obsMini is the one-column layout's
+           map; #obsLocation below is the two-pane layout's, and exactly one of
+           the two is ever filled — see renderObsLocation(). -->
+      <div class="credit-row">
+        <div id="credit" class="credit"></div>
+        <div id="obsMini" class="obs-mini"></div>
+      </div>
       <h2 id="promptText" class="prompt">What species is this?</h2>
       <div class="search answer">
         <!-- autocomplete/autocorrect are aggressively disabled: the browser's own
@@ -1816,10 +1903,18 @@
         <input id="mnemonicToggle" type="checkbox">
         <span class="switch"></span>
       </label>
+      <label class="toggle field">
+        <span>
+          <b>Show where it was seen on a map</b>
+          <span class="hint">Keeps a small map of this observation's own spot on screen while you answer. On a phone it sits beside the photo credit — tap it to enlarge, zoom and drag.</span>
+        </span>
+        <input id="obsMapToggle" type="checkbox" checked>
+        <span class="switch"></span>
+      </label>
       <label class="toggle field" style="margin-bottom:0;">
         <span>
           <b>Offer the observation's location as a hint</b>
-          <span class="hint">Adds “where it was seen” to the hint ladder — a geographic nudge toward the answer.</span>
+          <span class="hint">Adds the place in words — “It was observed at: …” — to the hint ladder, so it only appears once you ask for a hint. Separate from the map above, which is always on screen.</span>
         </span>
         <input id="locationHintToggle" type="checkbox">
         <span class="switch"></span>
@@ -2207,7 +2302,8 @@ const game = {
   assist: true,
   learnMore: false,   // show a GBIF distribution map + Wikipedia summary after each answer
   revealObs: true,    // reveal the iNaturalist observation link AFTER answering (never before — no cheating)
-  locationHint: false,   // offer the observation's place as a progressive hint
+  locationHint: false,   // offer the observation's place in words, as a progressive hint
+  obsMapAid: true,       // keep the observation's place on a map on screen while answering
   difficultThreshold: DEFAULT_DIFFICULT_THRESHOLD,   // consecutive correct answers to graduate a species out of the difficult list
   roundSize: DEFAULT_ROUND_SIZE,   // how many species per round — Infinity means "no limit"
   allowRepeats: true,              // false = every species appears at most once per round
@@ -3589,7 +3685,7 @@ function renderSetupStatus() {
   box.innerHTML = html;
 }
 
-const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle", "locationHintToggle"];
+const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle", "obsMapToggle", "locationHintToggle"];
 
 // Each collapsed section states what it currently holds, so folding things away
 // hides the controls without hiding the information. Every option's default is
@@ -3597,7 +3693,8 @@ const AID_TOGGLE_IDS = ["reverseToggle", "selfRateToggle", "mnemonicToggle", "lo
 const OPTION_DEFAULTS = {
   repeatToggle: true, assistToggle: true, revealObsToggle: true,
   learnMoreToggle: false,
-  reverseToggle: false, selfRateToggle: false, mnemonicToggle: false, locationHintToggle: false,
+  reverseToggle: false, selfRateToggle: false, mnemonicToggle: false,
+  obsMapToggle: true, locationHintToggle: false,
 };
 function renderFoldSummaries() {
   // "How to practise" — the choices themselves, in the order you'd read them.
@@ -3858,6 +3955,7 @@ const MANUAL_I18N = {
   "Rate how well you knew it": { de: "Bewerte, wie gut du die Art kanntest", it: "Valuta quanto bene la conoscevi", fr: "Évaluer à quel point je la connaissais", es: "Valora si te la sabías" },
   "After each answer, tap Again / Hard / Good / Easy to steer when it comes back (Anki-style).": { de: "Tippe nach jeder Antwort auf Nochmal / Schwer / Gut / Einfach – damit legst du fest, wann die Art wieder drankommt (wie bei Anki).", it: "Dopo ogni risposta tocca Di nuovo / Difficile / Buono / Facile: sei tu a decidere quando la specie tornerà (come in Anki).", fr: "Après chaque réponse, choisis Encore / Difficile / Correct / Facile : c'est toi qui décides quand l'espèce reviendra (comme dans Anki).", es: "Después de cada respuesta, pulsa Otra vez / Difícil / Bien / Fácil para decidir cuándo vuelve a aparecer la especie (como en Anki)." },
   "Let me add memory notes": { de: "Eigene Eselsbrücken notieren", it: "Aggiungi note mnemoniche", fr: "Ajouter mes propres notes mémo", es: "Escribir mis propias notas para memorizar" },
+  "Show where it was seen on a map": { de: "Fundort auf einer Karte zeigen", it: "Mostra su una mappa dove è stata vista", fr: "Montrer sur une carte où elle a été vue", es: "Mostrar en un mapa dónde se vio" },
   "Offer the observation's location as a hint": { de: "Fundort der Beobachtung als Hinweis anbieten", it: "Proponi il luogo dell'osservazione come indizio", fr: "Proposer le lieu d'observation comme indice", es: "Ofrecer la localidad de la observación como pista" },
   "My progress": { de: "Mein Fortschritt", it: "I miei progressi", fr: "Ma progression", es: "Mi progreso" },
   "Grasshoppers": { de: "Heuschrecken", it: "Ortotteri", fr: "Orthoptères", es: "Saltamontes" },
@@ -4062,7 +4160,8 @@ const MANUAL_I18N = {
   "Upload a file": { de: "Datei hochladen", it: "Carica un file", fr: "Importer un fichier", es: "Subir un archivo" },
   "List name — e.g. “Exam revision”": { de: "Listenname – z. B. „Prüfungsvorbereitung“", it: "Nome della lista – es. «Ripasso d'esame»", fr: "Nom de la liste — p. ex. « Révisions d'examen »", es: "Nombre de la lista: p. ej. «Repaso del examen»" },
   "Jot a private cue on any species (“round leaves”). It reappears when that species comes back.": { de: "Notier dir zu jeder Art einen eigenen Merksatz („runde Blätter“). Er taucht wieder auf, sobald die Art erneut drankommt.", it: "Annota un promemoria tutto tuo su qualsiasi specie («foglie rotonde»). Ricompare quando quella specie ritorna.", fr: "Note ton propre repère sur n'importe quelle espèce (« feuilles rondes »). Il réapparaît quand l'espèce revient.", es: "Apunta tu propia pista para cualquier especie («hojas redondas»). Reaparece cuando esa especie vuelve a salir." },
-  "Adds “where it was seen” to the hint ladder — a geographic nudge toward the answer.": { de: "Ergänzt die Hinweise um „wo sie beobachtet wurde“ – ein geografischer Wink Richtung Lösung.", it: "Aggiunge «dove è stata osservata» alla scaletta degli indizi: una spinta geografica verso la risposta.", fr: "Ajoute « où elle a été observée » aux indices — un coup de pouce géographique vers la réponse.", es: "Añade «dónde se observó» a las pistas: un empujón geográfico hacia la respuesta." },
+  "Keeps a small map of this observation's own spot on screen while you answer. On a phone it sits beside the photo credit — tap it to enlarge, zoom and drag.": { de: "Zeigt beim Antworten dauerhaft eine kleine Karte mit dem Fundort genau dieser Beobachtung. Auf dem Handy sitzt sie neben der Bildunterschrift – tipp sie an, um sie zu vergrößern, zu zoomen und zu verschieben.", it: "Tiene sempre in vista, mentre rispondi, una piccola mappa con il punto esatto di questa osservazione. Sul telefono sta accanto ai crediti della foto: toccala per ingrandirla, fare zoom e trascinarla.", fr: "Garde sous les yeux, pendant que tu réponds, une petite carte du point précis de cette observation. Sur un téléphone elle se place à côté du crédit photo — touche-la pour l'agrandir, zoomer et la déplacer.", es: "Mantiene a la vista, mientras respondes, un mapita con el punto exacto de esta observación. En el móvil va junto al crédito de la foto: tócalo para ampliarlo, hacer zoom y arrastrarlo." },
+  "Adds the place in words — “It was observed at: …” — to the hint ladder, so it only appears once you ask for a hint. Separate from the map above, which is always on screen.": { de: "Ergänzt die Hinweise um den Fundort in Worten – „Beobachtet bei: …“ – der also erst auftaucht, wenn du einen Hinweis anforderst. Unabhängig von der Karte darüber, die immer zu sehen ist.", it: "Aggiunge alla scaletta degli indizi il luogo a parole – «Osservata a: …» – che compare quindi solo quando chiedi un indizio. È separato dalla mappa qui sopra, che invece è sempre visibile.", fr: "Ajoute aux indices le lieu en toutes lettres — « Observée à : … » — qui n'apparaît donc que si tu demandes un indice. Indépendant de la carte ci-dessus, qui reste toujours visible.", es: "Añade a las pistas el lugar en palabras – «Se observó en: …» –, que solo aparece cuando pides una pista. Es independiente del mapa de arriba, que siempre está a la vista." },
   // World regions offered as answers in "Where?" mode
   "Scandinavia & the Baltics": { de: "Skandinavien & Baltikum", it: "Scandinavia e Baltico", fr: "Scandinavie et pays baltes", es: "Escandinavia y el Báltico" },
   "The British Isles": { de: "Britische Inseln", it: "Isole britanniche", fr: "Îles Britanniques", es: "Islas británicas" },
@@ -4919,6 +5018,9 @@ function trackRound(finished) {
     if (game.selfRate) track("/e/aid/self-rate");
     if (game.mnemonics) track("/e/aid/notes");
     if (game.locationHint) track("/e/aid/location");
+    // The two that ship on, so it is the switching-OFF that is the news — same
+    // shape as gbif-off, and it keeps the rule that a default costs no request.
+    if (!game.obsMapAid) track("/e/aid/obsmap-off");
     if (!game.webImages) track("/e/aid/gbif-off");
   }
 }
@@ -4958,6 +5060,7 @@ async function startSession() {
   game.mnemonics      = el("mnemonicToggle").checked;
   game.revealObs      = el("revealObsToggle").checked;
   game.locationHint   = el("locationHintToggle").checked;
+  game.obsMapAid      = el("obsMapToggle").checked;
   game.difficultThreshold = difficultThresholdChoice;
 
   game.queue = []; game.seen = new Set(); game.checklist = [];
@@ -5184,6 +5287,7 @@ function startHistoryReview(species, answerMode, label) {
   game.mnemonics      = el("mnemonicToggle").checked;
   game.revealObs      = el("revealObsToggle").checked;
   game.locationHint   = el("locationHintToggle").checked;
+  game.obsMapAid      = el("obsMapToggle").checked;
   game.webImages      = el("webImagesToggle").checked;
   game.difficultThreshold = difficultThresholdChoice;
   game.reverseQuiz    = false;   // reverse needs upcoming photos in the queue, which review builds one at a time
@@ -6108,7 +6212,7 @@ function enterMode(mode) {
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
   el("whereArea").classList.toggle("hidden", mode !== "where");
   el("reverseArea").classList.add("hidden");
-  renderObsLocation();   // "where was this seen?" — map or button, where it isn't a spoiler
+  renderObsLocation();   // "where was this seen?" — the map, where it isn't a spoiler
 
   if (mode === "study") presentStudy();
   else if (mode === "choose") presentChoose();
@@ -6634,7 +6738,8 @@ function clearBusy() {
         "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg></button>" +
       "<span id='photoCount' class='photo-count hidden'></span>" +
     "</div>" +
-    "<div id='credit' class='credit'></div>" +
+    "<div class='credit-row'><div id='credit' class='credit'></div>" +
+      "<div id='obsMini' class='obs-mini'></div></div>" +
     "<h2 id='promptText' class='prompt'>What species is this?</h2>" +
     "<div class='search answer'><input id='answerInput' class='input answer-input' placeholder='Type the species' " +
       "type='text' autocomplete='off' autocorrect='off' autocapitalize='none' spellcheck='false' " +
@@ -6924,16 +7029,54 @@ async function showDistributionMap(mapBox, scientificName, token) {
 }
 
 // -- "Where was this seen?" — the current observation on a continental map ---
-//  A small Leaflet map centred on THIS observation's own coordinates at a
-//  continental zoom, sitting under the answer box. Its own map instance, torn
-//  down and rebuilt per question so Leaflet never reuses a stale container.
+//  This observation's own coordinates on a small Leaflet map. It is no longer
+//  something you have to ask for — a map behind a button is a map most people
+//  never open — but the two layouts have very different room for it:
 //
-//  On a laptop it is simply there; on a phone it waits behind a button, because
-//  in one column it would sit between the photo and the answer field and push
-//  the controls off the screen. Same map either way — the only difference is
-//  whether you have to ask for it.
+//    Two-pane (>= 1000px): drawn straight into the answer pane, which has a
+//      whole column to spare. Interactive from the start, like any map.
+//    One column (a phone): an 80px square riding in the photo credit's row
+//      (see .credit-row / .obs-mini), which costs only the difference between
+//      the credit's height and the thumbnail's. Tap it and it takes the full
+//      width and becomes a real map — drag, pinch, zoom buttons — with an ×
+//      to put it back.
+//
+//  Either way it is ONE map instance in ONE of two containers, torn down and
+//  rebuilt per question by destroyObsMap() so Leaflet never reuses a stale
+//  container. The old button survives only as the fallback for a Leaflet that
+//  never arrived off its CDN.
 let obsMap = null;
-function destroyObsMap() { if (obsMap) { obsMap.remove(); obsMap = null; } }
+let obsMapExpanded = false;   // phone thumbnail: is it currently at full width?
+let obsZoomCtl = null;        // Leaflet zoom buttons, only while expanded
+let obsLatLng = null;         // the point the map is centred on, for re-centring
+
+// The single teardown for both layouts. It has to empty the thumbnail's box as
+// well as drop the map, because the two layouts write into different containers
+// and a leftover #obsMini would either show a dead map beside a live one or
+// hand Leaflet a container it already initialised. #obsLocation is cleared by
+// renderObsLocation(), which is the only thing that writes into it.
+function destroyObsMap() {
+  if (obsMap) { obsMap.remove(); obsMap = null; }
+  obsZoomCtl = null; obsMapExpanded = false; obsLatLng = null;
+  const mini = el("obsMini");
+  if (mini) mini.innerHTML = "";
+  const row = mini && mini.closest(".credit-row");
+  if (row) row.classList.remove("obs-open");
+}
+
+// Which of the two layouts is on screen, asked at render time rather than
+// cached, so a resized window or a rotated tablet gets the right one on the
+// next question. One query, one place — the CSS breakpoint is the same 1000px.
+const OBS_TWO_PANE = "(min-width: 1000px)";
+function obsTwoPane() { return window.matchMedia(OBS_TWO_PANE).matches; }
+
+// Crossing the breakpoint mid-question — a tablet being turned over, a window
+// being dragged wider — would otherwise leave the map in the layout it was
+// built for while the other layout's container sits empty, which on the way to
+// the two-pane layout means no map on screen at all. Rebuilding is cheap.
+window.matchMedia(OBS_TWO_PANE).addEventListener("change", () => {
+  if (el("obsMini") && !el("play").classList.contains("hidden")) renderObsLocation();
+});
 
 // "lat,lng" as iNaturalist gives it -> [lat, lng], or null if it isn't usable.
 function parseCoords(coords) {
@@ -6942,42 +7085,60 @@ function parseCoords(coords) {
 }
 
 const OBS_DOT = { radius: 7, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 };
-
-// Where the map can be shown without being asked for: the two-pane layout,
-// whose answer column has the room for it. Read per question rather than once
-// at start-up, so a resized window is answered by the next question. Leaflet
-// comes off a CDN and the app still runs without it, so if it never arrived
-// there is nothing to draw and the button is the honest thing to render.
-function obsMapAlwaysOn() {
-  return window.matchMedia("(min-width: 1000px)").matches && typeof L !== "undefined";
-}
+// The phone thumbnail's two zooms. Enlarged it opens on the same view the
+// two-pane map does; collapsed it is two levels out, because at 80px the
+// continental zoom would be a patch of land with no coastline in it to place.
+const OBS_ZOOM_MINI = 2, OBS_ZOOM_FULL = 4;
+// GBIF serves this basemap well past the old cap of 8 — checked against
+// tile.gbif.org at z10 and z12 on four continents, all real tiles, not blanks.
+// 12 is roughly "which valley", which is as far as a single observation's
+// coordinates are worth trusting, and it is what makes the enlarged phone map
+// worth pinching at all.
+const OBS_TILES = "https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural";
+const OBS_TILE_OPTS = { maxZoom: 12, attribution: "GBIF" };
 
 function renderObsLocation() {
   const box = el("obsLocation");
   destroyObsMap();
   if (!box) return;
+  box.innerHTML = "";
+  // Switched off in Options, the aid is off everywhere — no map, no thumbnail
+  // and no button. The worded hint (locationHint) is the other switch.
+  if (!game.obsMapAid) { setObsKeyRow(false); return; }
   const coords = game.current && game.current.coords;
   // Only when we have coordinates and the mode is one where the answer is
   // still hidden. Study mode has its own, always-visible map in the card, and
   // reverse questions show no single observation to locate.
-  if (!coords || (game.modeThis !== "type" && game.modeThis !== "choose")) { box.innerHTML = ""; return; }
-  // The button is also the fallback for a map that couldn't be built at all —
-  // pressing it then simply fails instead of the question rendering short.
-  if (obsMapAlwaysOn() && showObsMap(coords)) return;
+  if (!coords || (game.modeThis !== "type" && game.modeThis !== "choose")) { setObsKeyRow(false); return; }
+  // Each layout builds into its own container and reports whether it managed
+  // it. The button is what is left when Leaflet never loaded: pressing it then
+  // simply fails, instead of the question rendering short.
+  if (obsTwoPane() ? showObsMap(coords) : showObsThumb(coords)) { setObsKeyRow(false); return; }
   box.innerHTML = "<button type='button' id='obsMapBtn' class='obs-btn'>📍 Where was this seen?</button>";
   el("obsMapBtn").addEventListener("click", () => showObsMap(coords));
+  setObsKeyRow(true);
 }
 
-// Returns whether the map was actually built, which is what lets the caller
-// fall back to the button.
+// W is listed in the shortcuts only while there is a button for it to press —
+// which, now that the map is simply there in both layouts, is only the
+// Leaflet-never-loaded fallback. A shortcut for a control that isn't on screen
+// is worse than no shortcut at all.
+function setObsKeyRow(shown) {
+  document.querySelectorAll(".keys-obs").forEach((n) => n.classList.toggle("hidden", !shown));
+}
+
+// The two-pane layout's map: full width of the answer pane, interactive from
+// the start. Returns whether it was actually built, which is what lets the
+// caller fall back to the button.
 function showObsMap(coords) {
   const latlng = parseCoords(coords);
   const box = el("obsLocation");
   if (!latlng || !box || typeof L === "undefined") return false;
   destroyObsMap();   // before the container it lives in is thrown away
   box.innerHTML = "<div id='obsMap' class='obs-map'></div>";
-  obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView(latlng, 4);
-  L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural", { maxZoom: 8, attribution: "GBIF" }).addTo(obsMap);
+  obsLatLng = latlng;
+  obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView(latlng, OBS_ZOOM_FULL);
+  L.tileLayer(OBS_TILES, OBS_TILE_OPTS).addTo(obsMap);
   L.circleMarker(latlng, OBS_DOT).addTo(obsMap);
   obsMap.invalidateSize();
   // Measured again on the next frame: built with the question rather than by a
@@ -6986,6 +7147,84 @@ function showObsMap(coords) {
   const built = obsMap;
   requestAnimationFrame(() => { if (obsMap === built) obsMap.invalidateSize(); });
   return true;
+}
+
+// The phone's version: the same map, built into the credit row as an 80px
+// square and left there for the whole question. Returns the same "did it
+// build?" answer showObsMap() does.
+function showObsThumb(coords) {
+  const latlng = parseCoords(coords);
+  const mini = el("obsMini");
+  if (!latlng || !mini || typeof L === "undefined") return false;
+  destroyObsMap();
+  obsLatLng = latlng;
+  // Two overlaid controls rather than a click handler on the map: while it is
+  // a thumbnail the expand button covers the whole square, so the square IS the
+  // button — focusable, labelled, and with the map genuinely unreachable under
+  // it. Enlarged, that button is gone and the × is the only way back, so every
+  // drag and pinch on the map body is just a drag and a pinch.
+  mini.innerHTML =
+    "<div id='obsThumb' class='obs-thumb'>" +
+      "<div id='obsMap' class='obs-canvas'></div>" +
+      "<button type='button' id='obsExpandBtn' class='obs-expand' aria-expanded='false' " +
+        "aria-label='Where this was seen — enlarge the map'><span aria-hidden='true'>⤢</span></button>" +
+      "<button type='button' id='obsCloseBtn' class='obs-close' " +
+        "aria-label='Close the map'><span aria-hidden='true'>✕</span></button>" +
+    "</div>";
+  // Inert while small: at 80px a drag or a pinch could only ever be an
+  // accident, and the handlers are enabled the moment it is worth having them.
+  obsMap = L.map("obsMap", {
+    attributionControl: true, zoomControl: false, worldCopyJump: true,
+    dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false,
+    boxZoom: false, keyboard: false,
+  }).setView(latlng, OBS_ZOOM_MINI);
+  L.tileLayer(OBS_TILES, OBS_TILE_OPTS).addTo(obsMap);
+  L.circleMarker(latlng, OBS_DOT).addTo(obsMap);
+  el("obsExpandBtn").addEventListener("click", () => setObsThumbOpen(true));
+  el("obsCloseBtn").addEventListener("click", (e) => { e.stopPropagation(); setObsThumbOpen(false); });
+  obsMap.invalidateSize();
+  const built = obsMap;
+  requestAnimationFrame(() => { if (obsMap === built) obsMap.invalidateSize(); });
+  return true;
+}
+
+// Thumbnail <-> full width. Everything that makes the map a map is switched on
+// and off here, so the small state stays inert and the large one behaves like
+// the map in the answer pane.
+function setObsThumbOpen(open) {
+  const thumb = el("obsThumb");
+  if (!obsMap || !thumb || !obsLatLng || open === obsMapExpanded) return;
+  obsMapExpanded = open;
+  // Whether the control being replaced had focus, so closing with the keyboard
+  // hands it to the ⤢ that takes the ✕'s place instead of dropping it to <body>.
+  const hadFocus = document.activeElement === el("obsCloseBtn");
+  const row = thumb.closest(".credit-row");
+  if (row) row.classList.toggle("obs-open", open);
+  const expand = el("obsExpandBtn");
+  if (expand) expand.setAttribute("aria-expanded", String(open));
+  // Leaflet's own `keyboard` handler is deliberately left off: it puts the map
+  // container in the tab order and makes the arrow keys pan it, and the arrows
+  // already page through the photos.
+  ["dragging", "touchZoom", "doubleClickZoom", "scrollWheelZoom"]
+    .forEach((h) => obsMap[h] && obsMap[h][open ? "enable" : "disable"]());
+  if (open && !obsZoomCtl) { obsZoomCtl = L.control.zoom({ position: "topleft" }); obsZoomCtl.addTo(obsMap); }
+  if (!open && obsZoomCtl) { obsZoomCtl.remove(); obsZoomCtl = null; }
+  // Re-measure BEFORE re-centring: a setView against the old size would put the
+  // marker wherever the old centre happened to fall in the new box. Collapsing
+  // also throws away whatever the reader zoomed to, which is the point — the
+  // thumbnail is a locator, not a saved view.
+  obsMap.invalidateSize({ animate: false });
+  obsMap.setView(obsLatLng, open ? OBS_ZOOM_FULL : OBS_ZOOM_MINI, { animate: false });
+  // The photo above shrinks to pay for the taller map, and that reflow can land
+  // after this frame — measure once more when it has, keeping the marker in the
+  // middle, or Leaflet holds the old size and leaves a band of missing tiles.
+  const built = obsMap;
+  requestAnimationFrame(() => {
+    if (obsMap !== built || !obsLatLng) return;
+    obsMap.invalidateSize({ animate: false });
+    obsMap.setView(obsLatLng, obsMap.getZoom(), { animate: false });
+  });
+  if (!open && hadFocus && el("obsExpandBtn")) el("obsExpandBtn").focus({ preventScroll: true });
 }
 
 // -- Study mode's range map ------------------------------------------------
