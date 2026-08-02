@@ -688,8 +688,11 @@
   }
   .hint-btn:hover { background: var(--bg-2); color: var(--ink); }
 
-  /* "Where was this seen?" — a button that reveals a continental map of the
-     observation's own location. Uses the same pill look as the hint button. */
+  /* "Where was this seen?" — a continental map of the observation's own
+     location. On a phone it waits behind a button (the same pill look as the
+     hint button) because the screen is one column and a map between the photo
+     and the answer field would push the controls off; on a laptop it is drawn
+     straight into the answer pane, see the min-width:1000px block. */
   .obs-location { margin-top: 12px; }
   .obs-location:empty { display: none; }
   .obs-btn {
@@ -1163,6 +1166,15 @@
     /* Fills of their own: bg-2 controls on a bg-2 pane would read as outlines. */
     .play-main > .search.answer .input, .play-main > .study-answer,
     .play-main > .choice-area .choice, .play-main > .where-area .choice { background: var(--bg); }
+    /* The observation map is drawn here instead of hidden behind its button
+       (see obsMapAlwaysOn) — there is a column of room beside the photo, and a
+       map you have to ask for is one most people never see. Its height comes
+       from the window rather than being fixed, so on a short laptop screen the
+       hint row and Check below it stay in view, and capped so it doesn't sprawl
+       on a tall one. The margin is the button's, which is no longer there. */
+    .play-main > .obs-location .obs-map { height: clamp(150px, 24dvh, 250px); margin-top: 0; }
+    /* Nothing left for W to press once the map is simply there. */
+    .keys-list .keys-obs { display: none; }
     /* Reverse mode has no single photo — the question IS a grid of photos, so
        both panes collapse back to one column and the wrappers become real
        boxes again. */
@@ -1676,7 +1688,7 @@
       <dt><kbd>H</kbd></dt><dd>Hint</dd>
       <dt><kbd>R</kbd></dt><dd>Reveal the answer</dd>
       <dt><kbd>S</kbd></dt><dd>Skip this one</dd>
-      <dt><kbd>W</kbd></dt><dd>Where it was seen</dd>
+      <dt class="keys-obs"><kbd>W</kbd></dt><dd class="keys-obs">Where it was seen</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close whatever is open, or leave the answer box</dd>
       <dt><kbd>?</kbd></dt><dd>This list</dd>
     </dl>
@@ -6096,7 +6108,7 @@ function enterMode(mode) {
   el("studyAnswer").classList.toggle("hidden", mode !== "study");
   el("whereArea").classList.toggle("hidden", mode !== "where");
   el("reverseArea").classList.add("hidden");
-  renderObsLocation();   // the "where was this seen?" button, where it isn't a spoiler
+  renderObsLocation();   // "where was this seen?" — map or button, where it isn't a spoiler
 
   if (mode === "study") presentStudy();
   else if (mode === "choose") presentChoose();
@@ -6912,10 +6924,14 @@ async function showDistributionMap(mapBox, scientificName, token) {
 }
 
 // -- "Where was this seen?" — the current observation on a continental map ---
-//  A button (before the hint button, Type mode) that reveals a small Leaflet map
-//  centred on THIS observation's own coordinates at a continental zoom. Its own
-//  map instance, torn down and rebuilt per question so Leaflet never reuses a
-//  stale container.
+//  A small Leaflet map centred on THIS observation's own coordinates at a
+//  continental zoom, sitting under the answer box. Its own map instance, torn
+//  down and rebuilt per question so Leaflet never reuses a stale container.
+//
+//  On a laptop it is simply there; on a phone it waits behind a button, because
+//  in one column it would sit between the photo and the answer field and push
+//  the controls off the screen. Same map either way — the only difference is
+//  whether you have to ask for it.
 let obsMap = null;
 function destroyObsMap() { if (obsMap) { obsMap.remove(); obsMap = null; } }
 
@@ -6927,6 +6943,15 @@ function parseCoords(coords) {
 
 const OBS_DOT = { radius: 7, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 };
 
+// Where the map can be shown without being asked for: the two-pane layout,
+// whose answer column has the room for it. Read per question rather than once
+// at start-up, so a resized window is answered by the next question. Leaflet
+// comes off a CDN and the app still runs without it, so if it never arrived
+// there is nothing to draw and the button is the honest thing to render.
+function obsMapAlwaysOn() {
+  return window.matchMedia("(min-width: 1000px)").matches && typeof L !== "undefined";
+}
+
 function renderObsLocation() {
   const box = el("obsLocation");
   destroyObsMap();
@@ -6936,20 +6961,31 @@ function renderObsLocation() {
   // still hidden. Study mode has its own, always-visible map in the card, and
   // reverse questions show no single observation to locate.
   if (!coords || (game.modeThis !== "type" && game.modeThis !== "choose")) { box.innerHTML = ""; return; }
+  // The button is also the fallback for a map that couldn't be built at all —
+  // pressing it then simply fails instead of the question rendering short.
+  if (obsMapAlwaysOn() && showObsMap(coords)) return;
   box.innerHTML = "<button type='button' id='obsMapBtn' class='obs-btn'>📍 Where was this seen?</button>";
   el("obsMapBtn").addEventListener("click", () => showObsMap(coords));
 }
 
+// Returns whether the map was actually built, which is what lets the caller
+// fall back to the button.
 function showObsMap(coords) {
   const latlng = parseCoords(coords);
-  if (!latlng) return;
   const box = el("obsLocation");
+  if (!latlng || !box || typeof L === "undefined") return false;
+  destroyObsMap();   // before the container it lives in is thrown away
   box.innerHTML = "<div id='obsMap' class='obs-map'></div>";
-  destroyObsMap();
   obsMap = L.map("obsMap", { attributionControl: true, zoomControl: true, worldCopyJump: true }).setView(latlng, 4);
   L.tileLayer("https://tile.gbif.org/3857/omt/{z}/{x}/{y}@1x.png?style=gbif-natural", { maxZoom: 8, attribution: "GBIF" }).addTo(obsMap);
   L.circleMarker(latlng, OBS_DOT).addTo(obsMap);
   obsMap.invalidateSize();
+  // Measured again on the next frame: built with the question rather than by a
+  // click, the box can still be mid-layout — and a Leaflet that measured itself
+  // at 0×0 stays that size, showing a grey box where the tiles should be.
+  const built = obsMap;
+  requestAnimationFrame(() => { if (obsMap === built) obsMap.invalidateSize(); });
+  return true;
 }
 
 // -- Study mode's range map ------------------------------------------------
