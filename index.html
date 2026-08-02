@@ -1078,40 +1078,186 @@
     .setup > #startBtn, .setup > #progressBtnSetup { grid-column: 1 / -1; }
     .setup > .card { grid-column: 1; }
     .setup > .fold { grid-column: 2; }
+    /* The phone's stacked hero — mascot, title and tagline centred one above
+       the other — eats most of a laptop's first screenful before the first
+       real choice. As one line it says exactly the same thing. */
+    .setup > .brand { display: flex; align-items: baseline; gap: 12px; text-align: left; margin-bottom: 18px; }
+    .setup > .brand .mascot { width: 40px; height: 40px; margin: 0; flex: none; align-self: center; }
+    .setup > .brand .tagline { margin: 0; }
 
-    /* Play: the photo takes the left column at whatever height is going, and
-       the prompt, answer box, hints and options stack beside it. The photo card
-       spans the remaining rows so it fills the column however many controls the
-       current mode shows. */
-    .play-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr);
-      column-gap: 26px; align-content: start; }
-    .play-main > .learn-label { grid-column: 1 / -1; }
-    /* An explicit height rather than a stretched grid row: the right-hand column
-       is a stack of rows of its own, so letting the photo span them would tie
-       its height to however many controls the current mode happens to show. */
-    .play-main > .photo-card { grid-column: 1; grid-row: 2 / span 99;
-      aspect-ratio: 4 / 3; height: auto; max-height: calc(100dvh - 258px); min-height: 320px; }
+    /* Play: a photo pane on the left, an answer pane on the right — including
+       Skip / Reveal / Check, which on a phone belong in a thumb-height bar at
+       the bottom of the screen but on a laptop belong next to the thing they
+       act on. Those buttons live in .bottombar, a SIBLING of #playMain, so the
+       grid goes on .play itself and both wrappers are dissolved with
+       display:contents. That hands their children to one shared grid without
+       moving a single node — which matters, because clearBusy() rebuilds
+       #playMain from a template string and the two have to stay identical.
+       The .play-main > … selectors below still match: display:contents removes
+       the box, not the element. */
+    /* The rows are declared rather than left implicit because the answer pane's
+       backdrop is absolutely positioned (see .play::before): an out-of-flow
+       grid child can only be placed against lines of the EXPLICIT grid, and
+       against implicit ones it silently collapses to nothing. Row 1 is the top
+       bar, row 2 the label; rows 3–32 are the answer pane's stack, of which no
+       mode uses more than ten; row 33 is the photo credit.
+       There are far more pane rows than any mode needs on purpose. The photo
+       spans all of them, and grid hands a spanning item's surplus height to
+       the auto rows it crosses in equal shares — so the more rows there are to
+       share it out over, the smaller each share, and the less chance of a
+       share exceeding a control's own height and prising the stack apart.
+       Thirty rows puts the share under 20px, below anything the pane holds. */
+    .play { display: grid; align-content: start; overflow-y: auto; position: relative;
+      grid-template-columns: minmax(0, 1.55fr) minmax(400px, 1fr);
+      grid-template-rows: auto auto repeat(30, auto) auto;
+      column-gap: 30px; padding: 0 24px 22px; }
+    /* Sticky because .play scrolls here: on a short window a long answer pane
+       (a miss with the look-alike comparison and the rating row) is taller
+       than the photo, and the quit button and progress bar should not scroll
+       away with it. */
+    .play > .topbar { grid-column: 1 / -1; padding: 12px 0 10px;
+      position: sticky; top: 0; z-index: 2; background: var(--bg); }
+    .play-main, .play > .bottombar { display: contents; }
+    /* Full-width so the answer pane starts level with the top of the photo
+       rather than one row higher; justify-self keeps the pill itself small. */
+    .play-main > .learn-label { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+    /* Its own height rather than one inherited from the rows: the right-hand
+       column is a stack of rows of its own, so sizing the photo from them
+       would tie it to however many controls the current mode happens to show.
+       It takes the whole window height the same way it flexes to fill a phone
+       screen — the image inside is object-fit:contain either way, so a tall
+       frame letterboxes a wide photo rather than cropping it, and the photo
+       gets every pixel the window can spare. A min-height rather than a
+       height, so that when the answer pane does outgrow the window the frame
+       grows with it and the two panes still end level, instead of leaving a
+       hole between the photo and its credit. */
+    .play-main > .photo-card { grid-column: 1; grid-row: 3 / 33;
+      min-height: calc(100dvh - 205px); }
     /* The credit belongs to the photo, so it stays under it rather than
        drifting to the top of the answer column. */
-    .play-main > .credit { grid-column: 1; grid-row: 101; margin-top: 6px; }
+    .play-main > .credit { grid-column: 1; grid-row: 33; margin-top: 7px; }
+    /* The answer pane's backdrop: a ::before rather than a wrapper element,
+       again to avoid touching markup clearBusy() duplicates. It is taken out
+       of flow because an in-flow item holding rows 3–32 of column 2 would
+       shove every auto-placed control below it; absolutely positioned, it is
+       still laid out against that grid area but claims none of it. Spanning
+       the photo's rows makes it stretch to exactly the photo's height, so the
+       two panes always end level however little the current mode puts in it.
+       Painting works out because it is the first child and everything drawn
+       over it is positioned too (see below), so tree order decides. */
+    .play::before { content: ""; position: absolute; inset: 0; grid-column: 2; grid-row: 3 / 33;
+      background: var(--bg-2); border: 2px solid var(--line); border-radius: var(--radius); }
+    /* No pane, no backdrop: reverse questions and the busy/empty/error states
+       both take the whole width, and an empty panel beside them would be a
+       frame around nothing. */
+    .play:has(.reverse-active)::before, .play:has(.busy)::before { content: none; }
     /* Scoped to :not(.reverse-active) rather than overridden later: the :not()
-       chain here is specific enough that a reset rule would lose to it. */
-    .play-main:not(.reverse-active) > *:not(.learn-label):not(.photo-card):not(.credit) {
-      grid-column: 2; align-self: start; }
-    .play-main > .prompt { margin-top: 0; }
+       chain here is specific enough that a reset rule would lose to it. The
+       inline margin is the pane's inner padding — the backdrop fills the whole
+       column, its contents are inset from it. */
+    .play-main:not(.reverse-active) > *:not(.learn-label):not(.photo-card):not(.credit):not(.busy),
+    .play > .bottombar > * {
+      grid-column: 2; align-self: start; margin-inline: 20px; position: relative; }
+    .play-main > .prompt { margin-top: 20px; }
+    .play > .bottombar > .action-row { margin-top: 18px; }
+    /* Fills of their own: bg-2 controls on a bg-2 pane would read as outlines. */
+    .play-main > .search.answer .input, .play-main > .study-answer,
+    .play-main > .choice-area .choice, .play-main > .where-area .choice { background: var(--bg); }
     /* Reverse mode has no single photo — the question IS a grid of photos, so
-       it takes the whole width back. */
-    .play-main.reverse-active { display: flex; }
-    /* "Where?" is a map and wants the width too. */
-    .play-main > .where-area:not(.hidden) { grid-column: 1 / -1; }
+       both panes collapse back to one column and the wrappers become real
+       boxes again. */
+    .play-main.reverse-active { display: flex; grid-column: 1 / -1; padding-inline: 0; }
+    .play-main.reverse-active ~ .bottombar { display: block; grid-column: 1 / -1; padding-inline: 0; }
+    .play-main.reverse-active ~ .bottombar .action-row { justify-content: center; }
+    /* One row of larger tiles instead of the phone's 2×2 — this is the mode
+       that most rewards being able to see the photos properly. */
+    .reverse-active .reverse-area { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    /* The busy / empty / error states replace #playMain's contents wholesale.
+       Their one child takes both panes, and borrows the photo's height so the
+       spinner lands in the middle of the card rather than under the top bar. */
+    .play-main > .busy { grid-column: 1 / -1; grid-row: 3 / 33;
+      min-height: calc(100dvh - 205px); align-content: center; }
 
-    /* The results screen is a short column of numbers and buttons; centred and
-       held narrow it reads far better than stretched across the card. */
-    .done > * { max-width: 520px; width: 100%; margin-left: auto; margin-right: auto; }
-    .bottombar .action-row { max-width: 720px; margin: 0 auto; }
-    /* Charts and lists read better at a sane measure than stretched over the
-       whole card, and the tab bar looks stranded at full width. */
-    .panel > * { max-width: 920px; width: 100%; margin-left: auto; margin-right: auto; }
+    /* The results screen: heading and figures across the top, then the actions
+       two abreast instead of a phone-length stack of full-width buttons. */
+    .done > * { max-width: 720px; width: 100%; margin-left: auto; margin-right: auto; }
+    #doneContent { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; align-items: start; }
+    #doneContent > .mascot, #doneContent > h2, #doneContent > .sub,
+    #doneContent > .stat-cards { grid-column: 1 / -1; }
+    /* The obvious next step keeps a line to itself; the alternatives pair up. */
+    #doneContent > .btn-primary { grid-column: 1 / -1; }
+    .done .btn { margin-bottom: 0; }
+
+    /* Progress panel: the head and the tab bar stay single, everything a tab
+       renders flows into two columns. It is a flat run of headings and rows
+       rather than nestable sections, so multi-column (which pours a flat flow)
+       fits it where a grid would not — and the headings become spanners, which
+       is what keeps each section's rows together under their own title. */
+    .panel { padding: 22px 26px 30px; }
+    .panel > * { max-width: 1060px; width: 100%; margin-left: auto; margin-right: auto; }
+    .panel > .tabs { max-width: 520px; }
+    .panel-body { columns: 2; column-gap: 40px; }
+    .panel-body > h3, .panel-body > .panel-sub, .panel-body > .empty,
+    .panel-body > .wk-overview, .panel-body > .wk-train-all, .panel-body > .level-switch,
+    .panel-body > .wk-overview-line, .panel-body > .heatmap, .panel-body > .hm-legend,
+    .panel-body > .code-box { column-span: all; }
+    .panel-body > .code-box { max-width: 560px; }
+    /* A button is inline-block, and column-span only takes on a block box. */
+    .panel-body > .wk-train-all { display: block; max-width: 560px; }
+    /* The practice grid sizes its cells from its own width, so left to span the
+       panel it becomes a wall of squares the size of the bar charts. Capped, it
+       stays the quick-glance calendar it is on a phone. */
+    .panel-body > .heatmap, .panel-body > .hm-legend { max-width: 430px; }
+    /* Without this a bar chart row can be cut in half down the column break. */
+    .panel-body > .wk-row, .panel-body > .cmp-row, .panel-body > .wk-species { break-inside: avoid; }
+
+    /* The sheet and the modals are sized for a thumb below this width. Given a
+       pointer and a keyboard they can be wider, and the options list — a flat
+       run of self-contained toggles — halves its scrolling in two columns. */
+    .sheet-card { max-width: 760px; }
+    .sheet-body { padding: 18px 22px 22px; }
+    #optionsPanel { columns: 2; column-gap: 32px; }
+    #optionsPanel > .field, #optionsPanel > .toggle { break-inside: avoid; }
+    /* A couple of rows carry an inline margin-bottom:0 because in one column
+       they come last. Side by side they no longer do, and an inline style can
+       only be outranked with !important. */
+    #optionsPanel > .field { margin-bottom: 18px !important; }
+    #optionsPanel > .aids-divider { column-span: all; }
+    .cert-modal-panel { width: min(820px, 100%); max-height: 86vh; }
+    /* A certificate list runs to hundreds of names; at this width two columns
+       halve the scrolling. The rule stands in for the gap so the zebra rows
+       still read as one table. */
+    .cert-modal-panel .cert-list { columns: 2; column-gap: 0; column-rule: 1.5px solid var(--line); }
+    .cert-modal-panel .cert-list-row { break-inside: avoid; }
+    .learn-popup-card { max-width: 640px; }
+  }
+
+  /* Wider still: the photo is the point of the app, so give it the extra pixels
+     rather than banking them as margin. */
+  @media (min-width: 1400px) { .app { max-width: 1320px; } }
+
+  /* ---- Pointer refinements ----------------------------------------------
+     Hover and focus rings only where there is a real pointer to produce them:
+     on a touchscreen a :hover style sticks after a tap and reads as a stuck
+     button, so this is gated on the device, not just the width. */
+  @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
+    /* A keyboard is a first-class way to play this on a laptop (see
+       setupShortcuts), so make the focused control unmistakable. */
+    :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(58,53,46,.18); }
+    .btn:active:not(:disabled) { transform: scale(.98); }
+    .chip:hover:not([disabled]):not(.active) { border-color: var(--line-2); }
+    .choice:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(58,53,46,.12); }
+    .tab:not(.active):hover { color: var(--ink); }
+    /* Chart and leaderboard rows are hit targets ("train this", "remove"), so
+       they should light up like one. */
+    .wk-row:hover, .cmp-row:hover { background: var(--bg-2); border-radius: 8px; }
+    .suggest-item { transition: background .1s ease; }
+    /* The gallery arrows sit on top of the photo — leave it clean until the
+       pointer is actually over it. */
+    .photo-card .photo-nav, .photo-card .photo-count { opacity: 0; transition: opacity .15s ease; }
+    .photo-card:hover .photo-nav, .photo-card:hover .photo-count,
+    .photo-card .photo-nav:focus-visible { opacity: 1; }
   }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -7188,7 +7334,11 @@ function renderPanel() {
   if (panelTab === "weak") body = renderWeakTab();
   else if (panelTab === "time") body = renderTimeTab();
   else body = renderVsTab();
-  el("progressPanel").innerHTML = head + body;
+  // The tab's own output is wrapped rather than dropped in beside the head:
+  // it gives the laptop stylesheet one element to pour into two columns, and
+  // the head and tab bar stay out of that flow. Click handling is delegated
+  // from #progressPanel, so an extra wrapper changes nothing there.
+  el("progressPanel").innerHTML = head + "<div class='panel-body'>" + body + "</div>";
 }
 
 // One row of the bar chart — shared by the family, genus, and species views.
