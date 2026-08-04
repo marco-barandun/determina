@@ -589,19 +589,15 @@
     background: rgba(255,255,255,.15); color: #fff; font-size: 13px; font-weight: 800;
     padding: 5px 14px; border-radius: 999px;
   }
-  /* The photo's attribution line and the observation's location map share one
-     row. The credit is a thin line of small type that never uses more than
-     half the width of a phone, so the map costs only the difference between
-     the credit's own height and the thumbnail's — about 18px — instead of a
-     whole row of its own. See .obs-mini further down. */
-  .credit-row { display: flex; align-items: flex-start; gap: 10px; flex: none; }
-  .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 6px 2px 0; flex: none; }
+  /* The photo's attribution line. It used to share a row with the observation
+     map, which rode beside it as a thumbnail; that map now floats in the
+     corner of the photo itself (see .obs-card), so this is a plain line of
+     small type again and the wrapper it needed is gone.
+     anywhere (not break-word) so a long unbroken "© Observer Name ·
+     iNaturalist" wraps instead of pushing the column wider. */
+  .credit { font-size: 11.5px; color: var(--faint); font-weight: 700; margin: 6px 2px 0;
+    flex: none; overflow-wrap: anywhere; }
   .credit a { color: var(--faint); }
-  /* In the row it takes the space the map leaves and wraps inside it: the row
-     is already as tall as the thumbnail, so a second or third line of a long
-     "© Observer Name · iNaturalist" is free. anywhere (not break-word) so a
-     long unbroken username can't push the map off the edge. */
-  .credit-row > .credit { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .prompt { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin: 10px 2px 8px; flex: none; }
   /* The answer controls keep their natural height — only the photo flexes. */
   .search.answer, .hint-area, .choice-area, .study-answer, .where-area { flex: none; }
@@ -702,8 +698,9 @@
   /* "Where was this seen?" — a continental map of the observation's own
      location, no longer behind a button in either layout. On a laptop it is
      drawn straight into the answer pane (see the min-width:1000px block); on a
-     phone it rides in the credit row as a thumbnail (see .obs-mini below).
-     .obs-btn is what is left over: the fallback when Leaflet never loaded. */
+     phone it floats in the bottom-right corner of the photo (see .obs-card
+     below). .obs-btn is what is left over: the fallback when Leaflet never
+     loaded. */
   .obs-location { margin-top: 12px; }
   .obs-location:empty { display: none; }
   .obs-btn {
@@ -721,66 +718,87 @@
     border: 2px solid var(--line); position: relative; z-index: 0; }
   .obs-map .leaflet-container { height: 100%; background: var(--bg-2); }
 
-  /* ---- The phone's permanent observation map ----------------------------
-     A square thumbnail that rides in the credit row (see .credit-row above)
-     rather than behind a button, so the location is simply always there. Tap
-     it and it takes the full width at a readable height, with zoom buttons and
-     an ✕ to put it back. Small it is inert — the ⤢ button covers it, so the
-     map underneath cannot be dragged by accident; enlarged, the whole body of
-     the map is drag and pinch, and nothing about touching it closes it. */
-  .obs-mini { flex: none; margin-top: 6px; }
-  .obs-mini:empty { display: none; }
-  /* z-index: 0 for the same reason .obs-map has it — it traps Leaflet's own
-     400–700 panes in this box so they can't paint over the suggestion
-     dropdown. The size change is deliberately not animated: the row flips
-     from a row to a column at the same moment, and Chrome will not interpolate
-     a width across that reflow — it simply holds the old value. Snapping also
-     means Leaflet's invalidateSize() lands on the final size. */
-  .obs-thumb {
-    position: relative; z-index: 0; width: 80px; height: 80px; overflow: hidden;
-    border-radius: 12px; border: 2px solid var(--line); background: var(--bg-2);
+  /* ---- The phone's observation map --------------------------------------
+     A small card floating in the bottom-right corner OF THE PHOTO, rather
+     than a thumbnail in the credit row underneath it. The photo is the thing
+     being identified and the map is a fact about that photo, so the two
+     belong against each other — and the corner of an image that is already
+     letterboxed costs no layout at all, which is what a phone has least of.
+     It is simply there to begin with, which is the point of the aid. When it
+     covers the part of the photo you need, a tap on the photo puts it away
+     (see the strip's click handler in wirePhotoGallery) and leaves the .obs-show
+     pill in its place. Tapping the card itself opens the full-screen map —
+     the one that drags and pinches.
+     z-index: 0 is load-bearing, not decoration: exactly as for .obs-map
+     above, it traps Leaflet's own 400–700 panes inside this box so they can
+     never paint over the answer input's suggestion dropdown. */
+  .obs-card {
+    position: absolute; right: 10px; bottom: 10px; z-index: 0;
+    width: min(46%, 190px); height: min(32%, 150px);
+    border-radius: 10px; overflow: hidden; border: 2px solid var(--line);
+    background: var(--photo-bg); box-shadow: 0 4px 14px rgba(0,0,0,.28);
+    transition: opacity .18s ease, transform .18s ease, visibility .18s;
   }
-  .obs-thumb > .obs-canvas { width: 100%; height: 100%; }
-  .obs-thumb .leaflet-container { width: 100%; height: 100%; background: var(--bg-2); }
-  /* The whole thumbnail IS the enlarge button — a transparent overlay filling
-     the square rather than a small badge with a click handler on the map, so
-     the tap target is the entire 80px, the control is focusable and labelled,
-     and the map beneath is genuinely unreachable while it is small. The ⤢ in
-     its corner is the only thing that paints. */
-  .obs-expand {
+  .obs-card > .obs-canvas { width: 100%; height: 100%; }
+  .obs-card .leaflet-container { width: 100%; height: 100%; background: var(--photo-bg); }
+  /* Unreadable at this size, and the tile terms are met on the full-screen
+     map — which is one tap away and always carries the attribution. */
+  .obs-card .leaflet-control-attribution { display: none; }
+  /* The whole card IS the enlarge button — a transparent overlay filling it
+     rather than a small badge with a click handler on the map, so the tap
+     target is the entire card, the control is focusable and labelled, and the
+     inert map beneath cannot be dragged by accident. The ⤢ in its corner is
+     the only part that paints. */
+  .obs-card-btn {
     position: absolute; inset: 0; z-index: 500; padding: 0; border: 0; background: none;
     cursor: pointer; display: flex; align-items: flex-start; justify-content: flex-end;
   }
-  .obs-expand > span {
+  .obs-card-btn > span {
     margin: 4px; background: rgba(0,0,0,.5); color: #fff; font-size: 11px; font-weight: 800;
     line-height: 1; padding: 3px 5px; border-radius: 6px;
   }
-  .obs-expand:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
-  /* The way out, and the only one: above Leaflet's own controls (z-index 800 –
-     1000) and in the corner they leave free — zoom buttons go top-left and the
-     attribution bottom-right. Hidden until the map is open, at which point the
-     ⤢ overlay is hidden in its place. */
-  .obs-close {
-    position: absolute; right: 6px; top: 6px; z-index: 1100; display: none;
-    width: 30px; height: 30px; padding: 0; cursor: pointer; border-radius: 999px;
-    border: 2px solid var(--line); background: var(--bg); color: var(--ink);
-    font-family: var(--font); font-size: 14px; font-weight: 800; line-height: 1;
+  .obs-card-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  /* Put away, and the pill that brings it back. visibility is transitioned
+     alongside the fade rather than left to opacity alone: opacity:0 still
+     takes tab stops and still reads out to a screen reader, and a discrete
+     property flips at the END of the transition going one way and at the
+     START coming back — which is exactly the timing wanted here. */
+  .photo-card.obs-away .obs-card { opacity: 0; transform: scale(.92); visibility: hidden; }
+  .obs-show {
+    position: absolute; right: 10px; bottom: 10px; z-index: 500;
+    background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 999px;
+    font-family: var(--font); font-size: 12px; font-weight: 800; padding: 6px 12px;
+    cursor: pointer; opacity: 0; visibility: hidden;
+    transition: opacity .18s ease, visibility .18s;
   }
-  .obs-close:hover { background: var(--bg-2); }
-  .credit-row.obs-open .obs-expand { display: none; }
-  .credit-row.obs-open .obs-close { display: block; }
-  /* Too small to read at 80px, and the tile terms are still met once enlarged. */
-  .credit-row:not(.obs-open) .obs-thumb .leaflet-control-attribution { display: none; }
-  /* Enlarged: the row becomes a stack, so the credit keeps its own line above
-     a full-width map instead of being squeezed into a column beside it. */
-  .credit-row.obs-open { flex-direction: column; align-items: stretch; }
-  .credit-row.obs-open > .obs-mini { width: 100%; margin-top: 8px; }
-  /* Taller than the 190px the button's map has always had, because this one is
-     meant to be pinched and dragged and a 190px letterbox gives a zoomed-in map
-     almost nothing to show. The dvh cap keeps a short phone from handing the
-     map so much of the screen that the photo it belongs to is squeezed to a
-     stamp — on a 640px phone it comes out at ~192px, on a tall one at 220. */
-  .credit-row.obs-open .obs-thumb { width: 100%; height: min(220px, 30dvh); }
+  .obs-show:hover { background: rgba(0,0,0,.7); }
+  .photo-card.obs-away .obs-show { opacity: 1; visibility: visible; }
+
+  /* ---- The full-screen observation map -----------------------------------
+     What the corner card opens into: the whole viewport, drag and pinch, zoom
+     buttons, and GBIF's tiles all the way in to z12 — the state in which
+     "where exactly was this?" can actually be answered. Lives outside .app
+     next to the lightbox and for the same reason: it is position:fixed, so it
+     covers whatever screen happens to be underneath. */
+  .obs-full { position: fixed; inset: 0; z-index: 60; background: var(--bg-2); }
+  .obs-full-map { position: absolute; inset: 0; }
+  .obs-full-map.leaflet-container { background: var(--bg-2); }
+  /* Above Leaflet's own controls (z-index 800–1000) and in the corner they
+     leave free — the zoom buttons sit top-left, the attribution bottom-right. */
+  .obs-full-close {
+    position: absolute; z-index: 1100; top: 14px; right: 14px; width: 42px; height: 42px;
+    display: grid; place-items: center; cursor: pointer; border-radius: 50%;
+    border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  .obs-full-close:hover { background: var(--bg-2); }
+  .obs-full-close svg { width: 20px; height: 20px; }
+  /* Bottom-LEFT: the attribution has the right-hand corner, and a caption
+     that says what the dot is costs nothing next to a map of empty country. */
+  .obs-full-tag {
+    position: absolute; z-index: 1100; left: 14px; bottom: 16px; pointer-events: none;
+    background: rgba(0,0,0,.6); color: #fff; font-size: 12.5px; font-weight: 800;
+    padding: 6px 13px; border-radius: 999px;
+  }
 
   /* Multiple-choice ("Choose") answer grid — recognition instead of recall. */
   .choice-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
@@ -866,7 +884,7 @@
     border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: var(--photo-bg); }
 
   /* Reverse questions (aid C): name shown, pick the matching photo. */
-  .reverse-active .photo-card, .reverse-active #credit, .reverse-active .credit-row { display: none; }
+  .reverse-active .photo-card, .reverse-active #credit { display: none; }
   .reverse-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
   .rev-photo { padding: 0; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer;
     background: var(--bg-2); aspect-ratio: 1; }
@@ -1209,16 +1227,10 @@
     .play-main > .photo-card { grid-column: 1; grid-row: 3 / 33;
       min-height: calc(100dvh - 205px); }
     /* The credit belongs to the photo, so it stays under it rather than
-       drifting to the top of the answer column.
-       The phone pairs the credit with the observation map in a .credit-row;
-       here there is a whole answer pane to put that map in, so the wrapper is
-       dissolved with display:contents (the same trick .play-main itself uses
-       above) and the credit goes back to being a grid item in its own right.
-       The map thumbnail inside it is display:none on this breakpoint — the
-       pane's own map is this layout's map — so it never places. */
-    .play-main > .credit-row { display: contents; }
-    .play-main > .credit-row > .credit { grid-column: 1; grid-row: 33; margin-top: 7px; }
-    .play-main > .credit-row > .obs-mini { display: none; }
+       drifting to the top of the answer column. (The observation map is not
+       its neighbour in either layout any more — on a phone it floats in the
+       photo's corner, and here it has the answer pane to itself.) */
+    .play-main > .credit { grid-column: 1; grid-row: 33; margin-top: 7px; }
     /* The answer pane's backdrop: a ::before rather than a wrapper element,
        again to avoid touching markup clearBusy() duplicates. It is taken out
        of flow because an in-flow item holding rows 3–32 of column 2 would
@@ -1570,14 +1582,11 @@
         </button>
         <span id="photoCount" class="photo-count hidden"></span>
       </div>
-      <!-- The credit and (on a phone) the observation's location map share one
-           row — see .credit-row in the CSS. #obsMini is the one-column layout's
-           map; #obsLocation below is the two-pane layout's, and exactly one of
-           the two is ever filled — see renderObsLocation(). -->
-      <div class="credit-row">
-        <div id="credit" class="credit"></div>
-        <div id="obsMini" class="obs-mini"></div>
-      </div>
+      <!-- The photo's attribution. On a phone the observation's location map
+           floats in the photo's own corner — showObsOverlay() builds it into
+           the .photo-card above; #obsLocation below is the two-pane layout's,
+           and exactly one of the two is ever filled — see renderObsLocation(). -->
+      <div id="credit" class="credit"></div>
       <h2 id="promptText" class="prompt">What species is this?</h2>
       <div class="search answer">
         <!-- autocomplete/autocorrect are aggressively disabled: the browser's own
@@ -1702,6 +1711,21 @@
     <img id="lightboxImg" alt="Species photo, zoomed in">
   </div>
   <span id="lightboxCount" class="lightbox-count hidden"></span>
+</div>
+
+<!-- ====================== FULL-SCREEN OBSERVATION MAP ======================
+     The corner map on the photo (see .obs-card) opened out to the whole
+     viewport, where it is a real map: drag, pinch, zoom buttons, GBIF tiles
+     to z12. Outside .app for the same reason the lightbox is — position:fixed
+     covers whatever is underneath. The map itself is built into #obsFullMap
+     on open and torn down on close, so it never holds tiles in the
+     background; see openObsFull(). -->
+<div id="obsFull" class="obs-full hidden">
+  <div id="obsFullMap" class="obs-full-map"></div>
+  <span class="obs-full-tag">Observed here</span>
+  <button id="obsFullClose" class="obs-full-close" aria-label="Close the map">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
 </div>
 
 <!-- ============================ LEARN-MORE POPUP ===========================
@@ -1906,7 +1930,7 @@
       <label class="toggle field">
         <span>
           <b>Show where it was seen on a map</b>
-          <span class="hint">Keeps a small map of this observation's own spot on screen while you answer. On a phone it sits beside the photo credit — tap it to enlarge, zoom and drag.</span>
+          <span class="hint">Keeps a small map of this observation's own spot on screen while you answer. On a phone it sits in the corner of the photo — tap the photo to put it away, or tap the map itself for a full-screen one you can zoom and drag.</span>
         </span>
         <input id="obsMapToggle" type="checkbox" checked>
         <span class="switch"></span>
@@ -6738,8 +6762,7 @@ function clearBusy() {
         "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg></button>" +
       "<span id='photoCount' class='photo-count hidden'></span>" +
     "</div>" +
-    "<div class='credit-row'><div id='credit' class='credit'></div>" +
-      "<div id='obsMini' class='obs-mini'></div></div>" +
+    "<div id='credit' class='credit'></div>" +
     "<h2 id='promptText' class='prompt'>What species is this?</h2>" +
     "<div class='search answer'><input id='answerInput' class='input answer-input' placeholder='Type the species' " +
       "type='text' autocomplete='off' autocorrect='off' autocapitalize='none' spellcheck='false' " +
@@ -7035,33 +7058,39 @@ async function showDistributionMap(mapBox, scientificName, token) {
 //
 //    Two-pane (>= 1000px): drawn straight into the answer pane, which has a
 //      whole column to spare. Interactive from the start, like any map.
-//    One column (a phone): an 80px square riding in the photo credit's row
-//      (see .credit-row / .obs-mini), which costs only the difference between
-//      the credit's height and the thumbnail's. Tap it and it takes the full
-//      width and becomes a real map — drag, pinch, zoom buttons — with an ×
-//      to put it back.
+//    One column (a phone): a small card floating in the bottom-right corner of
+//      the photo itself (see .obs-card), which costs no layout at all — the
+//      photo is letterboxed anyway. It is inert at that size; tapping it opens
+//      the full-screen map, and tapping the PHOTO puts it away when it covers
+//      something, leaving a pill to bring it back.
 //
-//  Either way it is ONE map instance in ONE of two containers, torn down and
-//  rebuilt per question by destroyObsMap() so Leaflet never reuses a stale
-//  container. The old button survives only as the fallback for a Leaflet that
-//  never arrived off its CDN.
+//  Either way it is ONE small map instance in ONE of two containers, torn down
+//  and rebuilt per question by destroyObsMap() so Leaflet never reuses a stale
+//  container. The full-screen map is a second, separate instance with a life of
+//  its own (openObsFull / closeObsFull), so nothing holds tiles in the
+//  background once it is shut. The old button survives only as the fallback for
+//  a Leaflet that never arrived off its CDN.
 let obsMap = null;
-let obsMapExpanded = false;   // phone thumbnail: is it currently at full width?
-let obsZoomCtl = null;        // Leaflet zoom buttons, only while expanded
-let obsLatLng = null;         // the point the map is centred on, for re-centring
+let obsFullMap = null;        // the full-screen map, alive only while it is open
+let obsLatLng = null;         // the point both maps are centred on
+// Whether the reader has put the corner card away. Deliberately a session
+// value rather than a per-question one: someone who taps the photo to clear it
+// is telling us they want the photo unobstructed, and re-floating the map over
+// every following question would make them say it again each time. The Options
+// switch (obsMapAid) is the permanent version of the same answer.
+let obsOverlayHidden = false;
 
-// The single teardown for both layouts. It has to empty the thumbnail's box as
-// well as drop the map, because the two layouts write into different containers
-// and a leftover #obsMini would either show a dead map beside a live one or
-// hand Leaflet a container it already initialised. #obsLocation is cleared by
-// renderObsLocation(), which is the only thing that writes into it.
+// The single teardown for both layouts. It drops the map AND the corner card's
+// elements, because Leaflet will not initialise into a container it has used
+// before and a leftover card would otherwise sit dead on the next photo.
+// #obsLocation is cleared by renderObsLocation(), the only thing that writes
+// into it.
 function destroyObsMap() {
   if (obsMap) { obsMap.remove(); obsMap = null; }
-  obsZoomCtl = null; obsMapExpanded = false; obsLatLng = null;
-  const mini = el("obsMini");
-  if (mini) mini.innerHTML = "";
-  const row = mini && mini.closest(".credit-row");
-  if (row) row.classList.remove("obs-open");
+  obsLatLng = null;
+  document.querySelectorAll(".obs-card, .obs-show").forEach((n) => n.remove());
+  const card = document.querySelector(".photo-card");
+  if (card) card.classList.remove("obs-away");
 }
 
 // Which of the two layouts is on screen, asked at render time rather than
@@ -7075,7 +7104,7 @@ function obsTwoPane() { return window.matchMedia(OBS_TWO_PANE).matches; }
 // built for while the other layout's container sits empty, which on the way to
 // the two-pane layout means no map on screen at all. Rebuilding is cheap.
 window.matchMedia(OBS_TWO_PANE).addEventListener("change", () => {
-  if (el("obsMini") && !el("play").classList.contains("hidden")) renderObsLocation();
+  if (el("photoStrip") && !el("play").classList.contains("hidden")) renderObsLocation();
 });
 
 // "lat,lng" as iNaturalist gives it -> [lat, lng], or null if it isn't usable.
@@ -7085,10 +7114,12 @@ function parseCoords(coords) {
 }
 
 const OBS_DOT = { radius: 7, color: "#b0521f", weight: 3, fillColor: "#d1662e", fillOpacity: .9 };
-// The phone thumbnail's two zooms. Enlarged it opens on the same view the
-// two-pane map does; collapsed it is two levels out, because at 80px the
-// continental zoom would be a patch of land with no coastline in it to place.
-const OBS_ZOOM_MINI = 2, OBS_ZOOM_FULL = 4;
+// Three sizes of map, three sensible starting zooms. OBS_ZOOM_FULL is the
+// two-pane pane's. The corner card is a locator, so it sits a level out —
+// enough coastline or border in frame to place the dot at a glance. The
+// full-screen one starts a level IN instead: it has the whole viewport, and
+// the reason to open it at all is to look closer.
+const OBS_ZOOM_CARD = 3, OBS_ZOOM_FULL = 4, OBS_ZOOM_SCREEN = 5;
 // GBIF serves this basemap well past the old cap of 8 — checked against
 // tile.gbif.org at z10 and z12 on four continents, all real tiles, not blanks.
 // 12 is roughly "which valley", which is as far as a single observation's
@@ -7113,7 +7144,7 @@ function renderObsLocation() {
   // Each layout builds into its own container and reports whether it managed
   // it. The button is what is left when Leaflet never loaded: pressing it then
   // simply fails, instead of the question rendering short.
-  if (obsTwoPane() ? showObsMap(coords) : showObsThumb(coords)) { setObsKeyRow(false); return; }
+  if (obsTwoPane() ? showObsMap(coords) : showObsOverlay(coords)) { setObsKeyRow(false); return; }
   box.innerHTML = "<button type='button' id='obsMapBtn' class='obs-btn'>📍 Where was this seen?</button>";
   el("obsMapBtn").addEventListener("click", () => showObsMap(coords));
   setObsKeyRow(true);
@@ -7149,82 +7180,119 @@ function showObsMap(coords) {
   return true;
 }
 
-// The phone's version: the same map, built into the credit row as an 80px
-// square and left there for the whole question. Returns the same "did it
-// build?" answer showObsMap() does.
-function showObsThumb(coords) {
+// The phone's version: the same map, built into the corner of the photo and
+// left there for the whole question. Returns the same "did it build?" answer
+// showObsMap() does, so the caller can fall back to the button.
+function showObsOverlay(coords) {
   const latlng = parseCoords(coords);
-  const mini = el("obsMini");
-  if (!latlng || !mini || typeof L === "undefined") return false;
+  const card = document.querySelector(".photo-card");
+  if (!latlng || !card || typeof L === "undefined") return false;
   destroyObsMap();
   obsLatLng = latlng;
-  // Two overlaid controls rather than a click handler on the map: while it is
-  // a thumbnail the expand button covers the whole square, so the square IS the
-  // button — focusable, labelled, and with the map genuinely unreachable under
-  // it. Enlarged, that button is gone and the × is the only way back, so every
-  // drag and pinch on the map body is just a drag and a pinch.
-  mini.innerHTML =
-    "<div id='obsThumb' class='obs-thumb'>" +
+  // Two elements, only one of them ever on screen: the card, and the pill that
+  // stands in for it once the photo has been tapped. Both are built here and
+  // both are removed by destroyObsMap(), so the next question starts clean.
+  // The card's own button covers it entirely — see .obs-card-btn — which is
+  // what makes the whole card the tap target AND keeps the inert map under it
+  // out of reach of a stray swipe.
+  card.insertAdjacentHTML("beforeend",
+    "<div class='obs-card'>" +
       "<div id='obsMap' class='obs-canvas'></div>" +
-      "<button type='button' id='obsExpandBtn' class='obs-expand' aria-expanded='false' " +
-        "aria-label='Where this was seen — enlarge the map'><span aria-hidden='true'>⤢</span></button>" +
-      "<button type='button' id='obsCloseBtn' class='obs-close' " +
-        "aria-label='Close the map'><span aria-hidden='true'>✕</span></button>" +
-    "</div>";
-  // Inert while small: at 80px a drag or a pinch could only ever be an
-  // accident, and the handlers are enabled the moment it is worth having them.
+      "<button type='button' id='obsCardBtn' class='obs-card-btn' " +
+        "aria-label='Where this was seen — open the full-screen map'>" +
+        "<span aria-hidden='true'>⤢</span></button>" +
+    "</div>" +
+    "<button type='button' id='obsShowBtn' class='obs-show' " +
+      "aria-label='Show where this was seen'>📍 Where?</button>");
+  // Inert at this size: every handler off, so a swipe across the photo can
+  // never be swallowed by the map sitting on top of it. The full-screen map is
+  // where dragging and pinching happen.
   obsMap = L.map("obsMap", {
     attributionControl: true, zoomControl: false, worldCopyJump: true,
     dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false,
     boxZoom: false, keyboard: false,
-  }).setView(latlng, OBS_ZOOM_MINI);
+  }).setView(latlng, OBS_ZOOM_CARD);
   L.tileLayer(OBS_TILES, OBS_TILE_OPTS).addTo(obsMap);
   L.circleMarker(latlng, OBS_DOT).addTo(obsMap);
-  el("obsExpandBtn").addEventListener("click", () => setObsThumbOpen(true));
-  el("obsCloseBtn").addEventListener("click", (e) => { e.stopPropagation(); setObsThumbOpen(false); });
+  el("obsCardBtn").addEventListener("click", openObsFull);
+  el("obsShowBtn").addEventListener("click", () => setObsOverlayShown(true));
+  // Carry the reader's earlier "put it away" into this question — see
+  // obsOverlayHidden. Set before the first paint, so a card that is meant to
+  // be away never flashes over the photo on its way there.
+  card.classList.toggle("obs-away", obsOverlayHidden);
   obsMap.invalidateSize();
+  // Measured again on the next frame, for the reason showObsMap() gives: built
+  // with the question rather than by a click, the photo it sits in can still be
+  // mid-layout, and a Leaflet that measured itself at 0×0 stays that size.
   const built = obsMap;
   requestAnimationFrame(() => { if (obsMap === built) obsMap.invalidateSize(); });
   return true;
 }
 
-// Thumbnail <-> full width. Everything that makes the map a map is switched on
-// and off here, so the small state stays inert and the large one behaves like
-// the map in the answer pane.
-function setObsThumbOpen(open) {
-  const thumb = el("obsThumb");
-  if (!obsMap || !thumb || !obsLatLng || open === obsMapExpanded) return;
-  obsMapExpanded = open;
-  // Whether the control being replaced had focus, so closing with the keyboard
-  // hands it to the ⤢ that takes the ✕'s place instead of dropping it to <body>.
-  const hadFocus = document.activeElement === el("obsCloseBtn");
-  const row = thumb.closest(".credit-row");
-  if (row) row.classList.toggle("obs-open", open);
-  const expand = el("obsExpandBtn");
-  if (expand) expand.setAttribute("aria-expanded", String(open));
-  // Leaflet's own `keyboard` handler is deliberately left off: it puts the map
-  // container in the tab order and makes the arrow keys pan it, and the arrows
-  // already page through the photos.
-  ["dragging", "touchZoom", "doubleClickZoom", "scrollWheelZoom"]
-    .forEach((h) => obsMap[h] && obsMap[h][open ? "enable" : "disable"]());
-  if (open && !obsZoomCtl) { obsZoomCtl = L.control.zoom({ position: "topleft" }); obsZoomCtl.addTo(obsMap); }
-  if (!open && obsZoomCtl) { obsZoomCtl.remove(); obsZoomCtl = null; }
-  // Re-measure BEFORE re-centring: a setView against the old size would put the
-  // marker wherever the old centre happened to fall in the new box. Collapsing
-  // also throws away whatever the reader zoomed to, which is the point — the
-  // thumbnail is a locator, not a saved view.
-  obsMap.invalidateSize({ animate: false });
-  obsMap.setView(obsLatLng, open ? OBS_ZOOM_FULL : OBS_ZOOM_MINI, { animate: false });
-  // The photo above shrinks to pay for the taller map, and that reflow can land
-  // after this frame — measure once more when it has, keeping the marker in the
-  // middle, or Leaflet holds the old size and leaves a band of missing tiles.
-  const built = obsMap;
-  requestAnimationFrame(() => {
-    if (obsMap !== built || !obsLatLng) return;
-    obsMap.invalidateSize({ animate: false });
-    obsMap.setView(obsLatLng, obsMap.getZoom(), { animate: false });
+// Show or put away the corner card. The answer is remembered for the session
+// (obsOverlayHidden), so it holds for the questions after this one too.
+function setObsOverlayShown(shown) {
+  const card = document.querySelector(".photo-card");
+  if (!card || !card.querySelector(".obs-card")) return false;
+  obsOverlayHidden = !shown;
+  card.classList.toggle("obs-away", !shown);
+  // Focus follows the control that just took the other one's place, so putting
+  // the map away and bringing it back with a keyboard doesn't drop focus to
+  // <body>. Guarded on the outgoing control actually having had it — a mouse
+  // click shouldn't move focus anywhere.
+  const from = el(shown ? "obsShowBtn" : "obsCardBtn");
+  const to = el(shown ? "obsCardBtn" : "obsShowBtn");
+  if (from && to && document.activeElement === from) to.focus({ preventScroll: true });
+  return true;
+}
+
+// Used by the photo's own click handler (see wirePhotoGallery): puts the card
+// away if it is out, and reports whether it did — which is what lets that tap
+// mean "clear the view" the first time and "zoom the photo" after.
+function hideObsOverlay() {
+  if (obsOverlayHidden) return false;
+  return setObsOverlayShown(false);
+}
+
+// The full-screen map: a second instance, built on open and thrown away on
+// close rather than kept alive behind the photo. A map nobody is looking at
+// has no business holding tiles, and building fresh is also what guarantees
+// Leaflet measures itself against a container that is already full-screen.
+function openObsFull() {
+  if (!obsLatLng || typeof L === "undefined") return;
+  el("obsFull").classList.remove("hidden");
+  document.documentElement.style.overflow = "hidden";   // stop the page scrolling behind it
+  closeObsFullMap();
+  el("obsFullMap").innerHTML = "";
+  obsFullMap = L.map("obsFullMap", { attributionControl: true, zoomControl: true, worldCopyJump: true })
+    .setView(obsLatLng, OBS_ZOOM_SCREEN);
+  L.tileLayer(OBS_TILES, OBS_TILE_OPTS).addTo(obsFullMap);
+  L.circleMarker(obsLatLng, OBS_DOT).addTo(obsFullMap);
+  obsFullMap.invalidateSize();
+  const built = obsFullMap;
+  requestAnimationFrame(() => { if (obsFullMap === built) obsFullMap.invalidateSize(); });
+}
+
+function closeObsFull() {
+  el("obsFull").classList.add("hidden");
+  document.documentElement.style.overflow = "";
+  closeObsFullMap();
+  // Back to the card that opened it, so the way out of the full-screen map
+  // lands the keyboard where the way in was.
+  const btn = el("obsCardBtn");
+  if (btn) btn.focus({ preventScroll: true });
+}
+
+function closeObsFullMap() {
+  if (obsFullMap) { obsFullMap.remove(); obsFullMap = null; }
+}
+
+// Static markup, so unlike the corner card this only needs wiring once.
+function wireObsFull() {
+  el("obsFullClose").addEventListener("click", closeObsFull);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("obsFull").classList.contains("hidden")) closeObsFull();
   });
-  if (!open && hadFocus && el("obsExpandBtn")) el("obsExpandBtn").focus({ preventScroll: true });
 }
 
 // -- Study mode's range map ------------------------------------------------
@@ -8117,8 +8185,16 @@ function wirePhotoGallery() {
   el("photoExpand").addEventListener("click", () => openLightbox(currentPhotoIndex()));
   // Tapping the photo itself also opens it — a swipe to browse still just
   // scrolls the strip, since that never fires a "click".
+  // With the location map floating in the photo's corner, that tap does one
+  // thing first: it puts the map away. The photo is what is being identified,
+  // so "get this off my picture" is the likelier meaning of a tap while the
+  // map is covering it, and only once it is gone does a tap zoom. Nothing
+  // becomes unreachable — the ⤢ button above opens the lightbox either way,
+  // and hideObsOverlay() reports false whenever there was no map to put away.
   el("photoStrip").addEventListener("click", (e) => {
-    if (e.target.tagName === "IMG") openLightbox(currentPhotoIndex());
+    if (e.target.tagName !== "IMG") return;
+    if (hideObsOverlay()) return;
+    openLightbox(currentPhotoIndex());
   });
 }
 
@@ -8319,6 +8395,7 @@ function wireControls() {
   wireAnswerInput();
   wirePhotoGallery();
   wireLightbox();
+  wireObsFull();
   wireLearnPopup();
   wireMapPopup();
   wireSheet();
