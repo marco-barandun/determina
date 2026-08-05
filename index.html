@@ -6,6 +6,12 @@
 <title>LearnIt — species ID trainer</title>
 
 <!--
+  Copyright (c) 2025-2026 Marco Barandun. All rights reserved.
+  Proprietary software. No copying, redistribution, re-hosting or derivative
+  works without prior written permission. See the LICENSE file in this repo.
+-->
+
+<!--
   LEARNIT — a species-identification trainer built on iNaturalist.
 
   A single static file. No build step, no server, no API key, no libraries.
@@ -4994,9 +5000,28 @@ function trackRound(finished) {
   const ret = retentionBuckets();               // read BEFORE incrementing
   if (finished) lsSet(ANALYTICS_ROUNDS, String(rounds + 1));
 
+  // The three things a round is "about", each collapsed to one coarse value so
+  // no combination is rare enough to single anybody out: a single taxon or
+  // "mixed"; a single region, "world" for global, or "mixed"; the certificate
+  // or "nocert". Regions carry a null-id World placeholder, so filter it out
+  // before deciding how many real ones there are.
+  const realRegions = (game.regions || []).filter((r) => r.id !== null);
+  const groupSlug  = game.taxa && game.taxa.length === 1 ? slug(game.taxa[0].name) : "mixed";
+  const regionSlug = realRegions.length === 0 ? "world"
+                   : realRegions.length === 1 ? slug(realRegions[0].name) : "mixed";
+  const certSlug   = certChoice && certChoice !== "none" ? slug(certChoice) : "nocert";
+
   track("/e/round/" + slug(game.answerMode) + "-" + slug(game.media));
-  track("/e/group/" + (game.taxa && game.taxa.length === 1 ? slug(game.taxa[0].name) : "mixed"));
-  if (certChoice && certChoice !== "none") track("/e/cert/" + slug(certChoice));
+  track("/e/group/" + groupSlug);
+  track("/e/region/" + regionSlug);
+  if (certChoice && certChoice !== "none") track("/e/cert/" + certSlug);
+  // The three dimensions on one path, so the dashboard answers "which taxa, in
+  // which region, with which certificate" directly instead of by crossing three
+  // separate lists by hand. Slash-separated so a prefix search narrows it —
+  // "/e/mix/plantae/" for every region+cert a plant round used, and so on. Same
+  // coarse buckets as the events above, so this only exposes their co-occurrence,
+  // nothing the three separate counts don't already say on their own.
+  track("/e/mix/" + groupSlug + "/" + regionSlug + "/" + certSlug);
 
   const asked = game.round ? game.round.size : 0;
   if (finished && asked) {
