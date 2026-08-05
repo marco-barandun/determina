@@ -241,3 +241,14 @@ There is no automated test suite. Verification is manual, in a browser:
   pop-up, and confirm the suggestion dropdown still covers the map while typing.
 - Test with `localStorage` cleared to confirm first-run behaviour (the intro
   walkthrough and empty-profile paths).
+
+---
+
+## License
+
+Copyright (c) 2025-2026 Marco Barandun. All rights reserved.
+
+This is proprietary software, not open source. The source code is public so
+that it can be viewed and run, but no permission is granted to copy, modify,
+redistribute, re-host, or create derivative works from it without prior written
+permission. See [`LICENSE`](LICENSE) for the full terms.
